@@ -15,7 +15,7 @@ body {
   background: #f7f7f8;
   color: #111;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Helvetica Neue",
-    "Noto Sans Thai", "Sukhumvit Set", sans-serif;
+    "Noto Sans Thai Looped", "Noto Sans Thai", "Leelawadee UI", "Tahoma", sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,9 +23,14 @@ body {
 }
 
 .thai-big {
-  font-family: "Noto Sans Thai", "Sukhumvit Set", "Tahoma", sans-serif;
+  font-family: "Noto Sans Thai Looped", "Noto Sans Thai", "Leelawadee UI", "Tahoma", sans-serif;
   font-feature-settings: "kern" 1;
 }
+
+.thai-font-looped { font-family: "Noto Sans Thai Looped", "Leelawadee UI", "Tahoma", sans-serif; }
+.thai-font-noto { font-family: "Noto Sans Thai", "Leelawadee UI", "Tahoma", sans-serif; }
+.thai-font-system { font-family: "Leelawadee UI", "Tahoma", sans-serif; }
+.thai-font-serif { font-family: "Th Sarabun New", "Sarabun", serif; }
 
 @layer components {
   .btn {

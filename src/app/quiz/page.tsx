@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { CONSONANTS, consonantsByInitialSound } from "@/data/consonants";
+import { CONSONANTS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import { Consonant, Vowel } from "@/data/types";
 import PronounceButton from "@/components/PronounceButton";
@@ -142,58 +142,34 @@ function ModeA({ pool }: { pool: Pool }) {
   );
 }
 
-/* ---------------- 模式 B: 给读音，选字母（同音多选）---------------- */
+/* ---------------- 模式 B: 给读音，选字母（单选）---------------- */
 function ModeB({ pool }: { pool: Pool }) {
   if (pool === "consonant") return <ModeBConsonant />;
   return <ModeBVowel />;
 }
 
 function ModeBConsonant() {
-  const groups = useMemo(() => consonantsByInitialSound(), []);
-  const sounds = useMemo(() => Object.keys(groups), [groups]);
+  const items = useMemo(() => CONSONANTS.filter((c) => !c.obsolete), []);
   const [round, setRound] = useState(0);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [submitted, setSubmitted] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
   const [streak, setStreak] = useState({ ok: 0, total: 0 });
 
   const q = useMemo(() => {
     void round;
-    const sound = sounds[Math.floor(Math.random() * sounds.length)];
-    const correctIds = new Set(groups[sound]);
-    const distractors = CONSONANTS.filter((c) => !c.obsolete && !correctIds.has(c.id));
-    const want = Math.max(4, correctIds.size + 2);
-    const correctConsonants = CONSONANTS.filter((c) => correctIds.has(c.id));
+    const target = items[Math.floor(Math.random() * items.length)];
+    const choices = uniqueChoices(target, items, 4, (item) => item.id);
+    return { target, choices };
+  }, [items, round]);
 
-    // 干扰项：确保每个不同读音只有一个代表（避免同音干扰项）
-    const bySound: Record<string, Consonant> = {};
-    for (const d of shuffle(distractors)) {
-      if (!bySound[d.romanInitial]) bySound[d.romanInitial] = d;
-    }
-    const others = Object.values(bySound).slice(0, Math.max(0, want - correctConsonants.length));
-
-    return { sound, correctIds, choices: shuffle([...correctConsonants, ...others]) };
-  }, [sounds, groups, round]);
-
-  function toggle(id: string) {
-    if (submitted) return;
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-  function submit() {
-    if (selected.size === 0) return;
-    setSubmitted(true);
-    const ok =
-      selected.size === q.correctIds.size &&
-      [...selected].every((id) => q.correctIds.has(id));
+  function pick(id: string) {
+    if (picked) return;
+    const ok = id === q.target.id;
+    setPicked(id);
     setStreak((s) => ({ ok: s.ok + (ok ? 1 : 0), total: s.total + 1 }));
   }
+
   function next() {
-    setSubmitted(false);
-    setSelected(new Set());
+    setPicked(null);
     setRound((r) => r + 1);
   }
 
@@ -201,41 +177,39 @@ function ModeBConsonant() {
     <div className="space-y-4">
       <div className="card p-5 flex items-center justify-between">
         <div>
-          <div className="text-xs opacity-60">哪些辅音读 (初音):</div>
-          <div className="text-3xl font-mono mt-1">{q.sound}</div>
-          <div className="text-xs opacity-60 mt-1">同音可多选</div>
+          <div className="text-xs opacity-60">哪个辅音读:</div>
+          <div className="text-3xl font-mono mt-1">{q.target.romanInitial}</div>
+          <div className="text-xs opacity-60 mt-1">单选一个字母</div>
         </div>
         <div className="text-sm opacity-70">{streak.ok} / {streak.total}</div>
       </div>
       <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {q.choices.map((c) => {
-          const isSel = selected.has(c.id);
-          const isCorrect = q.correctIds.has(c.id);
-          let cls = "btn-ghost";
-          if (submitted) {
-            if (isCorrect) cls = "btn-primary bg-emerald-600 dark:bg-emerald-500 text-white";
-            else if (isSel) cls = "btn-ghost ring-2 ring-rose-500";
-          } else if (isSel) cls = "btn-primary";
+          const isPicked = picked === c.id;
+          const isCorrect = c.id === q.target.id;
+          const cls = !picked
+            ? "btn-ghost"
+            : isCorrect
+            ? "btn-primary bg-emerald-600 dark:bg-emerald-500 text-white"
+            : isPicked
+            ? "btn-ghost ring-2 ring-rose-500"
+            : "btn-ghost opacity-60";
           return (
             <li key={c.id}>
-              <button onClick={() => toggle(c.id)} className={`${cls} w-full thai-big text-2xl py-3`}>
+              <button onClick={() => pick(c.id)} className={`${cls} w-full thai-big text-2xl py-3`}>
                 {c.letter}
               </button>
             </li>
           );
         })}
       </ul>
-      <div className="flex justify-between">
-        {!submitted ? (
-          <button onClick={submit} className="btn-primary text-sm py-2 px-4">提交</button>
-        ) : (
-          <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
-        )}
-        <span className="text-xs opacity-60 self-center">已选 {selected.size} 个</span>
+      <div className="flex justify-end">
+        <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
       </div>
-      {submitted && (
+      {picked && (
         <div className="card p-3 text-sm">
-          正确答案: {[...q.correctIds].map((id) => CONSONANTS.find((c) => c.id === id)?.letter).join(" ")}
+          答案: <span className="thai-big text-xl">{q.target.letter}</span>
+          <span className="ml-2 opacity-70">{q.target.name} · {q.target.meaning}</span>
         </div>
       )}
     </div>

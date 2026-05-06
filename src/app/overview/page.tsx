@@ -77,6 +77,8 @@ function Consonants() {
         ))}
       </ul>
 
+      <FontCompare />
+
       <section className="card p-4 mt-4">
         <h3 className="font-semibold mb-2">尾辅音读音规则</h3>
         <ul className="text-sm space-y-1">
@@ -89,6 +91,48 @@ function Consonants() {
         </ul>
       </section>
     </div>
+  );
+}
+
+const FONT_SAMPLES = ["ก", "ข", "ค", "ฆ", "ด", "ต", "ถ", "ภ", "ญ", "ณ", "ฬ", "ฮ"];
+
+function FontCompare() {
+  const fonts = [
+    { label: "规范 Looped", className: "thai-font-looped" },
+    { label: "Noto Sans", className: "thai-font-noto" },
+    { label: "系统 Thai", className: "thai-font-system" },
+    { label: "Sarabun", className: "thai-font-serif" },
+  ];
+
+  return (
+    <section className="card p-4">
+      <h3 className="font-semibold">字体对照</h3>
+      <p className="mt-1 text-xs opacity-70">主字体优先使用更规范的 looped 泰文字体；这里可以横向比较容易混淆的字母。</p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[520px] text-left text-xs">
+          <thead className="opacity-60">
+            <tr>
+              <th className="py-2 pr-3 font-medium">字体</th>
+              {FONT_SAMPLES.map((letter) => (
+                <th key={letter} className="py-2 text-center font-medium">{letter}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {fonts.map((font) => (
+              <tr key={font.label} className="border-t border-black/5 dark:border-white/10">
+                <td className="py-2 pr-3 whitespace-nowrap opacity-70">{font.label}</td>
+                {FONT_SAMPLES.map((letter) => (
+                  <td key={letter} className={`${font.className} py-2 text-center text-2xl leading-none`}>
+                    {letter}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

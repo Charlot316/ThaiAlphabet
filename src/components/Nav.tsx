@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/", label: "首页" },
   { href: "/overview", label: "总览" },
+  { href: "/course", label: "课程" },
+  { href: "/flashcards", label: "速看" },
   { href: "/quiz", label: "选择题" },
   { href: "/srs", label: "记忆" },
   { href: "/write", label: "书写" },
@@ -25,7 +27,7 @@ export default function Nav() {
         </div>
       </header>
       <nav className="fixed bottom-0 left-0 right-0 z-20 border-t border-black/10 dark:border-white/10 bg-white/95 dark:bg-[#15171b]/95 backdrop-blur">
-        <ul className="mx-auto max-w-2xl grid grid-cols-6">
+        <ul className="mx-auto grid max-w-2xl grid-cols-8">
           {TABS.map((t) => {
             const active = pathname === t.href || (t.href !== "/" && pathname?.startsWith(t.href));
             return (
