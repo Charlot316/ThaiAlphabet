@@ -1,42 +1,55 @@
-import { CONSONANTS } from "@/data/consonants";
+import { CONSONANTS, CONSONANT_BY_ID } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import { calculateTone, syllableLifetime, TONE_MARKS, TONE_NAMES } from "@/data/tones";
-import { Consonant, ToneMark, ToneName, Vowel } from "@/data/types";
+import { Consonant, ConsonantClass, ToneMark, ToneName, Vowel } from "@/data/types";
 
 export interface BuiltSyllable {
-  initial: Consonant;
+  initial: Consonant;            // 真正发音的初辅音（若有 ห-引导，这是 ห 后面的低辅音）
+  silentLeader: Consonant | null; // ห-引导时的 ห；否则 null
+  effectiveClass: ConsonantClass; // 用于声调推导的辅音类别
   vowel: Vowel;
   finalConsonant: Consonant | null;
   toneMark: ToneMark;
-  thai: string;          // 拼出的泰语字符串（含字符位置）
-  roman: string;         // 罗马音
-  tone: ToneName;        // 计算出的声调
+  thai: string;
+  roman: string;
+  tone: ToneName;
   life: "live" | "dead";
+  rule?: string; // 特殊规则说明（如 ห-引导）
 }
 
 const PLACEHOLDER = /◌/g;
 
 /**
- * 把 vowel.form 中的 ◌ 替换为辅音，并按需要插入尾辅音与声调符号。
- * 复杂的元音形态（前置/后置/绕字符）通过简单替换得到正确视觉效果。
- * 对于带尾辅音的「元音简化」(如 โ-ะ + 尾 -> 短 o 形式) 不做特殊形变，保留显式形态以便学习理解。
+ * 生成 Thai 字符串：
+ * - 把 ◌ 替换为 (silentLeader + initial) 或仅 initial
+ * - 部分元音 + 尾辅音组合需要变形（如 ัว → ว- before final）
+ * - 声调符号放在最上方辅音之后
  */
 export function renderSyllableThai(
   initial: Consonant,
+  silentLeader: Consonant | null,
   vowel: Vowel,
   finalConsonant: Consonant | null,
   mark: ToneMark
 ): string {
-  let s = vowel.form.replace(PLACEHOLDER, initial.letter);
+  let form = vowel.form;
+
+  // ัว + 尾 → -ว- + 尾（去掉 ั）
+  if (vowel.id === "ua-long" && finalConsonant) {
+    form = "◌ว";
+  }
+
+  const replacement = (silentLeader ? silentLeader.letter : "") + initial.letter;
+  let s = form.replace(PLACEHOLDER, replacement);
+
   const markSymbol = TONE_MARKS.find((m) => m.id === mark)?.symbol ?? "";
   if (mark !== "none" && markSymbol) {
-    // 把声调符号尽量放在初辅音之后（粗略策略）
-    const idx = s.indexOf(initial.letter) + initial.letter.length;
-    s = s.slice(0, idx) + markSymbol + s.slice(idx);
+    // 声调符号放在「最上面那个辅音」之后。ห-引导时仍放在 ห 之后（按规则）。
+    // 这里采用粗略策略：放在替换串结尾位置。
+    const insertAt = s.indexOf(replacement) + replacement.length;
+    s = s.slice(0, insertAt) + markSymbol + s.slice(insertAt);
   }
-  if (finalConsonant) {
-    s = s + finalConsonant.letter;
-  }
+  if (finalConsonant) s += finalConsonant.letter;
   return s;
 }
 
@@ -50,15 +63,15 @@ export function romanizeSyllable(
   finalConsonant: Consonant | null,
   tone: ToneName
 ): string {
-  const v = vowel.roman.replace("(open)", ""); // for or/ɔ
+  const v = vowel.roman.replace("(open)", "");
   const init = initial.romanInitial === "ʔ" ? "" : initial.romanInitial;
   const fin = finalConsonant ? FINAL_ROMAN[finalConsonant.finalSound] : "";
   const toneMark = {
     mid: "",
-    low: "̀",     // grave
-    falling: "̂", // circumflex
-    high: "́",    // acute
-    rising: "̌",  // caron
+    low: "̀",
+    falling: "̂",
+    high: "́",
+    rising: "̌",
   }[tone];
   return `${init}${v}${fin}${toneMark}`;
 }
@@ -67,67 +80,102 @@ export interface GenerateOptions {
   withFinal?: boolean;
   allowMark?: boolean;
   excludeObsolete?: boolean;
+  /** 启用复合元音 เ-ีย / เ-ือ / ัว */
+  useDiphthongs?: boolean;
+  /** 启用 ห-引导规则（ห + 单独低辅音 → 按高辅音算声调） */
+  useHoLeading?: boolean;
 }
 
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-/**
- * 生成符合常规拼读规则的合法音节。
- * 仅使用单元音 + 长/短元音；尾辅音可选且使用基本的 8 类。
- */
+/** ห-引导可作用的低辅音（单独的 sonorant 低辅音，无对应高辅音） */
+const HO_LEADING_TARGETS = ["ngo-ngu", "yo-ying", "no-nu", "mo-ma", "yo-yak", "ro-ruea", "lo-ling", "wo-waen"];
+
 export function generateSyllable(opts: GenerateOptions = {}): BuiltSyllable {
-  const { withFinal = false, allowMark = true, excludeObsolete = true } = opts;
+  const {
+    withFinal = false,
+    allowMark = true,
+    excludeObsolete = true,
+    useDiphthongs = false,
+    useHoLeading = false,
+  } = opts;
 
-  const initials = CONSONANTS.filter((c) => (excludeObsolete ? !c.obsolete : true));
-  const initial = pick(initials);
+  const allInitials = CONSONANTS.filter((c) => (excludeObsolete ? !c.obsolete : true));
 
-  // 选简单的单元音（避免特殊元音如 ฤ）
-  const usable = VOWELS.filter(
-    (v) => v.category === "monophthong" || v.id === "am" || v.id === "ai-maimalai" || v.id === "ao"
+  // 决定是否使用 ห-引导
+  let initial: Consonant;
+  let silentLeader: Consonant | null = null;
+  let effectiveClass: ConsonantClass;
+  let rule: string | undefined;
+
+  if (useHoLeading && Math.random() < 0.25) {
+    initial = CONSONANT_BY_ID[pick(HO_LEADING_TARGETS)];
+    silentLeader = CONSONANT_BY_ID["ho-hip"]; // ห
+    effectiveClass = "high";
+    rule = "ห-引导：ห 在单独低辅音前不发音，整个音节按高辅音规则推声调。";
+  } else {
+    initial = pick(allInitials);
+    effectiveClass = initial.class;
+  }
+
+  // 元音池
+  const usableMonoOrSpecial = VOWELS.filter(
+    (v) =>
+      v.category === "monophthong" ||
+      v.id === "am" ||
+      v.id === "ai-maimalai" ||
+      v.id === "ao"
   );
+  const usableDiphthongs = VOWELS.filter((v) => ["ia-long", "uea-long", "ua-long"].includes(v.id));
+  const usable = useDiphthongs ? [...usableMonoOrSpecial, ...usableDiphthongs] : usableMonoOrSpecial;
   const vowel = pick(usable);
 
+  // 尾辅音
   let finalConsonant: Consonant | null = null;
-  if (withFinal && vowel.id !== "am" && vowel.id !== "ai-maimalai" && vowel.id !== "ao") {
-    // 从尾辅音常用代表里挑：每个 final 音类选 1-2 个
+  const noFinalVowels = new Set(["am", "ai-maimalai", "ao"]);
+  if (withFinal && !noFinalVowels.has(vowel.id)) {
     const finalCandidates = CONSONANTS.filter(
       (c) =>
         !c.obsolete &&
         c.finalSound !== "none" &&
-        // 简化：只用代表辅音
         ["ก", "ด", "บ", "น", "ม", "ง", "ย", "ว"].includes(c.letter)
     );
     finalConsonant = pick(finalCandidates);
+    // ัว / เ-ือ / เ-ีย 已含 ว/อ/ย 作为部件，避免与同音尾重合
+    if (vowel.id === "ua-long" && finalConsonant.letter === "ว") finalConsonant = CONSONANT_BY_ID["ko-kai"];
+    if (vowel.id === "uea-long" && finalConsonant.id === "o-ang") finalConsonant = CONSONANT_BY_ID["ko-kai"];
+    if (vowel.id === "ia-long" && finalConsonant.letter === "ย") finalConsonant = CONSONANT_BY_ID["ko-kai"];
   }
 
-  // 决定是否加声调符号
+  // 声调符号
   const possibleMarks: ToneMark[] = ["none"];
   if (allowMark) {
-    if (initial.class === "mid") possibleMarks.push("ek", "tho", "tri", "chattawa");
-    else if (initial.class === "high") possibleMarks.push("ek", "tho");
-    else possibleMarks.push("ek", "tho");
+    if (effectiveClass === "mid") possibleMarks.push("ek", "tho", "tri", "chattawa");
+    else possibleMarks.push("ek", "tho"); // 高/低 一般只用 ek / tho
   }
   const mark = pick(possibleMarks);
 
   const finalSound = finalConsonant ? finalConsonant.finalSound : "none";
-  const tone = calculateTone(initial.class, vowel.length, finalSound, mark);
+  const tone = calculateTone(effectiveClass, vowel.length, finalSound, mark);
   const life = syllableLifetime(vowel.length, finalSound);
 
   return {
     initial,
+    silentLeader,
+    effectiveClass,
     vowel,
     finalConsonant,
     toneMark: mark,
-    thai: renderSyllableThai(initial, vowel, finalConsonant, mark),
+    thai: renderSyllableThai(initial, silentLeader, vowel, finalConsonant, mark),
     roman: romanizeSyllable(initial, vowel, finalConsonant, tone),
     tone,
     life,
+    rule,
   };
 }
 
-/** 规范化用户输入：去除组合声调符号、去多余空格、小写 */
 export function normalizeAnswer(s: string): string {
   return s
     .normalize("NFD")
@@ -136,7 +184,6 @@ export function normalizeAnswer(s: string): string {
     .toLowerCase();
 }
 
-/** 把 vowel.roman 中的 (open) 等标记清掉，得到「可输入」的罗马音 */
 export function plainVowelRoman(v: Vowel): string {
   return v.roman.replace("(open)", "");
 }

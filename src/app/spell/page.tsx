@@ -1,20 +1,25 @@
 "use client";
 import { useMemo, useState } from "react";
 import { generateSyllable, normalizeAnswer, BuiltSyllable } from "@/lib/syllable";
-import { TONE_NAMES } from "@/data/tones";
-import { TONE_MARKS } from "@/data/tones";
+import { TONE_NAMES, TONE_MARKS } from "@/data/tones";
 import PronounceButton from "@/components/PronounceButton";
+
+const cnClass = (c: string) => (c === "mid" ? "中" : c === "high" ? "高" : "低");
 
 export default function SpellPage() {
   const [withFinal, setWithFinal] = useState(false);
   const [allowMark, setAllowMark] = useState(true);
-  const [syl, setSyl] = useState<BuiltSyllable>(() => generateSyllable({ withFinal: false, allowMark: true }));
+  const [useDiphthongs, setUseDiphthongs] = useState(false);
+  const [useHoLeading, setUseHoLeading] = useState(false);
+
+  const opts = { withFinal, allowMark, useDiphthongs, useHoLeading };
+  const [syl, setSyl] = useState<BuiltSyllable>(() => generateSyllable(opts));
   const [input, setInput] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [stats, setStats] = useState({ ok: 0, total: 0 });
 
   function reload() {
-    setSyl(generateSyllable({ withFinal, allowMark }));
+    setSyl(generateSyllable({ withFinal, allowMark, useDiphthongs, useHoLeading }));
     setInput("");
     setSubmitted(false);
   }
@@ -37,7 +42,7 @@ export default function SpellPage() {
 
   return (
     <div className="space-y-4">
-      <div className="card p-3 flex items-center justify-between text-sm">
+      <div className="card p-3 grid grid-cols-2 gap-2 text-sm">
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={withFinal} onChange={(e) => setWithFinal(e.target.checked)} />
           含尾辅音
@@ -46,7 +51,15 @@ export default function SpellPage() {
           <input type="checkbox" checked={allowMark} onChange={(e) => setAllowMark(e.target.checked)} />
           含声调符号
         </label>
-        <span className="opacity-70">{stats.ok}/{stats.total}</span>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={useDiphthongs} onChange={(e) => setUseDiphthongs(e.target.checked)} />
+          含复合元音 (เ-ีย / เ-ือ / ัว)
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={useHoLeading} onChange={(e) => setUseHoLeading(e.target.checked)} />
+          含 ห-引导
+        </label>
+        <span className="col-span-2 text-right opacity-70">{stats.ok}/{stats.total}</span>
       </div>
 
       <div className="card p-6 flex flex-col items-center">
@@ -84,12 +97,29 @@ export default function SpellPage() {
             {isOk ? "✓ 正确" : "✗ 答案"}：<b className="font-mono">{syl.roman}</b>
           </div>
           <ul className="mt-2 text-sm space-y-1">
-            <li>初辅音：<span className="thai-big">{syl.initial.letter}</span> <span className="opacity-70">({syl.initial.romanInitial}, {syl.initial.class === "mid" ? "中" : syl.initial.class === "high" ? "高" : "低"})</span></li>
+            {syl.silentLeader && (
+              <li>
+                引导辅音：<span className="thai-big">{syl.silentLeader.letter}</span>
+                <span className="opacity-70"> (不发音)</span>
+              </li>
+            )}
+            <li>
+              初辅音：<span className="thai-big">{syl.initial.letter}</span>{" "}
+              <span className="opacity-70">
+                ({syl.initial.romanInitial}, 原 {cnClass(syl.initial.class)}
+                {syl.silentLeader ? ` → 按 ${cnClass(syl.effectiveClass)}` : ""})
+              </span>
+            </li>
             <li>元音：<span className="thai-big">{syl.vowel.display}</span> <span className="opacity-70">({syl.vowel.roman}, {syl.vowel.length === "long" ? "长" : "短"})</span></li>
             <li>尾辅音：{syl.finalConsonant ? <><span className="thai-big">{syl.finalConsonant.letter}</span> <span className="opacity-70">→ {syl.finalConsonant.finalSound} 音</span></> : <span className="opacity-70">无</span>}</li>
             <li>声调符号：<span className="thai-big">{markName}</span></li>
             <li>音节性质：{syl.life === "live" ? "活音节 (เป็น)" : "死音节 (ตาย)"}</li>
             <li>声调：<b>{syl.tone}</b> <span className="opacity-70 thai-big">{TONE_NAMES[syl.tone].th}</span></li>
+            {syl.rule && (
+              <li className="pt-1 text-xs opacity-80 border-t border-black/10 dark:border-white/10 mt-2">
+                规则：{syl.rule}
+              </li>
+            )}
           </ul>
         </div>
       )}
