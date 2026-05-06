@@ -57,30 +57,36 @@ function ModeA({ pool }: { pool: Pool }) {
   );
   const [round, setRound] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
+  const [isCorrect, setIsCorrect] = useState(false);
   const [streak, setStreak] = useState({ ok: 0, total: 0 });
 
   const q = useMemo(() => {
     void round;
     const target = items[Math.floor(Math.random() * items.length)];
+    // key 仅按罗马音，确保 4 个选项读音都不同（不会有两个同音的选项）
     const choices = uniqueChoices(
       target,
       items,
       4,
-      (x) => (("romanInitial" in x) ? `${x.romanInitial}|${x.id}` : `${x.roman}|${x.id}`)
+      (x) => (("romanInitial" in x) ? x.romanInitial : x.roman)
     );
     return { target, choices };
   }, [items, round]);
 
   const correctRoman = "romanInitial" in q.target ? q.target.romanInitial : q.target.roman;
-  const correctId = q.target.id;
 
   function pick(id: string) {
     if (picked) return;
+    const chosen = q.choices.find((c) => c.id === id);
+    const chosenRoman = "romanInitial" in chosen! ? chosen!.romanInitial : (chosen as Vowel).roman;
+    const correct = chosenRoman === correctRoman;
     setPicked(id);
-    setStreak((s) => ({ ok: s.ok + (id === correctId ? 1 : 0), total: s.total + 1 }));
+    setIsCorrect(correct);
+    setStreak((s) => ({ ok: s.ok + (correct ? 1 : 0), total: s.total + 1 }));
   }
   function next() {
     setPicked(null);
+    setIsCorrect(false);
     setRound((r) => r + 1);
   }
 
@@ -102,11 +108,11 @@ function ModeA({ pool }: { pool: Pool }) {
         {q.choices.map((c) => {
           const id = c.id;
           const text = "romanInitial" in c ? c.romanInitial : (c as Vowel).roman;
-          const isCorrect = id === correctId;
           const isPicked = picked === id;
+          const isCorrectRoman = text === correctRoman;
           const state = !picked
             ? "btn-ghost"
-            : isCorrect
+            : isCorrectRoman
             ? "btn-primary bg-emerald-600 dark:bg-emerald-500 text-white"
             : isPicked
             ? "btn-ghost ring-2 ring-rose-500"
@@ -125,8 +131,8 @@ function ModeA({ pool }: { pool: Pool }) {
         <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
       </div>
       {picked && (
-        <div className="card p-3 text-sm">
-          正确答案: <b>{correctRoman}</b>
+        <div className={`card p-3 text-sm ${isCorrect ? "ring-2 ring-emerald-500" : "ring-2 ring-rose-500"}`}>
+          {isCorrect ? "✓ 正确" : "✗ 答案"}：<b>{correctRoman}</b>
           {"name" in q.target && (
             <span className="ml-2 opacity-70 thai-big">{(q.target as Consonant).name}</span>
           )}
@@ -157,7 +163,14 @@ function ModeBConsonant() {
     const distractors = CONSONANTS.filter((c) => !c.obsolete && !correctIds.has(c.id));
     const want = Math.max(4, correctIds.size + 2);
     const correctConsonants = CONSONANTS.filter((c) => correctIds.has(c.id));
-    const others = shuffle(distractors).slice(0, Math.max(0, want - correctConsonants.length));
+
+    // 干扰项：确保每个不同读音只有一个代表（避免同音干扰项）
+    const bySound: Record<string, Consonant> = {};
+    for (const d of shuffle(distractors)) {
+      if (!bySound[d.romanInitial]) bySound[d.romanInitial] = d;
+    }
+    const others = Object.values(bySound).slice(0, Math.max(0, want - correctConsonants.length));
+
     return { sound, correctIds, choices: shuffle([...correctConsonants, ...others]) };
   }, [sounds, groups, round]);
 
