@@ -3,25 +3,47 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  height: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #f7f7f8;
+  color: #111;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Helvetica Neue",
+    "Noto Sans Thai", "Sukhumvit Set", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  body { background: #0e0f12; color: #eee; }
+}
+
+.thai-big {
+  font-family: "Noto Sans Thai", "Sukhumvit Set", "Tahoma", sans-serif;
+  font-feature-settings: "kern" 1;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-xl px-4 py-3 font-medium transition active:scale-[.98];
+  }
+  .btn-primary { @apply btn bg-black text-white dark:bg-white dark:text-black; }
+  .btn-ghost   { @apply btn bg-white text-black border border-black/10 dark:bg-white/10 dark:text-white dark:border-white/10; }
+  .card {
+    @apply rounded-2xl bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 shadow-sm;
+  }
+  .tag {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+  .tag-mid  { @apply tag bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-200; }
+  .tag-high { @apply tag bg-emerald-100 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-200; }
+  .tag-low  { @apply tag bg-sky-100 text-sky-900 dark:bg-sky-500/20 dark:text-sky-200; }
 }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+  .text-balance { text-wrap: balance; }
 }
