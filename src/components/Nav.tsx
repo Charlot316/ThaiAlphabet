@@ -35,7 +35,17 @@ export default function Nav() {
             </span>
             <span className="text-sm font-extrabold uppercase tracking-wide">Thai</span>
           </Link>
-          <StatusBar />
+          <div className="flex items-center gap-3">
+            <StatusBar />
+            <Link
+              href="/settings"
+              className="text-xl opacity-70 hover:opacity-100"
+              aria-label="设置"
+              title="同步设置"
+            >
+              ⚙️
+            </Link>
+          </div>
         </div>
       </header>
 
