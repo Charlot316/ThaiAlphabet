@@ -2,11 +2,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONSONANTS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
-import { letterPath } from "@/lib/thaiFont";
+import { letterPath, letterSkeleton } from "@/lib/thaiFont";
 
 interface LetterStrokes {
   strokes: { d: string }[];
   v: number;
+}
+
+interface CompletedStroke {
+  d: string;
+  pointCount: number;
+  source: "auto" | "manual";
+}
+
+interface CandidateStroke {
+  d: string;
+  sourceIndex: number;
 }
 
 const DRAFT_KEY = "thai-alphabet:strokes-draft:v1";
@@ -70,6 +81,24 @@ function smoothPath(points: { x: number; y: number }[]): string {
   return d;
 }
 
+function normalizeSkeletonPath(
+  d: string,
+  norm: { offX: number; offY: number; scale: number }
+): string {
+  const tokens = d.match(/[ML]|-?\d+(?:\.\d+)?/g) ?? [];
+  const out: string[] = [];
+  let i = 0;
+  while (i < tokens.length) {
+    const cmd = tokens[i++];
+    if (cmd !== "M" && cmd !== "L") continue;
+    const x = Number(tokens[i++]);
+    const y = Number(tokens[i++]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    out.push(`${cmd} ${(x * norm.scale + norm.offX).toFixed(2)} ${(y * norm.scale + norm.offY).toFixed(2)}`);
+  }
+  return out.join(" ");
+}
+
 function loadDraft(): Record<string, LetterStrokes> {
   if (typeof window === "undefined") return {};
   try {
@@ -92,9 +121,12 @@ export default function StrokesEditorPage() {
   const [idx, setIdx] = useState(0);
   const item = items[idx] ?? items[0];
 
-  const [strokes, setStrokes] = useState<{ x: number; y: number }[][]>([]);
+  const [strokes, setStrokes] = useState<CompletedStroke[]>([]);
   const [current, setCurrent] = useState<{ x: number; y: number }[]>([]);
   const [outlineNorm, setOutlineNorm] = useState<{ d: string; offX: number; offY: number; scale: number } | null>(null);
+  const [candidates, setCandidates] = useState<CandidateStroke[]>([]);
+  const [selectedCandidates, setSelectedCandidates] = useState<number[]>([]);
+  const [detecting, setDetecting] = useState(false);
   const [draft, setDraft] = useState<Record<string, LetterStrokes>>({});
 
   const svgRef = useRef<SVGSVGElement>(null);
@@ -110,8 +142,9 @@ export default function StrokesEditorPage() {
     const d = loadDraft();
     setDraft(d);
     const cur = d[item.key];
-    setStrokes(cur ? cur.strokes.map(() => []) : []);
+    setStrokes(cur ? cur.strokes.map((s) => ({ d: s.d, pointCount: 0, source: "auto" })) : []);
     setCurrent([]);
+    setSelectedCandidates([]);
   }, [item]);
 
   // 加载 outline
@@ -119,6 +152,8 @@ export default function StrokesEditorPage() {
     if (!item) return;
     let cancelled = false;
     setOutlineNorm(null);
+    setCandidates([]);
+    setDetecting(true);
     letterPath(item.outlineSource, 240)
       .then(({ d, bbox }) => {
         if (cancelled) return;
@@ -128,9 +163,21 @@ export default function StrokesEditorPage() {
         const scale = (VB - PAD * 2) / Math.max(w, h);
         const offX = (VB - w * scale) / 2 - bbox.x1 * scale;
         const offY = (VB - h * scale) / 2 - bbox.y1 * scale;
-        setOutlineNorm({ d, offX, offY, scale });
+        const norm = { d, offX, offY, scale };
+        setOutlineNorm(norm);
+        return letterSkeleton(item.outlineSource, 240).then((skel) => {
+          if (cancelled) return;
+          setCandidates(
+            skel.paths
+              .map((path, sourceIndex) => ({ d: normalizeSkeletonPath(path, norm), sourceIndex }))
+              .filter((path) => path.d.length > 0)
+          );
+        });
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setDetecting(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -159,9 +206,7 @@ export default function StrokesEditorPage() {
     if (current.length > 0) {
       setCurrent((c) => c.slice(0, -1));
     } else if (strokes.length > 0) {
-      const last = strokes[strokes.length - 1];
       setStrokes((s) => s.slice(0, -1));
-      setCurrent(last);
     }
   }
 
@@ -170,7 +215,7 @@ export default function StrokesEditorPage() {
       alert("一笔至少需要 2 个点");
       return;
     }
-    setStrokes((s) => [...s, current]);
+    setStrokes((s) => [...s, { d: smoothPath(current), pointCount: current.length, source: "manual" }]);
     setCurrent([]);
   }
 
@@ -182,11 +227,35 @@ export default function StrokesEditorPage() {
     if (!confirm(`确定清空 ${item.display} 的所有笔画？`)) return;
     setStrokes([]);
     setCurrent([]);
+    setSelectedCandidates([]);
+  }
+
+  function toggleCandidate(i: number) {
+    setSelectedCandidates((selected) =>
+      selected.includes(i) ? selected.filter((value) => value !== i) : [...selected, i]
+    );
+  }
+
+  function mergeSelectedCandidates() {
+    if (selectedCandidates.length === 0) {
+      alert("先点选候选段，再合并成一笔");
+      return;
+    }
+    const d = selectedCandidates
+      .map((i) => candidates[i]?.d)
+      .filter(Boolean)
+      .join(" ");
+    setStrokes((s) => [...s, { d, pointCount: selectedCandidates.length, source: "auto" }]);
+    setSelectedCandidates([]);
   }
 
   function commitToDraft() {
     if (!item) return;
-    const allStrokes = current.length >= 2 ? [...strokes, current] : strokes;
+    const manualCurrent =
+      current.length >= 2
+        ? [{ d: smoothPath(current), pointCount: current.length, source: "manual" as const }]
+        : [];
+    const allStrokes = [...strokes, ...manualCurrent];
     if (allStrokes.length === 0) {
       const next = { ...draft };
       delete next[item.key];
@@ -196,7 +265,7 @@ export default function StrokesEditorPage() {
     }
     const data: LetterStrokes = {
       v: 1,
-      strokes: allStrokes.map((pts) => ({ d: smoothPath(pts) })),
+      strokes: allStrokes.map((stroke) => ({ d: stroke.d })),
     };
     const next = { ...draft, [item.key]: data };
     saveDraft(next);
@@ -263,7 +332,7 @@ export default function StrokesEditorPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-base font-extrabold">✏️ 笔画录入工具</h1>
-            <p className="mt-0.5 text-xs opacity-70">按教材顺序点关键点；自动平滑并存到 localStorage</p>
+            <p className="mt-0.5 text-xs opacity-70">先点选自动识别段合并成笔；必要时手工点关键点修补</p>
           </div>
           <div className="text-right">
             <div className="text-2xl font-extrabold" style={{ color: "var(--duo-green)" }}>
@@ -342,10 +411,40 @@ export default function StrokesEditorPage() {
               <path d={outlineNorm.d} />
             </g>
           )}
-          {strokes.map((pts, i) => (
+
+          {candidates.map((candidate, i) => {
+            const selectedOrder = selectedCandidates.indexOf(i);
+            const selected = selectedOrder >= 0;
+            return (
+              <g key={`candidate-${i}`}>
+                <path
+                  d={candidate.d}
+                  fill="none"
+                  stroke={selected ? "var(--duo-orange)" : "rgba(28,176,246,0.42)"}
+                  strokeWidth={selected ? 4.8 : 3.2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={selected ? 0.95 : 0.7}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleCandidate(i);
+                  }}
+                  style={{ cursor: "pointer" }}
+                />
+                {selected && (
+                  <text x={6 + selectedOrder * 8} y={8} fontSize={5} fill="var(--duo-orange-d)" fontWeight={900}>
+                    {selectedOrder + 1}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          {strokes.map((stroke, i) => (
             <g key={i} style={{ pointerEvents: "none" }}>
               <path
-                d={smoothPath(pts)}
+                d={stroke.d}
                 fill="none"
                 stroke="var(--duo-green)"
                 strokeWidth={3}
@@ -353,14 +452,9 @@ export default function StrokesEditorPage() {
                 strokeLinejoin="round"
                 opacity={0.85}
               />
-              {pts[0] && (
-                <g>
-                  <circle cx={pts[0].x} cy={pts[0].y} r={2.5} fill="var(--duo-green)" />
-                  <text x={pts[0].x + 3} y={pts[0].y - 3} fontSize={4} fill="var(--duo-green-d)" fontWeight={800}>
-                    {i + 1}
-                  </text>
-                </g>
-              )}
+              <text x={4} y={14 + i * 6} fontSize={4.5} fill="var(--duo-green-d)" fontWeight={900}>
+                {i + 1}
+              </text>
             </g>
           ))}
           {current.length > 0 && (
@@ -390,9 +484,45 @@ export default function StrokesEditorPage() {
         </svg>
       </div>
 
+      <div className="card-soft p-3 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="font-bold">自动识别候选段</div>
+            <div className="mt-0.5 opacity-60">
+              {detecting
+                ? "正在识别..."
+                : `已识别 ${candidates.length} 段；已选 ${selectedCandidates.length} 段`}
+            </div>
+          </div>
+          <button
+            onClick={mergeSelectedCandidates}
+            className="btn-blue shrink-0 px-3 text-xs"
+            disabled={selectedCandidates.length === 0}
+          >
+            合并为一笔
+          </button>
+        </div>
+        <div className="mt-2 flex gap-2">
+          <button
+            onClick={() => setSelectedCandidates([])}
+            className="btn-ghost flex-1 text-xs"
+            disabled={selectedCandidates.length === 0}
+          >
+            清空选择
+          </button>
+          <button
+            onClick={() => setSelectedCandidates(candidates.map((_, i) => i))}
+            className="btn-ghost flex-1 text-xs"
+            disabled={candidates.length === 0}
+          >
+            全选候选段
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-2">
         <button onClick={undoLast} className="btn-ghost text-xs" disabled={current.length === 0 && strokes.length === 0}>
-          ↶ 撤销最后一点
+          ↶ 撤销最后一点/笔
         </button>
         <button onClick={finishStroke} className="btn-blue text-xs" disabled={current.length < 2}>
           ✓ 完成此笔（共 {current.length} 点）
@@ -405,7 +535,9 @@ export default function StrokesEditorPage() {
           <ul className="space-y-1">
             {strokes.map((pts, i) => (
               <li key={i} className="flex items-center justify-between rounded-lg bg-black/5 px-2 py-1">
-                <span>第 {i + 1} 笔（{pts.length} 点）</span>
+                <span>
+                  第 {i + 1} 笔（{pts.source === "auto" ? `${pts.pointCount} 个候选段` : `${pts.pointCount} 点`}）
+                </span>
                 <button onClick={() => deleteStroke(i)} className="text-rose-500">删除</button>
               </li>
             ))}
@@ -434,9 +566,10 @@ export default function StrokesEditorPage() {
         <h3 className="text-sm font-bold opacity-100">使用说明</h3>
         <ol className="mt-1 list-decimal space-y-0.5 pl-4">
           <li>切换 <b>辅音 / 元音</b> 标签</li>
-          <li>对照教材，按笔顺在画布点关键点（拐弯、起止）</li>
-          <li>每笔 3-8 个点足够；自动用 Catmull-Rom 平滑成曲线</li>
-          <li>按「✓ 完成此笔」开始下一笔；笔画前会显示 ① ② ③ 序号</li>
+          <li>蓝色线是自动识别出的候选段，按教材笔顺依次点选</li>
+          <li>点「合并为一笔」把已选候选段保存成当前字母的一笔</li>
+          <li>如果候选段缺失或方向不理想，可以直接在画布点关键点手工补一笔</li>
+          <li>手工笔每笔 3-8 个点足够；按「✓ 完成此笔」保存</li>
           <li>「下一字」自动保存到浏览器本地草稿</li>
           <li>全部完成「📋 导出全部 JSON」，粘贴到 <code>src/data/strokes.ts</code> 的 <code>LETTER_STROKES</code></li>
           <li>建议每录完 5-10 个就 export 一次备份（清浏览器数据会丢草稿）</li>
