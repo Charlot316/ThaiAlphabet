@@ -11,16 +11,6 @@ export default function StatusBar() {
           {s.streak}
         </span>
       </span>
-      <span className="stat" title="经验值">
-        <span aria-hidden>💎</span>
-        <span style={{ color: "var(--duo-blue)" }}>{s.xp}</span>
-      </span>
-      <span className="stat" title={`生命值 ${s.hearts}/${s.heartsMax}`}>
-        <span aria-hidden>{s.hearts > 0 ? "❤️" : "💔"}</span>
-        <span style={{ color: s.hearts > 0 ? "var(--duo-red)" : "var(--duo-muted)" }}>
-          {s.hearts}
-        </span>
-      </span>
     </div>
   );
 }
@@ -28,25 +18,23 @@ export default function StatusBar() {
 export function HeroStatusBar() {
   const s = useStats();
   return (
-    <div className="grid grid-cols-3 gap-2">
-      <div className="card-soft flex flex-col items-center py-3">
-        <div className="text-2xl">🔥</div>
-        <div className="text-xl font-extrabold" style={{ color: s.streak > 0 ? "var(--duo-orange)" : "var(--duo-muted)" }}>
-          {s.streak}
+    <div className="card-soft flex items-center justify-between p-4">
+      <div className="flex items-center gap-3">
+        <div className="text-3xl">🔥</div>
+        <div>
+          <div
+            className="text-2xl font-extrabold leading-none"
+            style={{ color: s.streak > 0 ? "var(--duo-orange)" : "var(--duo-muted)" }}
+          >
+            {s.streak}
+          </div>
+          <div className="mt-0.5 text-[11px] uppercase tracking-wider opacity-60">
+            连续学习
+          </div>
         </div>
-        <div className="text-[10px] uppercase tracking-wider opacity-60">连胜</div>
       </div>
-      <div className="card-soft flex flex-col items-center py-3">
-        <div className="text-2xl">💎</div>
-        <div className="text-xl font-extrabold" style={{ color: "var(--duo-blue)" }}>{s.xp}</div>
-        <div className="text-[10px] uppercase tracking-wider opacity-60">经验</div>
-      </div>
-      <div className="card-soft flex flex-col items-center py-3">
-        <div className="text-2xl">{s.hearts > 0 ? "❤️" : "💔"}</div>
-        <div className="text-xl font-extrabold" style={{ color: s.hearts > 0 ? "var(--duo-red)" : "var(--duo-muted)" }}>
-          {s.hearts}/{s.heartsMax}
-        </div>
-        <div className="text-[10px] uppercase tracking-wider opacity-60">生命</div>
+      <div className="text-right text-xs opacity-60">
+        {s.lastActiveDay ? `上次 ${s.lastActiveDay}` : "今天来打个卡吧"}
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import PronounceButton from "@/components/PronounceButton";
 import { MASTERY_TARGET, MasteryProgress, addMastery as recordMastery, loadMastery, resetMastery } from "@/lib/mastery";
 import { StudyItem, buildStudyItems, displayRoman, shuffleStrong, uniqueChoices } from "@/lib/study";
-import { addXp, loseHeart, useStats } from "@/lib/stats";
+import { markActive } from "@/lib/stats";
 import { speak } from "@/lib/tts";
 
 const LAST_LESSON_KEY = "thai-alphabet:last-lesson:v1";
@@ -58,7 +58,6 @@ const PRAISE = ["太棒了！", "做得好！", "完美！", "继续保持！", 
 
 export default function CoursePage() {
   const allConsonants = useMemo(() => buildStudyItems().filter((item) => item.pool === "consonant"), []);
-  const stats = useStats();
   const [progress, setProgress] = useState<MasteryProgress>({});
   const [lessonItems, setLessonItems] = useState<StudyItem[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -67,7 +66,6 @@ export default function CoursePage() {
   const [feedback, setFeedback] = useState<"ok" | "bad" | null>(null);
   const [praise, setPraise] = useState("");
   const [correctCount, setCorrectCount] = useState(0);
-  const [xpEarned, setXpEarned] = useState(0);
 
   const current = questions[index];
   const complete = questions.length > 0 && index >= questions.length;
@@ -83,7 +81,6 @@ export default function CoursePage() {
     setFeedback(null);
     setPraise("");
     setCorrectCount(0);
-    setXpEarned(0);
   }
 
   useEffect(() => {
@@ -106,12 +103,10 @@ export default function CoursePage() {
       setCorrectCount((v) => v + 1);
       setFeedback("ok");
       setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
-      addXp(2);
-      setXpEarned((v) => v + 2);
+      markActive();
       speak(current.item.speak);
     } else {
       setFeedback("bad");
-      loseHeart();
     }
   }
 
@@ -125,8 +120,7 @@ export default function CoursePage() {
     if (!current) return;
     gainMastery(current.item.id, 1);
     setCorrectCount((v) => v + 1);
-    addXp(1);
-    setXpEarned((v) => v + 1);
+    markActive();
     next();
   }
 
@@ -140,7 +134,7 @@ export default function CoursePage() {
 
   return (
     <div className="space-y-4">
-      {/* 顶部：进度条 + 退出 */}
+      {/* 顶部：进度条 + 重置 */}
       <div className="flex items-center gap-3">
         <button
           onClick={resetProgress}
@@ -153,10 +147,6 @@ export default function CoursePage() {
         <div className="progress-track flex-1">
           <div className="progress-fill" style={{ width: `${lessonProgress}%` }} />
         </div>
-        <span className="stat text-sm">
-          <span aria-hidden>❤️</span>
-          <span style={{ color: "var(--duo-red)" }}>{stats.hearts}</span>
-        </span>
       </div>
 
       {/* 总进度 chip */}
@@ -184,7 +174,7 @@ export default function CoursePage() {
             本轮完成！
           </div>
           <div className="mt-1 text-sm opacity-70">
-            答对 {correctCount} / {questions.length} · 获得 {xpEarned} XP
+            答对 {correctCount} / {questions.length}
           </div>
           <button onClick={() => startLesson()} className="btn-primary mt-5 px-6">
             再来一轮
