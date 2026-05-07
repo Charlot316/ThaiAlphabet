@@ -53,3 +53,21 @@ export async function letterPath(letter: string, fontSize = 240): Promise<Letter
     bbox: { x1: bbox.x1, y1: bbox.y1, x2: bbox.x2, y2: bbox.y2 },
   };
 }
+
+import { Skeleton, buildSkeleton } from "./skeleton";
+
+const skeletonCache = new Map<string, Skeleton>();
+
+/** 提取字母中线骨架（缓存）。返回的 paths 是字体坐标系下的多段中线 SVG path data */
+export async function letterSkeleton(letter: string, fontSize = 240): Promise<Skeleton & {
+  outline: string;
+}> {
+  const cacheKey = `${letter}@${fontSize}`;
+  const fontPath = await letterPath(letter, fontSize);
+  let skel = skeletonCache.get(cacheKey);
+  if (!skel) {
+    skel = buildSkeleton({ pathDataD: fontPath.d, bbox: fontPath.bbox });
+    skeletonCache.set(cacheKey, skel);
+  }
+  return { ...skel, outline: fontPath.d };
+}

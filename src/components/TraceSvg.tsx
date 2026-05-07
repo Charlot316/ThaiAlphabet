@@ -1,13 +1,14 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { letterPath } from "@/lib/thaiFont";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { letterSkeleton } from "@/lib/thaiFont";
 import { feedbackComplete, feedbackTap } from "@/lib/feedback";
 
 /**
- * 沿字母轮廓拖小球的描红组件（Duolingo 风格）。
- * - 字母的 outline path 来自 Noto Sans Thai 字体（opentype.js 提取）
- * - 用户按住起点的小球，拖着它沿 path 走到末端
- * - 拖偏路径时小球不动，重新靠近路径才能继续推进
+ * 沿字母骨架（中线）拖小球的描红组件，Duolingo 风。
+ * - 背景显示字体 outline 作视觉参考
+ * - 真正可拖的小球沿"骨架"前进（中线，不是双圈外轮廓）
+ * - 用户拖动指针时，小球只能沿路径推进；偏离太远小球不动
+ * - 走完所有 sub-path 总长度的 95% 算完成
  */
 export default function TraceSvg({
   letter,
@@ -16,56 +17,76 @@ export default function TraceSvg({
   letter: string;
   onComplete?: () => void;
 }) {
-  const [d, setD] = useState<string | null>(null);
+  const [outline, setOutline] = useState<string | null>(null);
+  const [skeletonPaths, setSkeletonPaths] = useState<string[]>([]);
   const [vb, setVb] = useState({ x: 0, y: 0, w: 100, h: 100 });
-  const [progress, setProgress] = useState(0);
-  const [total, setTotal] = useState(0);
-  const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 当前正在描的 sub-path 序号
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [totalsPerPath, setTotalsPerPath] = useState<number[]>([]);
+  const [done, setDone] = useState(false);
+
   const svgRef = useRef<SVGSVGElement>(null);
-  const pathRef = useRef<SVGPathElement>(null);
+  const pathRefs = useRef<(SVGPathElement | null)[]>([]);
   const dragging = useRef(false);
   const lastProgress = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
-    setProgress(0);
-    setDone(false);
+    setOutline(null);
+    setSkeletonPaths([]);
     setError(null);
-    setD(null);
+    setActiveIdx(0);
+    setProgress(0);
     lastProgress.current = 0;
+    setDone(false);
 
-    letterPath(letter, 240)
-      .then(({ d, bbox }) => {
+    letterSkeleton(letter, 240)
+      .then((res) => {
         if (cancelled) return;
-        const w = bbox.x2 - bbox.x1;
-        const h = bbox.y2 - bbox.y1;
-        const pad = Math.max(w, h) * 0.12;
-        setVb({
-          x: bbox.x1 - pad,
-          y: bbox.y1 - pad,
-          w: w + pad * 2,
-          h: h + pad * 2,
-        });
-        setD(d);
+        setOutline(res.outline);
+        setSkeletonPaths(res.paths);
+        setVb(res.viewBox);
+        if (res.paths.length === 0) {
+          setError("无法提取骨架（字符过窄）");
+        }
       })
       .catch((e) => {
         if (cancelled) return;
         setError((e as Error).message || "字体加载失败");
       });
+
     return () => {
       cancelled = true;
     };
   }, [letter]);
 
-  // d 改变后等下一帧拿 totalLength
+  // skeleton paths 更新后取每段总长
   useEffect(() => {
-    if (d && pathRef.current) {
-      const t = pathRef.current.getTotalLength();
-      setTotal(t);
+    if (skeletonPaths.length === 0) {
+      setTotalsPerPath([]);
+      return;
     }
-  }, [d]);
+    // 等下一帧 ref 挂上
+    requestAnimationFrame(() => {
+      const totals = skeletonPaths.map((_, i) => {
+        const el = pathRefs.current[i];
+        return el ? el.getTotalLength() : 0;
+      });
+      setTotalsPerPath(totals);
+    });
+  }, [skeletonPaths]);
+
+  const totalAll = useMemo(() => totalsPerPath.reduce((a, b) => a + b, 0), [totalsPerPath]);
+  const doneAll = useMemo(() => {
+    if (!totalsPerPath.length) return 0;
+    let s = 0;
+    for (let i = 0; i < activeIdx; i++) s += totalsPerPath[i];
+    s += progress;
+    return s;
+  }, [totalsPerPath, activeIdx, progress]);
 
   function svgPoint(e: React.PointerEvent): { x: number; y: number } | null {
     const svg = svgRef.current;
@@ -79,24 +100,23 @@ export default function TraceSvg({
     return { x: p.x, y: p.y };
   }
 
-  /** 在 [hint - back, hint + forward] 区间采样找最接近指针的 path 长度 */
   function nearestLengthAhead(
+    pathEl: SVGPathElement,
     x: number,
     y: number,
-    hint: number
+    hint: number,
+    total: number
   ): { len: number; dist: number } {
-    const path = pathRef.current;
-    if (!path) return { len: hint, dist: Infinity };
-    const back = Math.max(2, vb.w * 0.02);
+    const back = Math.max(2, vb.w * 0.025);
     const forward = Math.max(20, vb.w * 0.18);
     const start = Math.max(0, hint - back);
     const end = Math.min(total, hint + forward);
     let bestLen = hint;
     let bestD2 = Infinity;
-    const steps = 28;
+    const steps = 26;
     for (let i = 0; i <= steps; i++) {
       const t = start + ((end - start) * i) / steps;
-      const p = path.getPointAtLength(t);
+      const p = pathEl.getPointAtLength(t);
       const d2 = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y);
       if (d2 < bestD2) {
         bestD2 = d2;
@@ -106,35 +126,49 @@ export default function TraceSvg({
     return { len: bestLen, dist: Math.sqrt(bestD2) };
   }
 
+  const activePath = pathRefs.current[activeIdx] || null;
+  const activeTotal = totalsPerPath[activeIdx] || 0;
+  const ballPoint =
+    activePath && activeTotal > 0 ? activePath.getPointAtLength(progress) : null;
+
   function onDown(e: React.PointerEvent) {
-    if (done || !pathRef.current) return;
+    if (done || !activePath) return;
     const p = svgPoint(e);
-    if (!p) return;
-    // 必须从当前小球附近开始按下
-    const ball = pathRef.current.getPointAtLength(progress);
+    if (!p || !ballPoint) return;
     const tolerance = vb.w * 0.18;
-    if (Math.hypot(p.x - ball.x, p.y - ball.y) > tolerance) return;
+    if (Math.hypot(p.x - ballPoint.x, p.y - ballPoint.y) > tolerance) return;
     dragging.current = true;
     feedbackTap();
     (e.target as Element).setPointerCapture(e.pointerId);
   }
 
   function onMove(e: React.PointerEvent) {
-    if (!dragging.current || done) return;
+    if (!dragging.current || done || !activePath) return;
     const p = svgPoint(e);
     if (!p) return;
     const tolerance = vb.w * 0.22;
-    const r = nearestLengthAhead(p.x, p.y, lastProgress.current);
-    if (r.dist > tolerance) return; // 偏离路径，小球不动
+    const r = nearestLengthAhead(activePath, p.x, p.y, lastProgress.current, activeTotal);
+    if (r.dist > tolerance) return;
     lastProgress.current = r.len;
     setProgress(r.len);
-    if (total > 0 && r.len >= total * 0.97) {
-      lastProgress.current = total;
-      setProgress(total);
-      setDone(true);
-      dragging.current = false;
-      feedbackComplete();
-      onComplete?.();
+
+    if (activeTotal > 0 && r.len >= activeTotal * 0.96) {
+      // 当前 sub-path 完成
+      lastProgress.current = activeTotal;
+      setProgress(activeTotal);
+      // 推进到下一段
+      const nextIdx = activeIdx + 1;
+      if (nextIdx < skeletonPaths.length) {
+        feedbackTap();
+        setActiveIdx(nextIdx);
+        setProgress(0);
+        lastProgress.current = 0;
+      } else {
+        setDone(true);
+        dragging.current = false;
+        feedbackComplete();
+        onComplete?.();
+      }
     }
   }
 
@@ -143,19 +177,21 @@ export default function TraceSvg({
   }
 
   function reset() {
+    setActiveIdx(0);
     setProgress(0);
-    setDone(false);
     lastProgress.current = 0;
+    setDone(false);
   }
 
   if (error) {
     return (
       <div className="card-soft p-6 text-center text-sm" style={{ color: "var(--duo-red)" }}>
-        ⚠️ 字体加载失败：{error}
+        ⚠️ {error}
       </div>
     );
   }
-  if (!d) {
+
+  if (!outline) {
     return (
       <div className="card-soft p-12 text-center text-sm opacity-60">
         加载字体中...
@@ -163,10 +199,9 @@ export default function TraceSvg({
     );
   }
 
-  // 计算小球位置
-  const ballPoint = pathRef.current?.getPointAtLength(progress);
-  const ballR = vb.w * 0.05;
-  const strokeW = vb.w * 0.012;
+  const ballR = vb.w * 0.045;
+  const skeletonStrokeW = vb.w * 0.025;
+  const trailStrokeW = vb.w * 0.04;
 
   return (
     <div className="space-y-3">
@@ -181,29 +216,53 @@ export default function TraceSvg({
           onPointerUp={onUp}
           onPointerCancel={onUp}
         >
-          {/* 1. 灰色字母轮廓 fill - 提供视觉参考 */}
-          <path d={d} fill="rgba(0,0,0,0.06)" stroke="rgba(0,0,0,0.18)" strokeWidth={strokeW} />
-          {/* 2. 实际跟踪的 path（不可见，只用于 getPointAtLength） */}
-          <path ref={pathRef} d={d} fill="none" stroke="transparent" strokeWidth={0} />
-          {/* 3. 已走过的部分高亮绿色 */}
-          {total > 0 && (
+          {/* 背景：字体 outline 淡色填充作视觉参考 */}
+          <path d={outline} fill="rgba(0,0,0,0.07)" stroke="rgba(0,0,0,0.13)" strokeWidth={vb.w * 0.005} />
+
+          {/* 骨架路径（每条单独一个 path，用于追踪与可视化） */}
+          {skeletonPaths.map((d, i) => (
             <path
+              key={i}
+              ref={(el) => {
+                pathRefs.current[i] = el;
+              }}
               d={d}
               fill="none"
-              stroke="var(--duo-green)"
-              strokeWidth={strokeW * 3}
+              stroke="rgba(0,0,0,0.25)"
+              strokeWidth={skeletonStrokeW}
               strokeLinecap="round"
               strokeLinejoin="round"
-              strokeDasharray={`${progress} ${Math.max(0, total - progress + 1)}`}
+              strokeDasharray={`${vb.w * 0.012} ${vb.w * 0.018}`}
             />
-          )}
-          {/* 4. 小球（起点 / 当前位置 / 终点） */}
+          ))}
+
+          {/* 每条骨架已走过部分高亮绿色 */}
+          {skeletonPaths.map((d, i) => {
+            const total = totalsPerPath[i] || 0;
+            let drawLen = 0;
+            if (i < activeIdx) drawLen = total;
+            else if (i === activeIdx) drawLen = progress;
+            return (
+              <path
+                key={`hl-${i}`}
+                d={d}
+                fill="none"
+                stroke="var(--duo-green)"
+                strokeWidth={trailStrokeW}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={`${drawLen} ${Math.max(0, total - drawLen + 1)}`}
+              />
+            );
+          })}
+
+          {/* 小球 */}
           {ballPoint && (
             <g style={{ pointerEvents: "none" }}>
               <circle
                 cx={ballPoint.x}
                 cy={ballPoint.y}
-                r={ballR * 1.5}
+                r={ballR * 1.6}
                 fill={done ? "var(--duo-green)" : "var(--duo-blue)"}
                 opacity={0.25}
               />
@@ -225,19 +284,23 @@ export default function TraceSvg({
           <div
             className="progress-fill"
             style={{
-              width: `${total > 0 ? Math.round((progress / total) * 100) : 0}%`,
+              width: `${totalAll > 0 ? Math.round((doneAll / totalAll) * 100) : 0}%`,
             }}
           />
         </div>
         <span className="w-10 text-right font-mono text-xs opacity-70">
-          {total > 0 ? Math.round((progress / total) * 100) : 0}%
+          {totalAll > 0 ? Math.round((doneAll / totalAll) * 100) : 0}%
         </span>
         <button onClick={reset} className="btn-orange px-3 text-xs">
-          🔄 重来
+          🔄
         </button>
       </div>
       <p className="text-center text-xs opacity-60">
-        {done ? "✨ 完成！按下一个继续" : "按住绿/蓝色小球，沿灰色轮廓拖动"}
+        {done
+          ? "✨ 完成！按下一个继续"
+          : `按住小球，沿虚线骨架拖动${
+              skeletonPaths.length > 1 ? ` (${activeIdx + 1}/${skeletonPaths.length} 段)` : ""
+            }`}
       </p>
     </div>
   );
