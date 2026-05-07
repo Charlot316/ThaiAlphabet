@@ -18,11 +18,20 @@ export interface StudyItem {
 }
 
 /**
+ * 个别 mnemonic 词含 ฤๅ / ฦๅ 等 TTS 通常念不出的字符。
+ * 用拼音化的合法泰文音节代替，让 TTS 能正确念出近似音。
+ */
+const CONSONANT_SPEAK_OVERRIDE: Record<string, string> = {
+  // ฤๅษี (ru-si) → 用 รือสี 同音替代（保留 mnemonic 词在 UI 显示，speak 用替代）
+  "so-rusi": "ษอ รือสี",
+};
+
+/**
  * 辅音 speak 文本：泰国小学课本的标准念法 = 字母 + อ + 词。
  * 例如 ก → "กอ ไก่" → TTS 念 "kor kai"，听者能清楚听到字母音 /k/ + 词。
  */
 export function consonantSpeak(c: Consonant): string {
-  return `${c.letter}อ ${c.name}`;
+  return CONSONANT_SPEAK_OVERRIDE[c.id] ?? `${c.letter}อ ${c.name}`;
 }
 
 /**
@@ -37,10 +46,16 @@ export function consonantPhonetic(c: Consonant): string {
  * 特殊元音的 fallback speak（这几个字符 TTS 单独念会出错或不识别）
  */
 const VOWEL_SPEAK_OVERRIDE: Record<string, string> = {
-  rue: "ฤดู",          // ฤ → 用「季节」演示，开头 "rue-"
-  "rue-long": "หรือ",  // ฤๅ → 用 "或者" 演示长 ruee（最稳定的近音示范词）
-  lue: "lue",          // ฦ 已废，没真正用词，让 TTS 用英文念字母组合
-  "lue-long": "luee",  // ฦๅ 同上
+  // ฤ / ฤๅ：合法但极少独立使用的字符。用合法音节 รือ 模拟 [rɯɯ] 音。
+  rue: "รือ",
+  "rue-long": "รือ",
+  // ฦ / ฦๅ：已废字符，无现代词例。用合法泰文 ลือ（「传闻」）演示 [lɯɯ]。
+  lue: "ลือ",
+  "lue-long": "ลือ",
+  // 短 oe 元音 เ-อะ 在 TTS 里常被拆成 "เก + อะ"。
+  // 用现实词 เลอะ「脏」做演示，开头辅音音 + 短 ə。
+  "er-short": "เลอะ",
+  // 短 e/ae/o 也容易被尾巴 ะ 拆成两个音节，但通常还能识别，先不动。
 };
 
 const VOWEL_NEEDS_FALLBACK = new Set(Object.keys(VOWEL_SPEAK_OVERRIDE));
@@ -58,10 +73,11 @@ export function vowelSpeak(v: Vowel): string {
  * 元音"应当听到"的拼音对照
  */
 export function vowelPhonetic(v: Vowel): string {
-  if (v.id === "rue") return "rue";
-  if (v.id === "rue-long") return "ruee (≈ 「หรือ」)";
+  if (v.id === "rue") return "rue (短)";
+  if (v.id === "rue-long") return "ruee (长)";
   if (v.id === "lue") return "lue (已废)";
   if (v.id === "lue-long") return "luee (已废)";
+  if (v.id === "er-short") return "短 ə (≈ เลอะ lerh)";
   return `k-${v.roman.replace("(open)", "")} (${v.length === "long" ? "长" : "短"})`;
 }
 
