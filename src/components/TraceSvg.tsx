@@ -13,11 +13,16 @@ import { getLetterStrokes } from "@/data/strokes";
  */
 export default function TraceSvg({
   letter,
+  strokeKey,
   onComplete,
 }: {
+  /** 用来渲染字体 outline 的字符（可包含辅音占位符替换后的完整泰文字符串） */
   letter: string;
+  /** 用来查询 LETTER_STROKES 的 key；不传则用 letter */
+  strokeKey?: string;
   onComplete?: () => void;
 }) {
+  const lookupKey = strokeKey ?? letter;
   const [outline, setOutline] = useState<{ d: string; transform?: string } | null>(null);
   const [skeletonPaths, setSkeletonPaths] = useState<string[]>([]);
   const [vb, setVb] = useState({ x: 0, y: 0, w: 100, h: 100 });
@@ -45,7 +50,7 @@ export default function TraceSvg({
     setDone(false);
 
     // 优先尝试用手工录入的笔画数据（src/data/strokes.ts）
-    const manual = getLetterStrokes(letter);
+    const manual = getLetterStrokes(lookupKey);
     if (manual && manual.strokes.length > 0) {
       // 手工数据用 viewBox 0..100，把字体 outline 映射进同一个 viewBox 作背景
       letterPath(letter, 240)
@@ -95,7 +100,7 @@ export default function TraceSvg({
     return () => {
       cancelled = true;
     };
-  }, [letter]);
+  }, [letter, lookupKey]);
 
   // skeleton paths 更新后取每段总长
   useEffect(() => {

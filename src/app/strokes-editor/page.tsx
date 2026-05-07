@@ -1,19 +1,51 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONSONANTS } from "@/data/consonants";
+import { VOWELS } from "@/data/vowels";
 import { letterPath } from "@/lib/thaiFont";
 
-// 录入数据格式：与 src/data/strokes.ts 对齐
 interface LetterStrokes {
   strokes: { d: string }[];
   v: number;
 }
 
 const DRAFT_KEY = "thai-alphabet:strokes-draft:v1";
-const VB = 100; // 统一坐标 0..100
-const PAD = 6; // 左右上下各预留 6%
+const VB = 100;
+const PAD = 6;
 
-// Catmull-Rom -> cubic bezier，让点连起来更顺滑
+interface EditorItem {
+  /** 在 LETTER_STROKES 中的 key */
+  key: string;
+  /** 顶部大方块里显示的字符 */
+  display: string;
+  /** 用于渲染字体 outline 背景的 string（含辅音占位） */
+  outlineSource: string;
+  label: string;
+  meaning: string;
+  kind: "consonant" | "vowel";
+}
+
+function buildItems(): EditorItem[] {
+  const consonants: EditorItem[] = CONSONANTS.filter((c) => !c.obsolete).map((c) => ({
+    key: c.letter,
+    display: c.letter,
+    outlineSource: c.letter,
+    label: c.name,
+    meaning: c.meaning,
+    kind: "consonant",
+  }));
+  const vowels: EditorItem[] = VOWELS.map((v) => ({
+    key: `v:${v.id}`,
+    display: v.display,
+    // 字体 outline 用 ก 替换占位符让 TTS / 字形稳定显示组合
+    outlineSource: v.display.replace(/◌/g, "ก"),
+    label: v.roman + (v.length === "long" ? " (长)" : v.length === "short" ? " (短)" : ""),
+    meaning: v.notes ?? "",
+    kind: "vowel",
+  }));
+  return [...consonants, ...vowels];
+}
+
 function smoothPath(points: { x: number; y: number }[]): string {
   if (points.length === 0) return "";
   if (points.length === 1) {
@@ -50,58 +82,59 @@ function saveDraft(d: Record<string, LetterStrokes>) {
   window.localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
 }
 
-export default function StrokesEditorPage() {
-  const items = useMemo(() => CONSONANTS.filter((c) => !c.obsolete), []);
-  const [idx, setIdx] = useState(0);
-  const letter = items[idx].letter;
-  const cInfo = items[idx];
+type Tab = "consonant" | "vowel";
 
-  // 当前字母的笔画（已完成）
+export default function StrokesEditorPage() {
+  const allItems = useMemo(buildItems, []);
+  const [tab, setTab] = useState<Tab>("consonant");
+  const items = useMemo(() => allItems.filter((it) => it.kind === tab), [allItems, tab]);
+
+  const [idx, setIdx] = useState(0);
+  const item = items[idx] ?? items[0];
+
   const [strokes, setStrokes] = useState<{ x: number; y: number }[][]>([]);
-  // 当前正在画的笔画的点
   const [current, setCurrent] = useState<{ x: number; y: number }[]>([]);
-  // 字体 outline 用于背景参考（已映射到 0..100）
-  const [outlineNorm, setOutlineNorm] = useState<string | null>(null);
-  // 整体进度
+  const [outlineNorm, setOutlineNorm] = useState<{ d: string; offX: number; offY: number; scale: number } | null>(null);
   const [draft, setDraft] = useState<Record<string, LetterStrokes>>({});
 
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // 切字母时加载该字母 draft
+  // 切 tab 时回到 0
   useEffect(() => {
+    setIdx(0);
+  }, [tab]);
+
+  // 切字母加载该 key 草稿
+  useEffect(() => {
+    if (!item) return;
     const d = loadDraft();
     setDraft(d);
-    const cur = d[letter];
-    setStrokes(cur ? cur.strokes.map(parsePathToPoints) : []);
+    const cur = d[item.key];
+    setStrokes(cur ? cur.strokes.map(() => []) : []);
     setCurrent([]);
-  }, [letter]);
+  }, [item]);
 
-  // 加载字母 outline 并归一化到 0..100
+  // 加载 outline
   useEffect(() => {
+    if (!item) return;
     let cancelled = false;
     setOutlineNorm(null);
-    letterPath(letter, 240)
+    letterPath(item.outlineSource, 240)
       .then(({ d, bbox }) => {
         if (cancelled) return;
         const w = bbox.x2 - bbox.x1;
         const h = bbox.y2 - bbox.y1;
         if (w <= 0 || h <= 0) return;
-        // 把 path 平移 + 缩放到 0..100（保持纵横比，居中）
         const scale = (VB - PAD * 2) / Math.max(w, h);
         const offX = (VB - w * scale) / 2 - bbox.x1 * scale;
         const offY = (VB - h * scale) / 2 - bbox.y1 * scale;
-        // outline 字符串以 JSON 形式挂出，render 时套 transform
-        setOutlineNorm(JSON.stringify({ d, offX, offY, scale }));
+        setOutlineNorm({ d, offX, offY, scale });
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [letter]);
-
-  function parsePathToPoints(): { x: number; y: number }[] {
-    return [];
-  }
+  }, [item]);
 
   function svgPoint(e: React.PointerEvent): { x: number; y: number } | null {
     const svg = svgRef.current;
@@ -126,7 +159,6 @@ export default function StrokesEditorPage() {
     if (current.length > 0) {
       setCurrent((c) => c.slice(0, -1));
     } else if (strokes.length > 0) {
-      // 把最后一笔的点恢复为 current
       const last = strokes[strokes.length - 1];
       setStrokes((s) => s.slice(0, -1));
       setCurrent(last);
@@ -147,17 +179,17 @@ export default function StrokesEditorPage() {
   }
 
   function clearAll() {
-    if (!confirm(`确定清空 ${letter} 的所有笔画？`)) return;
+    if (!confirm(`确定清空 ${item.display} 的所有笔画？`)) return;
     setStrokes([]);
     setCurrent([]);
   }
 
   function commitToDraft() {
+    if (!item) return;
     const allStrokes = current.length >= 2 ? [...strokes, current] : strokes;
     if (allStrokes.length === 0) {
-      // 删除该字母
       const next = { ...draft };
-      delete next[letter];
+      delete next[item.key];
       saveDraft(next);
       setDraft(next);
       return;
@@ -166,7 +198,7 @@ export default function StrokesEditorPage() {
       v: 1,
       strokes: allStrokes.map((pts) => ({ d: smoothPath(pts) })),
     };
-    const next = { ...draft, [letter]: data };
+    const next = { ...draft, [item.key]: data };
     saveDraft(next);
     setDraft(next);
     setCurrent([]);
@@ -184,12 +216,12 @@ export default function StrokesEditorPage() {
     commitToDraft();
     const d = loadDraft();
     for (let i = 0; i < items.length; i++) {
-      if (!d[items[i].letter]) {
+      if (!d[items[i].key]) {
         setIdx(i);
         return;
       }
     }
-    alert("全部字母都已录入！");
+    alert(`所有 ${tab === "consonant" ? "辅音" : "元音"} 都已录入！`);
   }
 
   function exportJSON() {
@@ -197,9 +229,14 @@ export default function StrokesEditorPage() {
     const d = loadDraft();
     const json = JSON.stringify(d, null, 2);
     navigator.clipboard.writeText(json).then(
-      () => alert(`已复制到剪贴板！包含 ${Object.keys(d).length} 个字母\n\n粘贴到 src/data/strokes.ts 的 LETTER_STROKES 对象`),
       () => {
-        // fallback: open in new window
+        const cCount = Object.keys(d).filter((k) => !k.startsWith("v:")).length;
+        const vCount = Object.keys(d).filter((k) => k.startsWith("v:")).length;
+        alert(
+          `已复制到剪贴板！\n辅音 ${cCount} 个 · 元音 ${vCount} 个\n\n粘贴到 src/data/strokes.ts 的 LETTER_STROKES 对象`
+        );
+      },
+      () => {
         const blob = new Blob([json], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         window.open(url);
@@ -215,8 +252,10 @@ export default function StrokesEditorPage() {
     setCurrent([]);
   }
 
-  const totalDone = Object.keys(draft).length;
-  const outline = outlineNorm ? (JSON.parse(outlineNorm) as { d: string; offX: number; offY: number; scale: number }) : null;
+  const totalDoneAll = Object.keys(draft).length;
+  const totalDoneTab = items.filter((it) => draft[it.key]).length;
+
+  if (!item) return null;
 
   return (
     <div className="space-y-3">
@@ -224,41 +263,60 @@ export default function StrokesEditorPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-base font-extrabold">✏️ 笔画录入工具</h1>
-            <p className="mt-0.5 text-xs opacity-70">按教材顺序点关键点；每笔结束按「完成此笔」；自动存 localStorage</p>
+            <p className="mt-0.5 text-xs opacity-70">按教材顺序点关键点；自动平滑并存到 localStorage</p>
           </div>
           <div className="text-right">
             <div className="text-2xl font-extrabold" style={{ color: "var(--duo-green)" }}>
-              {totalDone}/{items.length}
+              {totalDoneAll}/76
             </div>
-            <div className="text-[10px] uppercase opacity-60">已录入</div>
+            <div className="text-[10px] uppercase opacity-60">已录入总数</div>
           </div>
         </div>
         <div className="progress-track mt-2">
-          <div className="progress-fill" style={{ width: `${(totalDone / items.length) * 100}%` }} />
+          <div className="progress-fill" style={{ width: `${(totalDoneAll / 76) * 100}%` }} />
         </div>
       </div>
 
-      {/* 当前字母信息 */}
+      {/* Tab 切换辅音/元音 */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setTab("consonant")}
+          className={tab === "consonant" ? "btn-primary px-4 text-sm" : "btn-ghost px-4 text-sm"}
+        >
+          辅音 {totalDoneAll > 0 && tab === "consonant" ? `(${totalDoneTab}/${items.length})` : `(44)`}
+        </button>
+        <button
+          onClick={() => setTab("vowel")}
+          className={tab === "vowel" ? "btn-primary px-4 text-sm" : "btn-ghost px-4 text-sm"}
+        >
+          元音 {totalDoneAll > 0 && tab === "vowel" ? `(${totalDoneTab}/${items.length})` : `(32)`}
+        </button>
+      </div>
+
       <div className="card-soft flex items-center gap-3 p-3">
         <div
-          className="thai-big flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-5xl text-white"
+          className="thai-big flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-4xl text-white"
           style={{ background: "var(--duo-green)", boxShadow: "0 4px 0 var(--duo-green-shadow)" }}
         >
-          {letter}
+          {item.display}
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm">
-            <b>{idx + 1} / {items.length}</b> · <span className="thai-big">{cInfo.name}</span>{" "}
-            <span className="opacity-70">{cInfo.meaning}</span>
+            <b>{idx + 1} / {items.length}</b> · <span className="thai-big">{item.label}</span>{" "}
+            {item.meaning && <span className="opacity-70">· {item.meaning}</span>}
           </div>
           <div className="mt-0.5 text-xs opacity-60">
             已完成笔画 {strokes.length} 段；当前 {current.length} 个点
-            {draft[letter] ? " · ✅ 已存草稿" : ""}
+            {draft[item.key] ? " · ✅ 已存草稿" : ""}
           </div>
+          {tab === "vowel" && item.display.includes("◌") && (
+            <div className="mt-1 text-[11px]" style={{ color: "var(--duo-blue)" }}>
+              ◌ 是辅音占位符（背景显示用 ก 渲染），只录元音本身的笔画即可
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 编辑画布 */}
       <div className="card-soft p-2">
         <svg
           ref={svgRef}
@@ -267,26 +325,23 @@ export default function StrokesEditorPage() {
           style={{ aspectRatio: "1 / 1", background: "white" }}
           onPointerDown={onClickCanvas}
         >
-          {/* 网格 */}
           {[25, 50, 75].map((p) => (
             <g key={p} stroke="rgba(0,0,0,0.05)" strokeWidth={0.2}>
               <line x1={p} y1={0} x2={p} y2={VB} />
               <line x1={0} y1={p} x2={VB} y2={p} />
             </g>
           ))}
-          {/* 字母 outline 背景 */}
-          {outline && (
+          {outlineNorm && (
             <g
-              transform={`translate(${outline.offX} ${outline.offY}) scale(${outline.scale})`}
+              transform={`translate(${outlineNorm.offX} ${outlineNorm.offY}) scale(${outlineNorm.scale})`}
               fill="rgba(0,0,0,0.1)"
               stroke="rgba(0,0,0,0.18)"
               strokeWidth={1}
               style={{ pointerEvents: "none" }}
             >
-              <path d={outline.d} />
+              <path d={outlineNorm.d} />
             </g>
           )}
-          {/* 已完成的笔画 */}
           {strokes.map((pts, i) => (
             <g key={i} style={{ pointerEvents: "none" }}>
               <path
@@ -298,7 +353,6 @@ export default function StrokesEditorPage() {
                 strokeLinejoin="round"
                 opacity={0.85}
               />
-              {/* 起点标号 */}
               {pts[0] && (
                 <g>
                   <circle cx={pts[0].x} cy={pts[0].y} r={2.5} fill="var(--duo-green)" />
@@ -309,7 +363,6 @@ export default function StrokesEditorPage() {
               )}
             </g>
           ))}
-          {/* 正在画的笔画 */}
           {current.length > 0 && (
             <g style={{ pointerEvents: "none" }}>
               <path
@@ -337,16 +390,11 @@ export default function StrokesEditorPage() {
         </svg>
       </div>
 
-      {/* 操作 */}
       <div className="grid grid-cols-2 gap-2">
         <button onClick={undoLast} className="btn-ghost text-xs" disabled={current.length === 0 && strokes.length === 0}>
           ↶ 撤销最后一点
         </button>
-        <button
-          onClick={finishStroke}
-          className="btn-blue text-xs"
-          disabled={current.length < 2}
-        >
+        <button onClick={finishStroke} className="btn-blue text-xs" disabled={current.length < 2}>
           ✓ 完成此笔（共 {current.length} 点）
         </button>
       </div>
@@ -376,8 +424,8 @@ export default function StrokesEditorPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <button onClick={gotoFirstUnfinished} className="btn-blue text-xs">⏭ 跳到首个未录入</button>
-        <button onClick={exportJSON} className="btn-primary text-xs">📋 导出 JSON</button>
+        <button onClick={gotoFirstUnfinished} className="btn-blue text-xs">⏭ 本类首个未录入</button>
+        <button onClick={exportJSON} className="btn-primary text-xs">📋 导出全部 JSON</button>
       </div>
 
       <button onClick={resetDraft} className="btn-red w-full text-xs">⚠️ 重置全部草稿</button>
@@ -385,12 +433,13 @@ export default function StrokesEditorPage() {
       <section className="card-soft p-3 text-xs leading-relaxed opacity-80">
         <h3 className="text-sm font-bold opacity-100">使用说明</h3>
         <ol className="mt-1 list-decimal space-y-0.5 pl-4">
-          <li>对照教材，按笔画顺序在画布上点关键点（拐弯、起止）</li>
-          <li>每笔几个点足够（3–8 个），系统自动平滑成曲线</li>
-          <li>一笔结束 → 「完成此笔」；下一笔继续点</li>
-          <li>所有笔画完成 → 「下一字」自动保存草稿</li>
-          <li>分多次录入 OK，进度存浏览器本地</li>
-          <li>全部完成 → 「导出 JSON」，粘贴到 <code>src/data/strokes.ts</code> 的 <code>LETTER_STROKES</code> 对象</li>
+          <li>切换 <b>辅音 / 元音</b> 标签</li>
+          <li>对照教材，按笔顺在画布点关键点（拐弯、起止）</li>
+          <li>每笔 3-8 个点足够；自动用 Catmull-Rom 平滑成曲线</li>
+          <li>按「✓ 完成此笔」开始下一笔；笔画前会显示 ① ② ③ 序号</li>
+          <li>「下一字」自动保存到浏览器本地草稿</li>
+          <li>全部完成「📋 导出全部 JSON」，粘贴到 <code>src/data/strokes.ts</code> 的 <code>LETTER_STROKES</code></li>
+          <li>建议每录完 5-10 个就 export 一次备份（清浏览器数据会丢草稿）</li>
         </ol>
       </section>
     </div>
