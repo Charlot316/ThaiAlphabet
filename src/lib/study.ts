@@ -22,7 +22,9 @@ export function buildStudyItems(): StudyItem[] {
     roman: c.romanInitial,
     name: c.name,
     meaning: c.meaning,
-    speak: `${c.letter} ${c.name}`,
+    // speak 只用 mnemonic name，避免某些 TTS 不念孤立辅音字母（如 "ก"）
+    // 单词的首音正好就是该字母的辅音音，例如 ไก่ 开头的 /k/ 就是 ก 的音
+    speak: c.name,
     pool: "consonant" as const,
   }));
 

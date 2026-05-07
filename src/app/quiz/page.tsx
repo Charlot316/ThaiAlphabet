@@ -6,6 +6,7 @@ import { Consonant, Vowel } from "@/data/types";
 import PronounceButton from "@/components/PronounceButton";
 import { addMastery } from "@/lib/mastery";
 import { displayRoman } from "@/lib/study";
+import { feedbackCorrect, feedbackWrong } from "@/lib/feedback";
 
 type Mode = "A" | "B";
 type Pool = "consonant" | "vowel";
@@ -88,7 +89,12 @@ function ModeA({ pool }: { pool: Pool }) {
     const correct = chosenRoman === correctRoman;
     setPicked(id);
     setIsCorrect(correct);
-    if (correct) addMastery(studyId(q.target), 1);
+    if (correct) {
+      addMastery(studyId(q.target), 1);
+      feedbackCorrect();
+    } else {
+      feedbackWrong();
+    }
     setStreak((s) => ({ ok: s.ok + (correct ? 1 : 0), total: s.total + 1 }));
   }
   function next() {
@@ -106,7 +112,7 @@ function ModeA({ pool }: { pool: Pool }) {
         </div>
         <div className="mt-3">
           <PronounceButton
-            text={"letter" in q.target ? `${q.target.letter} ${(q.target as Consonant).name}` : (q.target as Vowel).display.replace(/◌/g, "อ")}
+            text={"letter" in q.target ? (q.target as Consonant).name : (q.target as Vowel).display.replace(/◌/g, "อ")}
             label="🔊 听一下"
           />
         </div>
@@ -173,7 +179,12 @@ function ModeBConsonant() {
     if (picked) return;
     const ok = id === q.target.id;
     setPicked(id);
-    if (ok) addMastery(`c:${q.target.id}`, 1);
+    if (ok) {
+      addMastery(`c:${q.target.id}`, 1);
+      feedbackCorrect();
+    } else {
+      feedbackWrong();
+    }
     setStreak((s) => ({ ok: s.ok + (ok ? 1 : 0), total: s.total + 1 }));
   }
 
@@ -244,7 +255,12 @@ function ModeBVowel() {
     if (picked) return;
     setPicked(id);
     const ok = q.correctIds.has(id);
-    if (ok) addMastery(`v:${q.target.id}`, 1);
+    if (ok) {
+      addMastery(`v:${q.target.id}`, 1);
+      feedbackCorrect();
+    } else {
+      feedbackWrong();
+    }
     setStreak((s) => ({ ok: s.ok + (ok ? 1 : 0), total: s.total + 1 }));
   }
   function next() { setPicked(null); setRound((r) => r + 1); }

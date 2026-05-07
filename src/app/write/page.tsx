@@ -13,7 +13,7 @@ export default function WritePage() {
       <div className="card-soft p-5 flex flex-col items-center">
         <div className="text-xs opacity-60">描红：在画布上临摹</div>
         <div className="thai-big text-2xl mt-1">{c.name} <span className="opacity-60">{c.meaning}</span></div>
-        <div className="mt-1"><PronounceButton text={`${c.letter} ${c.name}`} label="🔊" /></div>
+        <div className="mt-1"><PronounceButton text={c.name} label="🔊" /></div>
       </div>
 
       <TraceCanvas letter={c.letter} key={c.id} />
@@ -45,10 +45,16 @@ function TraceCanvas({ letter }: { letter: string }) {
     const ctx = c.getContext("2d")!;
     ctx.save();
     ctx.fillStyle = "rgba(0,0,0,0.08)";
-    ctx.font = `${c.height * 0.85}px "Noto Sans Thai", "Sukhumvit Set", Tahoma, sans-serif`;
+    ctx.font = `${c.height * 0.78}px "Noto Sans Thai Looped", "Noto Sans Thai", "Sukhumvit Set", Tahoma, sans-serif`;
     ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(letter, c.width / 2, c.height / 2);
+    ctx.textBaseline = "alphabetic";
+    // 用 measureText 的实际边界做精确居中（解决泰语字母上下标号导致的视觉偏移）
+    const m = ctx.measureText(letter);
+    const ascent = m.actualBoundingBoxAscent ?? c.height * 0.4;
+    const descent = m.actualBoundingBoxDescent ?? 0;
+    const yMid = c.height / 2;
+    const y = yMid + (ascent - descent) / 2;
+    ctx.fillText(letter, c.width / 2, y);
     ctx.restore();
   }
 

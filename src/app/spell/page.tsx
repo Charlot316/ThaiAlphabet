@@ -4,6 +4,7 @@ import { generateSyllable, normalizeAnswer, BuiltSyllable } from "@/lib/syllable
 import { TONE_NAMES, TONE_MARKS } from "@/data/tones";
 import PronounceButton from "@/components/PronounceButton";
 import { displayRoman } from "@/lib/study";
+import { feedbackCorrect, feedbackWrong } from "@/lib/feedback";
 
 const cnClass = (c: string) => (c === "mid" ? "中" : c === "high" ? "高" : "低");
 
@@ -32,11 +33,14 @@ export default function SpellPage() {
 
   function submit() {
     if (!input.trim()) return;
+    const ok = normalizeAnswer(input) === normalizeAnswer(syl.roman);
     setSubmitted(true);
     setStats((s) => ({
-      ok: s.ok + (normalizeAnswer(input) === normalizeAnswer(syl.roman) ? 1 : 0),
+      ok: s.ok + (ok ? 1 : 0),
       total: s.total + 1,
     }));
+    if (ok) feedbackCorrect();
+    else feedbackWrong();
   }
 
   const markName = TONE_MARKS.find((m) => m.id === syl.toneMark)?.name ?? "—";

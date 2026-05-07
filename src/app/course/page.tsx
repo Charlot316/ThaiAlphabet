@@ -5,6 +5,7 @@ import { MASTERY_TARGET, MasteryProgress, addMastery as recordMastery, loadMaste
 import { StudyItem, buildStudyItems, displayRoman, shuffleStrong, uniqueChoices } from "@/lib/study";
 import { markActive } from "@/lib/stats";
 import { speak } from "@/lib/tts";
+import { feedbackComplete, feedbackCorrect, feedbackWrong } from "@/lib/feedback";
 
 const LAST_LESSON_KEY = "thai-alphabet:last-lesson:v1";
 const LESSON_SIZE = 4;
@@ -69,6 +70,11 @@ export default function CoursePage() {
 
   const current = questions[index];
   const complete = questions.length > 0 && index >= questions.length;
+
+  // 完成时来一发庆祝音
+  useEffect(() => {
+    if (complete) feedbackComplete();
+  }, [complete]);
   const mastered = allConsonants.filter((item) => (progress[item.id] || 0) >= MASTERY_TARGET).length;
   const lessonProgress = questions.length === 0 ? 0 : Math.min(100, (index / questions.length) * 100);
 
@@ -104,9 +110,11 @@ export default function CoursePage() {
       setFeedback("ok");
       setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
       markActive();
+      feedbackCorrect();
       speak(current.item.speak);
     } else {
       setFeedback("bad");
+      feedbackWrong();
     }
   }
 

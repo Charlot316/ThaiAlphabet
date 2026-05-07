@@ -6,6 +6,7 @@ import PronounceButton from "@/components/PronounceButton";
 import { Grade, SrsCard, dueCards, loadDeck, newCard, review, saveDeck } from "@/lib/srs";
 import { addMastery } from "@/lib/mastery";
 import { displayRoman } from "@/lib/study";
+import { feedbackCorrect, feedbackTap, feedbackWrong } from "@/lib/feedback";
 
 const DECK_KEY = "thai-alphabet:srs:v1";
 
@@ -63,8 +64,15 @@ export default function SrsPage() {
   function grade(g: Grade) {
     if (!current) return;
     const updated = review(current, g);
-    if (g === "good") addMastery(current.id, 1);
-    if (g === "again") addMastery(current.id, -1);
+    if (g === "good") {
+      addMastery(current.id, 1);
+      feedbackCorrect();
+    } else if (g === "again") {
+      addMastery(current.id, -1);
+      feedbackWrong();
+    } else {
+      feedbackTap();
+    }
     setDeck((d) => d.map((c) => (c.id === current.id ? updated : c)));
     setShow(false);
   }

@@ -80,7 +80,7 @@ function Consonants() {
               <div className="thai-big text-3xl leading-none">{c.letter}</div>
               <div className="flex items-center gap-1">
                 {classTag(c.class)}
-                <PronounceButton text={`${c.letter} ${c.name}`} />
+                <PronounceButton text={c.name} />
               </div>
             </div>
             <div className="mt-2 text-xs">
@@ -95,6 +95,25 @@ function Consonants() {
           </li>
         ))}
       </ul>
+
+      <section className="card-soft mt-4 p-4 text-xs leading-relaxed opacity-80">
+        <h3 className="mb-1 text-sm font-extrabold opacity-100">关于辅音的对应词</h3>
+        <p>
+          每个辅音都有泰国小学课本约定的「记忆词」（如 ก ไก่、ข ไข่），单词的开头辅音音
+          就是该字母的发音。其中部分词在日常生活中并不常用（多为古词或梵语借词），但都是
+          标准教学用法，例如：
+        </p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-4">
+          <li>ฌ เฌอ（树，古文）</li>
+          <li>ฑ มณโฑ（Mantho，《罗摩衍那》中的人名）</li>
+          <li>ฒ ผู้เฒ่า（老人，文雅词）</li>
+          <li>ภ สำเภา（古代帆船）</li>
+          <li>ษ ฤๅษี（隐士 / 苦行僧，梵语借词）</li>
+        </ul>
+        <p className="mt-1">
+          不必背词义，只需关注每个词的开头辅音 — 那就是要学的字母音。
+        </p>
+      </section>
 
       <section className="card-soft p-4 mt-4">
         <h3 className="font-semibold mb-2">尾辅音读音规则</h3>
