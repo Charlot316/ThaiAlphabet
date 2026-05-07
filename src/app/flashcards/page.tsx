@@ -100,7 +100,10 @@ export default function FlashcardsPage() {
           </div>
           {current.name && <div className="thai-big mt-2 text-xl">{current.name}</div>}
           {current.meaning && <div className="mt-1 text-sm opacity-70">{current.meaning}</div>}
-          <div className="mt-5">
+          <div className="mt-2 font-mono text-xs" style={{ color: "var(--duo-blue)" }}>
+            🔊 应念: {current.phonetic}
+          </div>
+          <div className="mt-4">
             <PronounceButton text={current.speak} label="🔊 听一下" />
           </div>
         </div>

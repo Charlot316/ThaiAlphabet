@@ -5,7 +5,7 @@ import { VOWELS } from "@/data/vowels";
 import PronounceButton from "@/components/PronounceButton";
 import { Grade, SrsCard, dueCards, loadDeck, newCard, review, saveDeck } from "@/lib/srs";
 import { addMastery } from "@/lib/mastery";
-import { displayRoman } from "@/lib/study";
+import { consonantPhonetic, consonantSpeak, displayRoman, vowelPhonetic, vowelSpeak } from "@/lib/study";
 import { feedbackCorrect, feedbackTap, feedbackWrong } from "@/lib/feedback";
 
 const DECK_KEY = "thai-alphabet:srs:v1";
@@ -17,14 +17,16 @@ function buildAllItems() {
     id: `c:${c.id}`,
     front: c.letter,
     back: `${displayRoman(c.romanInitial)} · ${c.name} (${c.meaning})`,
-    speak: `${c.letter} ${c.name}`,
+    speak: consonantSpeak(c),
+    phonetic: consonantPhonetic(c),
     pool: "consonant" as const,
   }));
   const vows = VOWELS.map((v) => ({
     id: `v:${v.id}`,
     front: v.display,
     back: `${v.roman} · ${v.length === "long" ? "长" : "短"}${v.notes ? " · " + v.notes : ""}`,
-    speak: v.display.replace(/◌/g, "อ"),
+    speak: vowelSpeak(v),
+    phonetic: vowelPhonetic(v),
     pool: "vowel" as const,
   }));
   return [...cons, ...vows];
@@ -114,7 +116,10 @@ export default function SrsPage() {
           <div className="card-soft animate-pop flex flex-col items-center p-8">
             <div className="chip chip-blue">复习</div>
             <div className="thai-big mt-4 text-8xl leading-none">{item.front}</div>
-            <div className="mt-4"><PronounceButton text={item.speak} label="🔊 听一下" /></div>
+            <div className="mt-3 font-mono text-xs" style={{ color: "var(--duo-blue)" }}>
+              🔊 应念: {item.phonetic}
+            </div>
+            <div className="mt-3"><PronounceButton text={item.speak} label="🔊 听一下" /></div>
             <button className="btn-ghost mt-5 px-5" onClick={() => setShow((s) => !s)}>
               {show ? "隐藏答案" : "显示答案"}
             </button>

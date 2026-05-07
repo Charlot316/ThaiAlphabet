@@ -5,7 +5,7 @@ import { VOWELS } from "@/data/vowels";
 import { Consonant, Vowel } from "@/data/types";
 import PronounceButton from "@/components/PronounceButton";
 import { addMastery } from "@/lib/mastery";
-import { displayRoman } from "@/lib/study";
+import { consonantSpeak, displayRoman, vowelSpeak } from "@/lib/study";
 import { feedbackCorrect, feedbackWrong } from "@/lib/feedback";
 
 type Mode = "A" | "B";
@@ -112,7 +112,7 @@ function ModeA({ pool }: { pool: Pool }) {
         </div>
         <div className="mt-3">
           <PronounceButton
-            text={"letter" in q.target ? (q.target as Consonant).name : (q.target as Vowel).display.replace(/◌/g, "อ")}
+            text={"letter" in q.target ? consonantSpeak(q.target as Consonant) : vowelSpeak(q.target as Vowel)}
             label="🔊 听一下"
           />
         </div>

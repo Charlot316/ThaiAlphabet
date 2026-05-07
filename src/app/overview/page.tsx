@@ -6,7 +6,7 @@ import { Vowel } from "@/data/types";
 import { TONE_MARKS, TONE_NAMES } from "@/data/tones";
 import PronounceButton from "@/components/PronounceButton";
 import { MASTERY_TARGET, useMastery } from "@/lib/mastery";
-import { displayRoman } from "@/lib/study";
+import { consonantPhonetic, consonantSpeak, displayRoman, vowelPhonetic, vowelSpeak } from "@/lib/study";
 
 type Tab = "consonant" | "vowel" | "tone";
 
@@ -80,7 +80,7 @@ function Consonants() {
               <div className="thai-big text-3xl leading-none">{c.letter}</div>
               <div className="flex items-center gap-1">
                 {classTag(c.class)}
-                <PronounceButton text={c.name} />
+                <PronounceButton text={consonantSpeak(c)} />
               </div>
             </div>
             <div className="mt-2 text-xs">
@@ -90,6 +90,9 @@ function Consonants() {
                 初: <b>{displayRoman(c.romanInitial)}</b> · 尾: <b>{c.finalSound === "none" ? "无" : c.finalSound}</b>
                 {c.obsolete && <span className="ml-1 opacity-60">已废</span>}
               </div>
+              <div className="mt-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
+                🔊 应念: {consonantPhonetic(c)}
+              </div>
               <FontSamples letter={c.letter} />
             </div>
           </li>
@@ -97,11 +100,27 @@ function Consonants() {
       </ul>
 
       <section className="card-soft mt-4 p-4 text-xs leading-relaxed opacity-80">
-        <h3 className="mb-1 text-sm font-extrabold opacity-100">关于辅音的对应词</h3>
+        <h3 className="mb-1 text-sm font-extrabold opacity-100">📣 关于发音</h3>
         <p>
-          每个辅音都有泰国小学课本约定的「记忆词」（如 ก ไก่、ข ไข่），单词的开头辅音音
-          就是该字母的发音。其中部分词在日常生活中并不常用（多为古词或梵语借词），但都是
-          标准教学用法，例如：
+          按钮 🔊 会用泰国小学课本读法 <b>「字母音 + อ + 词」</b> 来读，例如：
+        </p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-4 font-mono">
+          <li>ก ไก่ → 应念 <b>kor kai</b></li>
+          <li>ษ ฤๅษี → 应念 <b>sor ruesi</b>（前面 sor 是字母名，让你听清辅音音）</li>
+          <li>ฒ ผู้เฒ่า → 应念 <b>thor phu-thao</b>（前面 thor 是字母名）</li>
+        </ul>
+        <p className="mt-2">
+          每个卡片下面有 <span style={{ color: "var(--duo-blue)" }}>🔊 应念: ...</span>
+          标注 — 如果听到的跟标注差很远，多半是浏览器的泰语 TTS 引擎不准（特别是含
+          ฤๅ、มณโฑ 这些梵语借字时）。
+        </p>
+      </section>
+
+      <section className="card-soft mt-4 p-4 text-xs leading-relaxed opacity-80">
+        <h3 className="mb-1 text-sm font-extrabold opacity-100">关于「奇怪的对应词」</h3>
+        <p>
+          每个辅音都有泰国小学课本约定的「记忆词」，部分是古词或梵语借词，但都是
+          标准教学用法：
         </p>
         <ul className="mt-1 list-disc space-y-0.5 pl-4">
           <li>ฌ เฌอ（树，古文）</li>
@@ -185,11 +204,14 @@ function Vowels() {
                 })()}
                 <div className="flex items-center justify-between">
                   <div className="thai-big text-2xl">{v.display}</div>
-                  <PronounceButton text={v.display.replace(/◌/g, "อ")} />
+                  <PronounceButton text={vowelSpeak(v)} />
                 </div>
                 <div className="mt-1 text-xs">
                   <div>罗马音: <b>{v.roman}</b></div>
                   <div className="opacity-70">{v.length === "long" ? "长" : "短"}{v.notes ? ` · ${v.notes}` : ""}</div>
+                  <div className="mt-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
+                    🔊 应念: {vowelPhonetic(v)}
+                  </div>
                 </div>
               </li>
             ))}

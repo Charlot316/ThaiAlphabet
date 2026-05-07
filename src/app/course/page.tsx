@@ -241,7 +241,10 @@ function QuestionCard({
         {question.item.meaning && (
           <div className="mt-1 text-sm opacity-70">{question.item.meaning}</div>
         )}
-        <div className="mt-4">
+        <div className="mt-2 font-mono text-xs" style={{ color: "var(--duo-blue)" }}>
+          🔊 应念: {question.item.phonetic}
+        </div>
+        <div className="mt-3">
           <PronounceButton text={question.item.speak} label="🔊 听一下" />
         </div>
         <div className="mt-5 text-xs opacity-70">

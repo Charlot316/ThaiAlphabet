@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONSONANTS } from "@/data/consonants";
 import PronounceButton from "@/components/PronounceButton";
+import { consonantPhonetic, consonantSpeak } from "@/lib/study";
 
 export default function WritePage() {
   const items = useMemo(() => CONSONANTS.filter((c) => !c.obsolete), []);
@@ -12,8 +13,15 @@ export default function WritePage() {
     <div className="space-y-3">
       <div className="card-soft p-5 flex flex-col items-center">
         <div className="text-xs opacity-60">描红：在画布上临摹</div>
-        <div className="thai-big text-2xl mt-1">{c.name} <span className="opacity-60">{c.meaning}</span></div>
-        <div className="mt-1"><PronounceButton text={c.name} label="🔊" /></div>
+        <div className="thai-big text-2xl mt-1">
+          {c.name} <span className="opacity-60">{c.meaning}</span>
+        </div>
+        <div className="mt-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
+          🔊 应念: {consonantPhonetic(c)}
+        </div>
+        <div className="mt-2">
+          <PronounceButton text={consonantSpeak(c)} label="🔊 听" />
+        </div>
       </div>
 
       <TraceCanvas letter={c.letter} key={c.id} />
