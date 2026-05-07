@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { letterSkeleton } from "@/lib/thaiFont";
+import { letterPath, letterSkeleton } from "@/lib/thaiFont";
 import { feedbackComplete, feedbackTap } from "@/lib/feedback";
+import { getLetterStrokes } from "@/data/strokes";
 
 /**
  * 沿字母骨架（中线）拖小球的描红组件，Duolingo 风。
@@ -17,7 +18,7 @@ export default function TraceSvg({
   letter: string;
   onComplete?: () => void;
 }) {
-  const [outline, setOutline] = useState<string | null>(null);
+  const [outline, setOutline] = useState<{ d: string; transform?: string } | null>(null);
   const [skeletonPaths, setSkeletonPaths] = useState<string[]>([]);
   const [vb, setVb] = useState({ x: 0, y: 0, w: 100, h: 100 });
   const [error, setError] = useState<string | null>(null);
@@ -43,10 +44,43 @@ export default function TraceSvg({
     lastProgress.current = 0;
     setDone(false);
 
+    // 优先尝试用手工录入的笔画数据（src/data/strokes.ts）
+    const manual = getLetterStrokes(letter);
+    if (manual && manual.strokes.length > 0) {
+      // 手工数据用 viewBox 0..100，把字体 outline 映射进同一个 viewBox 作背景
+      letterPath(letter, 240)
+        .then(({ d, bbox }) => {
+          if (cancelled) return;
+          const w = bbox.x2 - bbox.x1;
+          const h = bbox.y2 - bbox.y1;
+          if (w > 0 && h > 0) {
+            const VB = 100;
+            const PAD = 6;
+            const scale = (VB - PAD * 2) / Math.max(w, h);
+            const offX = (VB - w * scale) / 2 - bbox.x1 * scale;
+            const offY = (VB - h * scale) / 2 - bbox.y1 * scale;
+            setOutline({
+              d,
+              transform: `translate(${offX} ${offY}) scale(${scale})`,
+            });
+          }
+          setVb({ x: 0, y: 0, w: 100, h: 100 });
+          setSkeletonPaths(manual.strokes.map((s) => s.d));
+        })
+        .catch((e) => {
+          if (cancelled) return;
+          setError((e as Error).message || "字体加载失败");
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    // fallback：算法骨架
     letterSkeleton(letter, 240)
       .then((res) => {
         if (cancelled) return;
-        setOutline(res.outline);
+        setOutline({ d: res.outline });
         setSkeletonPaths(res.paths);
         setVb(res.viewBox);
         if (res.paths.length === 0) {
@@ -217,7 +251,13 @@ export default function TraceSvg({
           onPointerCancel={onUp}
         >
           {/* 背景：字体 outline 淡色填充作视觉参考 */}
-          <path d={outline} fill="rgba(0,0,0,0.07)" stroke="rgba(0,0,0,0.13)" strokeWidth={vb.w * 0.005} />
+          {outline.transform ? (
+            <g transform={outline.transform}>
+              <path d={outline.d} fill="rgba(0,0,0,0.07)" stroke="rgba(0,0,0,0.13)" strokeWidth={1} />
+            </g>
+          ) : (
+            <path d={outline.d} fill="rgba(0,0,0,0.07)" stroke="rgba(0,0,0,0.13)" strokeWidth={vb.w * 0.005} />
+          )}
 
           {/* 骨架路径（每条单独一个 path，用于追踪与可视化） */}
           {skeletonPaths.map((d, i) => (
