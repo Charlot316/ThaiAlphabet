@@ -5,6 +5,8 @@ import { VOWELS } from "@/data/vowels";
 import { Vowel } from "@/data/types";
 import { TONE_MARKS, TONE_NAMES } from "@/data/tones";
 import PronounceButton from "@/components/PronounceButton";
+import { MASTERY_TARGET, useMastery } from "@/lib/mastery";
+import { displayRoman } from "@/lib/study";
 
 type Tab = "consonant" | "vowel" | "tone";
 
@@ -38,6 +40,7 @@ function classTag(cls: string) {
 
 function Consonants() {
   const [filter, setFilter] = useState<"all" | "mid" | "high" | "low">("all");
+  const mastery = useMastery();
   const list = useMemo(
     () => CONSONANTS.filter((c) => filter === "all" || c.class === filter),
     [filter]
@@ -58,6 +61,21 @@ function Consonants() {
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {list.map((c) => (
           <li key={c.id} className="card p-3">
+            {(() => {
+              const value = mastery[`c:${c.id}`] || 0;
+              const pct = Math.round((value / MASTERY_TARGET) * 100);
+              return (
+                <div className="mb-2">
+                  <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
+                    <span>熟练度</span>
+                    <span>{value}/{MASTERY_TARGET}</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+                    <div className="h-full bg-black dark:bg-white" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })()}
             <div className="flex items-start justify-between">
               <div className="thai-big text-3xl leading-none">{c.letter}</div>
               <div className="flex items-center gap-1">
@@ -69,15 +87,14 @@ function Consonants() {
               <div className="thai-big">{c.name}</div>
               <div className="opacity-70 mt-0.5">{c.meaning}</div>
               <div className="mt-1">
-                初: <b>{c.romanInitial}</b> · 尾: <b>{c.finalSound}</b>
+                初: <b>{displayRoman(c.romanInitial)}</b> · 尾: <b>{c.finalSound === "none" ? "无" : c.finalSound}</b>
                 {c.obsolete && <span className="ml-1 opacity-60">已废</span>}
               </div>
+              <FontSamples letter={c.letter} />
             </div>
           </li>
         ))}
       </ul>
-
-      <FontCompare />
 
       <section className="card p-4 mt-4">
         <h3 className="font-semibold mb-2">尾辅音读音规则</h3>
@@ -94,49 +111,29 @@ function Consonants() {
   );
 }
 
-const FONT_SAMPLES = ["ก", "ข", "ค", "ฆ", "ด", "ต", "ถ", "ภ", "ญ", "ณ", "ฬ", "ฮ"];
-
-function FontCompare() {
+function FontSamples({ letter }: { letter: string }) {
   const fonts = [
-    { label: "规范 Looped", className: "thai-font-looped" },
-    { label: "Noto Sans", className: "thai-font-noto" },
-    { label: "系统 Thai", className: "thai-font-system" },
-    { label: "Sarabun", className: "thai-font-serif" },
+    { label: "主", className: "thai-font-looped" },
+    { label: "Noto", className: "thai-font-noto" },
+    { label: "Prompt", className: "thai-font-prompt" },
+    { label: "Kanit", className: "thai-font-kanit" },
+    { label: "Sarabun", className: "thai-font-sarabun" },
   ];
 
   return (
-    <section className="card p-4">
-      <h3 className="font-semibold">字体对照</h3>
-      <p className="mt-1 text-xs opacity-70">主字体优先使用更规范的 looped 泰文字体；这里可以横向比较容易混淆的字母。</p>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[520px] text-left text-xs">
-          <thead className="opacity-60">
-            <tr>
-              <th className="py-2 pr-3 font-medium">字体</th>
-              {FONT_SAMPLES.map((letter) => (
-                <th key={letter} className="py-2 text-center font-medium">{letter}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {fonts.map((font) => (
-              <tr key={font.label} className="border-t border-black/5 dark:border-white/10">
-                <td className="py-2 pr-3 whitespace-nowrap opacity-70">{font.label}</td>
-                {FONT_SAMPLES.map((letter) => (
-                  <td key={letter} className={`${font.className} py-2 text-center text-2xl leading-none`}>
-                    {letter}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+    <div className="mt-3 grid grid-cols-5 gap-1">
+      {fonts.map((font) => (
+        <div key={font.label} className="rounded-lg border border-black/5 bg-black/[0.02] p-1 text-center dark:border-white/10 dark:bg-white/[0.03]">
+          <div className={`${font.className} text-2xl leading-none`}>{letter}</div>
+          <div className="mt-0.5 truncate text-[10px] opacity-50">{font.label}</div>
+        </div>
+      ))}
+    </div>
   );
 }
 
 function Vowels() {
+  const mastery = useMastery();
   const groups = [
     { key: "monophthong-long", title: "长元音 (单元音)", filter: (v: Vowel) => v.category === "monophthong" && v.length === "long" },
     { key: "monophthong-short", title: "短元音 (单元音)", filter: (v: Vowel) => v.category === "monophthong" && v.length === "short" },
@@ -152,6 +149,21 @@ function Vowels() {
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {VOWELS.filter(g.filter).map((v) => (
               <li key={v.id} className="card p-3">
+                {(() => {
+                  const value = mastery[`v:${v.id}`] || 0;
+                  const pct = Math.round((value / MASTERY_TARGET) * 100);
+                  return (
+                    <div className="mb-2">
+                      <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
+                        <span>熟练度</span>
+                        <span>{value}/{MASTERY_TARGET}</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+                        <div className="h-full bg-black dark:bg-white" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="flex items-center justify-between">
                   <div className="thai-big text-2xl">{v.display}</div>
                   <PronounceButton text={v.display.replace(/◌/g, "อ")} />

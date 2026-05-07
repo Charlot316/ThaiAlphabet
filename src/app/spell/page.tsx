@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { generateSyllable, normalizeAnswer, BuiltSyllable } from "@/lib/syllable";
 import { TONE_NAMES, TONE_MARKS } from "@/data/tones";
 import PronounceButton from "@/components/PronounceButton";
+import { displayRoman } from "@/lib/study";
 
 const cnClass = (c: string) => (c === "mid" ? "中" : c === "high" ? "高" : "低");
 
@@ -106,7 +107,7 @@ export default function SpellPage() {
             <li>
               初辅音：<span className="thai-big">{syl.initial.letter}</span>{" "}
               <span className="opacity-70">
-                ({syl.initial.romanInitial}, 原 {cnClass(syl.initial.class)}
+                ({displayRoman(syl.initial.romanInitial)}, 原 {cnClass(syl.initial.class)}
                 {syl.silentLeader ? ` → 按 ${cnClass(syl.effectiveClass)}` : ""})
               </span>
             </li>

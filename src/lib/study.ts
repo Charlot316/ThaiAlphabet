@@ -42,6 +42,10 @@ export function filterStudyItems(items: StudyItem[], pool: StudyPool): StudyItem
   return items.filter((item) => pool === "both" || item.pool === pool);
 }
 
+export function displayRoman(roman: string): string {
+  return roman === "ʔ" ? "空/喉塞" : roman;
+}
+
 function randomInt(max: number): number {
   if (max <= 0) return 0;
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {

@@ -4,6 +4,8 @@ import { CONSONANTS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import PronounceButton from "@/components/PronounceButton";
 import { Grade, SrsCard, dueCards, loadDeck, newCard, review, saveDeck } from "@/lib/srs";
+import { addMastery } from "@/lib/mastery";
+import { displayRoman } from "@/lib/study";
 
 const DECK_KEY = "thai-alphabet:srs:v1";
 
@@ -13,7 +15,7 @@ function buildAllItems() {
   const cons = CONSONANTS.filter((c) => !c.obsolete).map((c) => ({
     id: `c:${c.id}`,
     front: c.letter,
-    back: `${c.romanInitial} · ${c.name} (${c.meaning})`,
+    back: `${displayRoman(c.romanInitial)} · ${c.name} (${c.meaning})`,
     speak: `${c.letter} ${c.name}`,
     pool: "consonant" as const,
   }));
@@ -61,6 +63,8 @@ export default function SrsPage() {
   function grade(g: Grade) {
     if (!current) return;
     const updated = review(current, g);
+    if (g === "good") addMastery(current.id, 1);
+    if (g === "again") addMastery(current.id, -1);
     setDeck((d) => d.map((c) => (c.id === current.id ? updated : c)));
     setShow(false);
   }

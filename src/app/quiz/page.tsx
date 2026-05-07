@@ -4,6 +4,8 @@ import { CONSONANTS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import { Consonant, Vowel } from "@/data/types";
 import PronounceButton from "@/components/PronounceButton";
+import { addMastery } from "@/lib/mastery";
+import { displayRoman } from "@/lib/study";
 
 type Mode = "A" | "B";
 type Pool = "consonant" | "vowel";
@@ -29,6 +31,10 @@ function uniqueChoices<T>(correct: T, allOptions: T[], n: number, key: (x: T) =>
     }
   }
   return shuffle(result);
+}
+
+function studyId(item: Consonant | Vowel): string {
+  return "letter" in item ? `c:${item.id}` : `v:${item.id}`;
 }
 
 export default function QuizPage() {
@@ -82,6 +88,7 @@ function ModeA({ pool }: { pool: Pool }) {
     const correct = chosenRoman === correctRoman;
     setPicked(id);
     setIsCorrect(correct);
+    if (correct) addMastery(studyId(q.target), 1);
     setStreak((s) => ({ ok: s.ok + (correct ? 1 : 0), total: s.total + 1 }));
   }
   function next() {
@@ -108,6 +115,7 @@ function ModeA({ pool }: { pool: Pool }) {
         {q.choices.map((c) => {
           const id = c.id;
           const text = "romanInitial" in c ? c.romanInitial : (c as Vowel).roman;
+          const label = displayRoman(text);
           const isPicked = picked === id;
           const isCorrectRoman = text === correctRoman;
           const state = !picked
@@ -120,7 +128,7 @@ function ModeA({ pool }: { pool: Pool }) {
           return (
             <li key={id}>
               <button onClick={() => pick(id)} className={`${state} w-full font-mono text-base`}>
-                {text}
+                {label}
               </button>
             </li>
           );
@@ -132,7 +140,7 @@ function ModeA({ pool }: { pool: Pool }) {
       </div>
       {picked && (
         <div className={`card p-3 text-sm ${isCorrect ? "ring-2 ring-emerald-500" : "ring-2 ring-rose-500"}`}>
-          {isCorrect ? "✓ 正确" : "✗ 答案"}：<b>{correctRoman}</b>
+          {isCorrect ? "✓ 正确" : "✗ 答案"}：<b>{displayRoman(correctRoman)}</b>
           {"name" in q.target && (
             <span className="ml-2 opacity-70 thai-big">{(q.target as Consonant).name}</span>
           )}
@@ -165,6 +173,7 @@ function ModeBConsonant() {
     if (picked) return;
     const ok = id === q.target.id;
     setPicked(id);
+    if (ok) addMastery(`c:${q.target.id}`, 1);
     setStreak((s) => ({ ok: s.ok + (ok ? 1 : 0), total: s.total + 1 }));
   }
 
@@ -178,7 +187,7 @@ function ModeBConsonant() {
       <div className="card p-5 flex items-center justify-between">
         <div>
           <div className="text-xs opacity-60">哪个辅音读:</div>
-          <div className="text-3xl font-mono mt-1">{q.target.romanInitial}</div>
+          <div className="text-3xl font-mono mt-1">{displayRoman(q.target.romanInitial)}</div>
           <div className="text-xs opacity-60 mt-1">单选一个字母</div>
         </div>
         <div className="text-sm opacity-70">{streak.ok} / {streak.total}</div>
@@ -234,7 +243,9 @@ function ModeBVowel() {
   function pick(id: string) {
     if (picked) return;
     setPicked(id);
-    setStreak((s) => ({ ok: s.ok + (q.correctIds.has(id) ? 1 : 0), total: s.total + 1 }));
+    const ok = q.correctIds.has(id);
+    if (ok) addMastery(`v:${q.target.id}`, 1);
+    setStreak((s) => ({ ok: s.ok + (ok ? 1 : 0), total: s.total + 1 }));
   }
   function next() { setPicked(null); setRound((r) => r + 1); }
 

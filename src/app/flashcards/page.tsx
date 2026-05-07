@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import PronounceButton from "@/components/PronounceButton";
-import { StudyPool, buildStudyItems, filterStudyItems, shuffleStrong } from "@/lib/study";
+import { speak, warmupVoices } from "@/lib/tts";
+import { StudyPool, buildStudyItems, displayRoman, filterStudyItems, shuffleStrong } from "@/lib/study";
 
 const LAST_ORDER_KEY = "thai-alphabet:flashcards-last-order:v1";
 
@@ -19,7 +20,7 @@ export default function FlashcardsPage() {
 
   const items = useMemo(() => filterStudyItems(allItems, pool), [allItems, pool]);
   const itemById = useMemo(() => Object.fromEntries(items.map((item) => [item.id, item])), [items]);
-  const current = itemById[order[index]] ?? items[0];
+  const current = order.length ? itemById[order[index]] : null;
 
   function reshuffle(startAt = 0) {
     const stamp = `${Date.now()}:${performance.now()}:${Math.random()}`;
@@ -38,6 +39,14 @@ export default function FlashcardsPage() {
     reshuffle(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pool, items.length]);
+
+  useEffect(() => {
+    warmupVoices();
+  }, []);
+
+  useEffect(() => {
+    if (current) speak(current.speak);
+  }, [current]);
 
   function next() {
     if (index >= order.length - 1) {
@@ -83,7 +92,7 @@ export default function FlashcardsPage() {
             {index + 1} / {order.length || items.length}
           </div>
           <div className="thai-big mt-4 text-8xl leading-none">{current.front}</div>
-          <div className="mt-5 text-lg font-semibold">{current.roman}</div>
+          <div className="mt-5 text-lg font-semibold">{displayRoman(current.roman)}</div>
           <div className="thai-big mt-2 text-xl">{current.name}</div>
           <div className="mt-1 text-sm opacity-70">{current.meaning}</div>
           <div className="mt-5">

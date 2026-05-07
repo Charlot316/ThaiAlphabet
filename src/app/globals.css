@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&family=Noto+Sans+Thai+Looped:wght@400;600;700&family=Prompt:wght@400;600;700&family=Sarabun:wght@400;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -29,8 +31,9 @@ body {
 
 .thai-font-looped { font-family: "Noto Sans Thai Looped", "Leelawadee UI", "Tahoma", sans-serif; }
 .thai-font-noto { font-family: "Noto Sans Thai", "Leelawadee UI", "Tahoma", sans-serif; }
-.thai-font-system { font-family: "Leelawadee UI", "Tahoma", sans-serif; }
-.thai-font-serif { font-family: "Th Sarabun New", "Sarabun", serif; }
+.thai-font-prompt { font-family: "Prompt", "Noto Sans Thai", sans-serif; }
+.thai-font-kanit { font-family: "Kanit", "Noto Sans Thai", sans-serif; }
+.thai-font-sarabun { font-family: "Sarabun", "Th Sarabun New", serif; }
 
 @layer components {
   .btn {
