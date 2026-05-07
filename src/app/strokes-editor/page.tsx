@@ -4,11 +4,6 @@ import { CONSONANTS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import { letterPath, letterSkeleton } from "@/lib/thaiFont";
 
-interface LetterStrokes {
-  strokes: { d: string }[];
-  v: number;
-}
-
 interface CompletedStroke {
   d: string;
   pointCount: number;
@@ -16,9 +11,18 @@ interface CompletedStroke {
 }
 
 interface CandidateStroke {
-  d: string;
+  points: Point[];
   sourceIndex: number;
 }
+
+interface StrokeDraft {
+  v: number;
+  strokes: { d: string }[];
+  candidates?: CandidateStroke[];
+  updated_at?: number;
+}
+
+type Point = { x: number; y: number };
 
 const DRAFT_KEY = "thai-alphabet:strokes-draft:v1";
 const VB = 100;
@@ -81,34 +85,99 @@ function smoothPath(points: { x: number; y: number }[]): string {
   return d;
 }
 
-function normalizeSkeletonPath(
-  d: string,
-  norm: { offX: number; offY: number; scale: number }
-): string {
+function parseLinePath(d: string): Point[] {
   const tokens = d.match(/[ML]|-?\d+(?:\.\d+)?/g) ?? [];
-  const out: string[] = [];
+  const points: Point[] = [];
   let i = 0;
   while (i < tokens.length) {
     const cmd = tokens[i++];
     if (cmd !== "M" && cmd !== "L") continue;
     const x = Number(tokens[i++]);
     const y = Number(tokens[i++]);
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-    out.push(`${cmd} ${(x * norm.scale + norm.offX).toFixed(2)} ${(y * norm.scale + norm.offY).toFixed(2)}`);
+    if (Number.isFinite(x) && Number.isFinite(y)) points.push({ x, y });
   }
-  return out.join(" ");
+  return points;
 }
 
-function loadDraft(): Record<string, LetterStrokes> {
+function normalizeSkeletonPoints(
+  d: string,
+  norm: { offX: number; offY: number; scale: number }
+): Point[] {
+  return parseLinePath(d).map((point) => ({
+    x: Number((point.x * norm.scale + norm.offX).toFixed(2)),
+    y: Number((point.y * norm.scale + norm.offY).toFixed(2)),
+  }));
+}
+
+function normalizeDraft(raw: unknown): StrokeDraft | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Partial<StrokeDraft>;
+  if (!Array.isArray(value.strokes)) return null;
+  return {
+    v: value.v || 1,
+    strokes: value.strokes.filter((stroke) => stroke && typeof stroke.d === "string"),
+    candidates: Array.isArray(value.candidates)
+      ? value.candidates
+          .map((candidate, sourceIndex) => ({
+            sourceIndex: candidate?.sourceIndex ?? sourceIndex,
+            points: Array.isArray(candidate?.points) ? candidate.points : [],
+          }))
+          .filter((candidate) => candidate.points.length >= 2)
+      : undefined,
+    updated_at: typeof value.updated_at === "number" ? value.updated_at : undefined,
+  };
+}
+
+function loadDraft(): Record<string, StrokeDraft> {
   if (typeof window === "undefined") return {};
   try {
-    return JSON.parse(window.localStorage.getItem(DRAFT_KEY) || "{}");
+    const parsed = JSON.parse(window.localStorage.getItem(DRAFT_KEY) || "{}") as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .map(([key, value]) => [key, normalizeDraft(value)] as const)
+        .filter((entry): entry is [string, StrokeDraft] => Boolean(entry[1]))
+    );
   } catch {
     return {};
   }
 }
-function saveDraft(d: Record<string, LetterStrokes>) {
+function saveDraft(d: Record<string, StrokeDraft>) {
   window.localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+}
+
+function authHeaders(): HeadersInit {
+  const token = window.localStorage.getItem("thai-alphabet:sync:token") || "";
+  return token ? { authorization: `Bearer ${token}` } : {};
+}
+
+async function fetchRemoteDraft(key: string): Promise<StrokeDraft | null> {
+  const res = await fetch(`/api/strokes?key=${encodeURIComponent(key)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { item?: { value: string; updated_at: number } | null };
+  if (!data.item) return null;
+  try {
+    const parsed = normalizeDraft(JSON.parse(data.item.value));
+    return parsed ? { ...parsed, updated_at: data.item.updated_at } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function pushRemoteDraft(key: string, draft: StrokeDraft) {
+  await fetch("/api/strokes", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify({
+      key,
+      value: JSON.stringify(draft),
+      updated_at: draft.updated_at || Date.now(),
+    }),
+  });
 }
 
 type Tab = "consonant" | "vowel";
@@ -126,10 +195,15 @@ export default function StrokesEditorPage() {
   const [outlineNorm, setOutlineNorm] = useState<{ d: string; offX: number; offY: number; scale: number } | null>(null);
   const [candidates, setCandidates] = useState<CandidateStroke[]>([]);
   const [selectedCandidates, setSelectedCandidates] = useState<number[]>([]);
+  const [activeCandidate, setActiveCandidate] = useState<number | null>(null);
+  const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
   const [detecting, setDetecting] = useState(false);
-  const [draft, setDraft] = useState<Record<string, LetterStrokes>>({});
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [draft, setDraft] = useState<Record<string, StrokeDraft>>({});
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const draggingPoint = useRef<{ candidate: number; point: number } | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 切 tab 时回到 0
   useEffect(() => {
@@ -143,8 +217,25 @@ export default function StrokesEditorPage() {
     setDraft(d);
     const cur = d[item.key];
     setStrokes(cur ? cur.strokes.map((s) => ({ d: s.d, pointCount: 0, source: "auto" })) : []);
+    setCandidates(cur?.candidates ?? []);
     setCurrent([]);
     setSelectedCandidates([]);
+    setActiveCandidate(null);
+    setSelectedPoint(null);
+    setSaveState(cur ? "saved" : "idle");
+
+    fetchRemoteDraft(item.key).then((remote) => {
+      if (!remote) return;
+      const latestLocal = loadDraft()[item.key];
+      const localStamp = latestLocal?.updated_at || 0;
+      if ((remote.updated_at || 0) <= localStamp) return;
+      const next = { ...loadDraft(), [item.key]: remote };
+      saveDraft(next);
+      setDraft(next);
+      setStrokes(remote.strokes.map((s) => ({ d: s.d, pointCount: 0, source: "auto" })));
+      setCandidates(remote.candidates ?? []);
+      setSaveState("saved");
+    });
   }, [item]);
 
   // 加载 outline
@@ -167,10 +258,12 @@ export default function StrokesEditorPage() {
         setOutlineNorm(norm);
         return letterSkeleton(item.outlineSource, 240).then((skel) => {
           if (cancelled) return;
+          const saved = loadDraft()[item.key];
+          if (saved?.candidates?.length) return;
           setCandidates(
             skel.paths
-              .map((path, sourceIndex) => ({ d: normalizeSkeletonPath(path, norm), sourceIndex }))
-              .filter((path) => path.d.length > 0)
+              .map((path, sourceIndex) => ({ points: normalizeSkeletonPoints(path, norm), sourceIndex }))
+              .filter((path) => path.points.length >= 2)
           );
         });
       })
@@ -182,6 +275,30 @@ export default function StrokesEditorPage() {
       cancelled = true;
     };
   }, [item]);
+
+  useEffect(() => {
+    if (!item) return;
+    if (detecting) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      const currentDraft: StrokeDraft = {
+        v: 1,
+        strokes: strokes.map((stroke) => ({ d: stroke.d })),
+        candidates,
+        updated_at: Date.now(),
+      };
+      const next = { ...loadDraft(), [item.key]: currentDraft };
+      saveDraft(next);
+      setDraft(next);
+      setSaveState("saving");
+      pushRemoteDraft(item.key, currentDraft)
+        .then(() => setSaveState("saved"))
+        .catch(() => setSaveState("error"));
+    }, 900);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [item, strokes, candidates, detecting]);
 
   function svgPoint(e: React.PointerEvent): { x: number; y: number } | null {
     const svg = svgRef.current;
@@ -196,6 +313,7 @@ export default function StrokesEditorPage() {
   }
 
   function onClickCanvas(e: React.PointerEvent) {
+    if ((e.target as Element).tagName.toLowerCase() !== "svg") return;
     const p = svgPoint(e);
     if (!p) return;
     if (p.x < 0 || p.x > VB || p.y < 0 || p.y > VB) return;
@@ -231,6 +349,8 @@ export default function StrokesEditorPage() {
   }
 
   function toggleCandidate(i: number) {
+    setActiveCandidate(i);
+    setSelectedPoint(null);
     setSelectedCandidates((selected) =>
       selected.includes(i) ? selected.filter((value) => value !== i) : [...selected, i]
     );
@@ -242,11 +362,97 @@ export default function StrokesEditorPage() {
       return;
     }
     const d = selectedCandidates
-      .map((i) => candidates[i]?.d)
+      .map((i) => candidates[i]?.points)
       .filter(Boolean)
+      .map((points) => smoothPath(points))
       .join(" ");
     setStrokes((s) => [...s, { d, pointCount: selectedCandidates.length, source: "auto" }]);
     setSelectedCandidates([]);
+    setActiveCandidate(null);
+    setSelectedPoint(null);
+  }
+
+  function reverseActiveCandidate() {
+    if (activeCandidate === null) return;
+    setCandidates((prev) =>
+      prev.map((candidate, i) =>
+        i === activeCandidate ? { ...candidate, points: [...candidate.points].reverse() } : candidate
+      )
+    );
+  }
+
+  function deleteSelectedPoint() {
+    if (activeCandidate === null || selectedPoint === null) return;
+    setCandidates((prev) =>
+      prev.map((candidate, i) => {
+        if (i !== activeCandidate || candidate.points.length <= 2) return candidate;
+        return {
+          ...candidate,
+          points: candidate.points.filter((_, pointIndex) => pointIndex !== selectedPoint),
+        };
+      })
+    );
+    setSelectedPoint(null);
+  }
+
+  function addPointToActiveCandidate() {
+    if (activeCandidate === null) return;
+    setCandidates((prev) =>
+      prev.map((candidate, i) => {
+        if (i !== activeCandidate) return candidate;
+        const insertAt = selectedPoint === null ? candidate.points.length - 1 : selectedPoint;
+        const a = candidate.points[insertAt];
+        const b = candidate.points[Math.min(candidate.points.length - 1, insertAt + 1)] ?? a;
+        const point = {
+          x: Number(((a.x + b.x) / 2).toFixed(2)),
+          y: Number(((a.y + b.y) / 2).toFixed(2)),
+        };
+        return {
+          ...candidate,
+          points: [
+            ...candidate.points.slice(0, insertAt + 1),
+            point,
+            ...candidate.points.slice(insertAt + 1),
+          ],
+        };
+      })
+    );
+    setSelectedPoint((value) => (value === null ? null : value + 1));
+  }
+
+  function onPointDown(e: React.PointerEvent, candidate: number, point: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    draggingPoint.current = { candidate, point };
+    setActiveCandidate(candidate);
+    setSelectedPoint(point);
+    (e.target as Element).setPointerCapture(e.pointerId);
+  }
+
+  function onSvgMove(e: React.PointerEvent) {
+    const drag = draggingPoint.current;
+    if (!drag) return;
+    const p = svgPoint(e);
+    if (!p) return;
+    const nextPoint = {
+      x: Math.max(0, Math.min(VB, Number(p.x.toFixed(2)))),
+      y: Math.max(0, Math.min(VB, Number(p.y.toFixed(2)))),
+    };
+    setCandidates((prev) =>
+      prev.map((candidate, candidateIndex) => {
+        if (candidateIndex !== drag.candidate) return candidate;
+        return {
+          ...candidate,
+          points: candidate.points.map((point, pointIndex) =>
+            pointIndex === drag.point ? nextPoint : point
+          ),
+        };
+      })
+    );
+  }
+
+  function onSvgUp() {
+    draggingPoint.current = null;
   }
 
   function commitToDraft() {
@@ -263,14 +469,20 @@ export default function StrokesEditorPage() {
       setDraft(next);
       return;
     }
-    const data: LetterStrokes = {
+    const data: StrokeDraft = {
       v: 1,
       strokes: allStrokes.map((stroke) => ({ d: stroke.d })),
+      candidates,
+      updated_at: Date.now(),
     };
     const next = { ...draft, [item.key]: data };
     saveDraft(next);
     setDraft(next);
     setCurrent([]);
+    setSaveState("saving");
+    pushRemoteDraft(item.key, data)
+      .then(() => setSaveState("saved"))
+      .catch(() => setSaveState("error"));
   }
 
   function nextLetter() {
@@ -296,11 +508,16 @@ export default function StrokesEditorPage() {
   function exportJSON() {
     commitToDraft();
     const d = loadDraft();
-    const json = JSON.stringify(d, null, 2);
+    const exportable = Object.fromEntries(
+      Object.entries(d)
+        .filter(([, value]) => value.strokes.length > 0)
+        .map(([key, value]) => [key, { v: value.v || 1, strokes: value.strokes }])
+    );
+    const json = JSON.stringify(exportable, null, 2);
     navigator.clipboard.writeText(json).then(
       () => {
-        const cCount = Object.keys(d).filter((k) => !k.startsWith("v:")).length;
-        const vCount = Object.keys(d).filter((k) => k.startsWith("v:")).length;
+        const cCount = Object.keys(exportable).filter((k) => !k.startsWith("v:")).length;
+        const vCount = Object.keys(exportable).filter((k) => k.startsWith("v:")).length;
         alert(
           `已复制到剪贴板！\n辅音 ${cCount} 个 · 元音 ${vCount} 个\n\n粘贴到 src/data/strokes.ts 的 LETTER_STROKES 对象`
         );
@@ -321,8 +538,8 @@ export default function StrokesEditorPage() {
     setCurrent([]);
   }
 
-  const totalDoneAll = Object.keys(draft).length;
-  const totalDoneTab = items.filter((it) => draft[it.key]).length;
+  const totalDoneAll = Object.values(draft).filter((value) => value.strokes.length > 0).length;
+  const totalDoneTab = items.filter((it) => (draft[it.key]?.strokes.length || 0) > 0).length;
 
   if (!item) return null;
 
@@ -377,6 +594,8 @@ export default function StrokesEditorPage() {
           <div className="mt-0.5 text-xs opacity-60">
             已完成笔画 {strokes.length} 段；当前 {current.length} 个点
             {draft[item.key] ? " · ✅ 已存草稿" : ""}
+            {" · "}
+            {saveState === "saving" ? "同步中..." : saveState === "saved" ? "已同步" : saveState === "error" ? "同步失败" : "未保存"}
           </div>
           {tab === "vowel" && item.display.includes("◌") && (
             <div className="mt-1 text-[11px]" style={{ color: "var(--duo-blue)" }}>
@@ -393,6 +612,9 @@ export default function StrokesEditorPage() {
           className="block w-full select-none touch-none"
           style={{ aspectRatio: "1 / 1", background: "white" }}
           onPointerDown={onClickCanvas}
+          onPointerMove={onSvgMove}
+          onPointerUp={onSvgUp}
+          onPointerCancel={onSvgUp}
         >
           {[25, 50, 75].map((p) => (
             <g key={p} stroke="rgba(0,0,0,0.05)" strokeWidth={0.2}>
@@ -418,7 +640,7 @@ export default function StrokesEditorPage() {
             return (
               <g key={`candidate-${i}`}>
                 <path
-                  d={candidate.d}
+                  d={smoothPath(candidate.points)}
                   fill="none"
                   stroke={selected ? "var(--duo-orange)" : "rgba(28,176,246,0.42)"}
                   strokeWidth={selected ? 4.8 : 3.2}
@@ -432,6 +654,19 @@ export default function StrokesEditorPage() {
                   }}
                   style={{ cursor: "pointer" }}
                 />
+                {activeCandidate === i && candidate.points.map((point, pointIndex) => (
+                  <circle
+                    key={`${i}-${pointIndex}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r={selectedPoint === pointIndex ? 2.6 : 1.9}
+                    fill={selectedPoint === pointIndex ? "var(--duo-orange)" : "white"}
+                    stroke="var(--duo-blue)"
+                    strokeWidth={0.8}
+                    onPointerDown={(e) => onPointDown(e, i, pointIndex)}
+                    style={{ cursor: "grab" }}
+                  />
+                ))}
                 {selected && (
                   <text x={6 + selectedOrder * 8} y={8} fontSize={5} fill="var(--duo-orange-d)" fontWeight={900}>
                     {selectedOrder + 1}
@@ -518,6 +753,34 @@ export default function StrokesEditorPage() {
             全选候选段
           </button>
         </div>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <button
+            onClick={addPointToActiveCandidate}
+            className="btn-ghost text-xs"
+            disabled={activeCandidate === null}
+          >
+            加点
+          </button>
+          <button
+            onClick={deleteSelectedPoint}
+            className="btn-ghost text-xs"
+            disabled={activeCandidate === null || selectedPoint === null}
+          >
+            删点
+          </button>
+          <button
+            onClick={reverseActiveCandidate}
+            className="btn-ghost text-xs"
+            disabled={activeCandidate === null}
+          >
+            反转
+          </button>
+        </div>
+        {activeCandidate !== null && (
+          <div className="mt-2 text-[11px] opacity-60">
+            正在编辑候选段 {activeCandidate + 1}；拖动白色节点微调曲线。
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-2">
