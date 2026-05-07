@@ -53,8 +53,9 @@ const VOWEL_SPEAK_OVERRIDE: Record<string, string> = {
   lue: "ลือ",
   "lue-long": "ลือ",
   // 短 oe 元音 เ-อะ 在 TTS 里常被拆成 "เก + อะ"。
-  // 用现实词 เลอะ「脏」做演示，开头辅音音 + 短 ə。
-  "er-short": "เลอะ",
+  // 用现实词 เคอะ「笨拙/局促」(/kʰɤʔ/) 做演示，开头是 ค (kh)，
+  // 跟其它元音用 ก 占位的 k 系列保持视听一致。
+  "er-short": "เคอะ",
   // 短 e/ae/o 也容易被尾巴 ะ 拆成两个音节，但通常还能识别，先不动。
 };
 
@@ -77,7 +78,7 @@ export function vowelPhonetic(v: Vowel): string {
   if (v.id === "rue-long") return "ruee (长)";
   if (v.id === "lue") return "lue (已废)";
   if (v.id === "lue-long") return "luee (已废)";
-  if (v.id === "er-short") return "短 ə (≈ เลอะ lerh)";
+  if (v.id === "er-short") return "kh-əh (短 ə，≈ เคอะ)";
   return `k-${v.roman.replace("(open)", "")} (${v.length === "long" ? "长" : "短"})`;
 }
 
