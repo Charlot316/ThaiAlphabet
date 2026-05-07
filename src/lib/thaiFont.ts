@@ -2,6 +2,9 @@
 
 // 用 opentype.js 加载 Noto Sans Thai 字体，得到每个字母的 SVG path 数据
 // 用于书写描红「沿轮廓拖小球」交互。
+//
+// 注意：opentype.js 的 .load() 在 Next.js 浏览器构建里偶尔解析不到正确的导出
+// （Node fs 路径和浏览器 fetch 路径混淆），改成手动 fetch ArrayBuffer + parse 最稳。
 
 import type { Font } from "opentype.js";
 
@@ -10,13 +13,26 @@ const FONT_URL = "/fonts/NotoSansThai.ttf";
 let cachedFont: Font | null = null;
 let pending: Promise<Font> | null = null;
 
+interface OpentypeNS {
+  parse: (buffer: ArrayBuffer) => Font;
+  load?: (url: string) => Promise<Font>;
+}
+
 export async function loadThaiFont(): Promise<Font> {
   if (cachedFont) return cachedFont;
   if (pending) return pending;
   pending = (async () => {
-    const opentype = await import("opentype.js");
-    const loader = (opentype as unknown as { default?: typeof opentype }).default || opentype;
-    const font: Font = await loader.load(FONT_URL);
+    const res = await fetch(FONT_URL);
+    if (!res.ok) {
+      throw new Error(`字体下载失败 HTTP ${res.status}`);
+    }
+    const buf = await res.arrayBuffer();
+    const mod = await import("opentype.js");
+    const ot = ((mod as unknown as { default?: OpentypeNS }).default ?? (mod as unknown as OpentypeNS));
+    if (typeof ot.parse !== "function") {
+      throw new Error("opentype.js 模块格式异常（缺少 parse）");
+    }
+    const font = ot.parse(buf);
     cachedFont = font;
     return font;
   })();
