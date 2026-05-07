@@ -1,32 +1,62 @@
-@import url("https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&family=Noto+Sans+Thai+Looped:wght@400;600;700&family=Prompt:wght@400;600;700&family=Sarabun:wght@400;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&family=Noto+Sans+Thai+Looped:wght@400;600;700&family=Prompt:wght@400;600;700&family=Sarabun:wght@400;600;700&family=Nunito:wght@500;700;800;900&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+  /* Duolingo 灵感的多巴胺调色板 */
+  --duo-green: #58cc02;
+  --duo-green-d: #46a302;
+  --duo-green-shadow: #58a700;
+  --duo-blue: #1cb0f6;
+  --duo-blue-d: #0094d2;
+  --duo-purple: #ce82ff;
+  --duo-purple-d: #ad5cff;
+  --duo-orange: #ff9600;
+  --duo-orange-d: #e08600;
+  --duo-yellow: #ffc800;
+  --duo-red: #ff4b4b;
+  --duo-red-d: #ea2b2b;
+  --duo-bg: #fff7e9;
+  --duo-card: #ffffff;
+  --duo-line: #e5e5e5;
+  --duo-line-d: #cfcfcf;
+  --duo-text: #4b4b4b;
+  --duo-muted: #777777;
 }
 
 html, body {
   height: 100%;
   -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
 }
 
 body {
-  background: #f7f7f8;
-  color: #111;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Helvetica Neue",
-    "Noto Sans Thai Looped", "Noto Sans Thai", "Leelawadee UI", "Tahoma", sans-serif;
+  background: var(--duo-bg);
+  color: var(--duo-text);
+  font-family: "Nunito", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    "Helvetica Neue", "Noto Sans Thai Looped", "Noto Sans Thai", "Leelawadee UI",
+    "Tahoma", sans-serif;
+  font-weight: 700;
 }
 
 @media (prefers-color-scheme: dark) {
-  body { background: #0e0f12; color: #eee; }
+  :root {
+    --duo-bg: #131f24;
+    --duo-card: #1f2c33;
+    --duo-line: #37464f;
+    --duo-line-d: #2c3a42;
+    --duo-text: #f0f5f7;
+    --duo-muted: #93a4ad;
+  }
 }
 
 .thai-big {
   font-family: "Noto Sans Thai Looped", "Noto Sans Thai", "Leelawadee UI", "Tahoma", sans-serif;
   font-feature-settings: "kern" 1;
+  letter-spacing: 0.005em;
 }
 
 .thai-font-looped { font-family: "Noto Sans Thai Looped", "Leelawadee UI", "Tahoma", sans-serif; }
@@ -36,22 +66,177 @@ body {
 .thai-font-sarabun { font-family: "Sarabun", "Th Sarabun New", serif; }
 
 @layer components {
+  /* === 按钮：Duolingo 风格的"3D 实色阴影" === */
   .btn {
-    @apply inline-flex items-center justify-center rounded-xl px-4 py-3 font-medium transition active:scale-[.98];
+    @apply inline-flex items-center justify-center select-none font-extrabold
+      uppercase tracking-wide rounded-2xl px-4 py-3 text-sm
+      transition-all duration-100 active:translate-y-[2px];
+    box-shadow: 0 4px 0 var(--duo-line-d);
   }
-  .btn-primary { @apply btn bg-black text-white dark:bg-white dark:text-black; }
-  .btn-ghost   { @apply btn bg-white text-black border border-black/10 dark:bg-white/10 dark:text-white dark:border-white/10; }
+  .btn:active { box-shadow: 0 2px 0 var(--duo-line-d); }
+  .btn:disabled { @apply opacity-50 cursor-not-allowed; box-shadow: 0 4px 0 var(--duo-line-d); }
+
+  .btn-primary {
+    @apply btn text-white;
+    background: var(--duo-green);
+    box-shadow: 0 4px 0 var(--duo-green-shadow);
+  }
+  .btn-primary:hover { background: #61d904; }
+  .btn-primary:active { box-shadow: 0 2px 0 var(--duo-green-shadow); }
+
+  .btn-blue {
+    @apply btn text-white;
+    background: var(--duo-blue);
+    box-shadow: 0 4px 0 var(--duo-blue-d);
+  }
+  .btn-blue:active { box-shadow: 0 2px 0 var(--duo-blue-d); }
+
+  .btn-purple {
+    @apply btn text-white;
+    background: var(--duo-purple);
+    box-shadow: 0 4px 0 var(--duo-purple-d);
+  }
+  .btn-purple:active { box-shadow: 0 2px 0 var(--duo-purple-d); }
+
+  .btn-orange {
+    @apply btn text-white;
+    background: var(--duo-orange);
+    box-shadow: 0 4px 0 var(--duo-orange-d);
+  }
+  .btn-orange:active { box-shadow: 0 2px 0 var(--duo-orange-d); }
+
+  .btn-red {
+    @apply btn text-white;
+    background: var(--duo-red);
+    box-shadow: 0 4px 0 var(--duo-red-d);
+  }
+  .btn-red:active { box-shadow: 0 2px 0 var(--duo-red-d); }
+
+  .btn-ghost {
+    @apply btn;
+    background: var(--duo-card);
+    color: var(--duo-text);
+    border: 2px solid var(--duo-line);
+    box-shadow: 0 4px 0 var(--duo-line);
+  }
+  .btn-ghost:hover { background: rgba(0,0,0,0.02); }
+  .btn-ghost:active { box-shadow: 0 2px 0 var(--duo-line); }
+
+  /* 选项按钮（答题时使用） */
+  .opt {
+    @apply w-full select-none rounded-2xl px-3 py-4 text-base
+      transition-all duration-100 active:translate-y-[2px] font-bold;
+    background: var(--duo-card);
+    color: var(--duo-text);
+    border: 2px solid var(--duo-line);
+    box-shadow: 0 4px 0 var(--duo-line);
+  }
+  .opt:active { box-shadow: 0 2px 0 var(--duo-line); }
+  .opt:hover:not(:disabled) { border-color: var(--duo-blue); }
+
+  .opt-selected {
+    border-color: var(--duo-blue) !important;
+    background: rgba(28, 176, 246, 0.1);
+    color: var(--duo-blue);
+  }
+  .opt-correct {
+    border-color: var(--duo-green) !important;
+    background: rgba(88, 204, 2, 0.15);
+    color: var(--duo-green-d);
+  }
+  .opt-wrong {
+    border-color: var(--duo-red) !important;
+    background: rgba(255, 75, 75, 0.12);
+    color: var(--duo-red);
+  }
+  .opt-disabled { opacity: 0.45; }
+
+  /* 卡片 */
   .card {
-    @apply rounded-2xl bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 shadow-sm;
+    @apply rounded-3xl p-4;
+    background: var(--duo-card);
+    border: 2px solid var(--duo-line);
   }
-  .tag {
-    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  .card-soft {
+    @apply rounded-3xl p-4;
+    background: var(--duo-card);
+    border: 2px solid var(--duo-line);
+    box-shadow: 0 4px 0 var(--duo-line);
   }
-  .tag-mid  { @apply tag bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-200; }
-  .tag-high { @apply tag bg-emerald-100 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-200; }
-  .tag-low  { @apply tag bg-sky-100 text-sky-900 dark:bg-sky-500/20 dark:text-sky-200; }
+
+  /* 颜色 chip / tag */
+  .chip {
+    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-extrabold uppercase tracking-wide;
+  }
+  .chip-mid    { background: rgba(255, 150, 0, 0.18); color: #b35f00; }
+  .chip-high   { background: rgba(88, 204, 2, 0.18); color: #2e7a01; }
+  .chip-low    { background: rgba(206, 130, 255, 0.18); color: #7a36c2; }
+  .chip-blue   { background: rgba(28, 176, 246, 0.18); color: #006fa3; }
+  .chip-yellow { background: rgba(255, 200, 0, 0.22); color: #8a6700; }
+  .chip-red    { background: rgba(255, 75, 75, 0.18); color: #b32b2b; }
+
+  @media (prefers-color-scheme: dark) {
+    .chip-mid    { background: rgba(255,150,0,0.22); color: #ffb24b; }
+    .chip-high   { background: rgba(88,204,2,0.22); color: #9ce562; }
+    .chip-low    { background: rgba(206,130,255,0.25); color: #e1b3ff; }
+    .chip-blue   { background: rgba(28,176,246,0.22); color: #6ed1ff; }
+    .chip-yellow { background: rgba(255,200,0,0.25); color: #ffe17a; }
+    .chip-red    { background: rgba(255,75,75,0.22); color: #ff8d8d; }
+  }
+
+  /* 进度条 */
+  .progress-track {
+    @apply relative h-3 w-full overflow-hidden rounded-full;
+    background: var(--duo-line);
+  }
+  .progress-fill {
+    @apply h-full rounded-full transition-[width] duration-500;
+    background: linear-gradient(180deg, #7be026 0%, var(--duo-green) 100%);
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,0.08), inset 0 3px 0 rgba(255,255,255,0.3);
+  }
+
+  /* 顶部状态条徽章 */
+  .stat {
+    @apply inline-flex items-center gap-1 font-extrabold;
+  }
+
+  /* 答对/答错 大反馈条 */
+  .feedback {
+    @apply rounded-2xl p-4 font-extrabold;
+  }
+  .feedback-ok {
+    background: rgba(88, 204, 2, 0.15);
+    color: var(--duo-green-d);
+    border: 2px solid rgba(88, 204, 2, 0.3);
+  }
+  .feedback-bad {
+    background: rgba(255, 75, 75, 0.12);
+    color: var(--duo-red-d);
+    border: 2px solid rgba(255, 75, 75, 0.3);
+  }
+  @media (prefers-color-scheme: dark) {
+    .feedback-ok { color: #9ce562; }
+    .feedback-bad { color: #ff8d8d; }
+  }
 }
 
 @layer utilities {
   .text-balance { text-wrap: balance; }
+  .no-tap { -webkit-tap-highlight-color: transparent; }
+  /* "弹一下"动画，用于答对庆祝 */
+  @keyframes pop {
+    0% { transform: scale(0.85); opacity: 0; }
+    60% { transform: scale(1.06); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .animate-pop { animation: pop 0.28s ease-out both; }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+  .animate-shake { animation: shake 0.32s ease-in-out both; }
 }

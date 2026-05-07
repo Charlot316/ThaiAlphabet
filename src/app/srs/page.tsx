@@ -76,44 +76,52 @@ export default function SrsPage() {
           <button
             key={p}
             onClick={() => setPool(p)}
-            className={pool === p ? "btn-primary text-sm py-2 px-3" : "btn-ghost text-sm py-2 px-3"}
+            className={pool === p ? "btn-primary px-4" : "btn-ghost px-4"}
           >
             {p === "consonant" ? "辅音" : p === "vowel" ? "元音" : "全部"}
           </button>
         ))}
       </div>
-      <div className="text-xs opacity-70">
-        到期 {due.length} · 总卡 {filtered.length}
+      <div className="card-soft p-3 text-xs">
+        <div className="flex justify-between">
+          <span className="opacity-70">到期</span>
+          <span className="font-extrabold" style={{ color: "var(--duo-orange)" }}>{due.length}</span>
+        </div>
+        <div className="mt-1 flex justify-between">
+          <span className="opacity-70">总卡</span>
+          <span className="font-extrabold">{filtered.length}</span>
+        </div>
       </div>
 
       {!item ? (
-        <div className="card p-6 text-center">
-          <div className="text-2xl mb-2">🎉</div>
-          <div>暂时没有到期卡片</div>
-          <div className="text-xs opacity-70 mt-1">稍后再来，或切换其他卡组</div>
+        <div className="card-soft animate-pop p-8 text-center">
+          <div className="text-6xl">🎉</div>
+          <div className="mt-3 text-lg font-extrabold" style={{ color: "var(--duo-green)" }}>
+            全部学完啦
+          </div>
+          <div className="mt-1 text-xs opacity-70">稍后再来，或切换其他卡组</div>
         </div>
       ) : (
         <>
-          <div className="card p-8 flex flex-col items-center">
-            <div className="thai-big text-7xl leading-none">{item.front}</div>
-            <div className="mt-3"><PronounceButton text={item.speak} label="🔊 听" /></div>
-            <button
-              className="mt-4 btn-ghost text-sm py-2 px-4"
-              onClick={() => setShow((s) => !s)}
-            >
+          <div className="card-soft animate-pop flex flex-col items-center p-8">
+            <div className="chip chip-blue">复习</div>
+            <div className="thai-big mt-4 text-8xl leading-none">{item.front}</div>
+            <div className="mt-4"><PronounceButton text={item.speak} label="🔊 听一下" /></div>
+            <button className="btn-ghost mt-5 px-5" onClick={() => setShow((s) => !s)}>
               {show ? "隐藏答案" : "显示答案"}
             </button>
             {show && (
-              <div className="mt-4 text-center">
-                <div className="text-sm">{item.back}</div>
+              <div className="mt-4 rounded-2xl px-4 py-2 text-center text-sm font-bold animate-pop"
+                   style={{ background: "rgba(28,176,246,0.1)", color: "var(--duo-blue)" }}>
+                {item.back}
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => grade("again")} className="btn-ghost ring-1 ring-rose-300">不知道</button>
-            <button onClick={() => grade("hard")} className="btn-ghost ring-1 ring-amber-300">模糊</button>
-            <button onClick={() => grade("good")} className="btn-primary">知道</button>
+          <div className="grid grid-cols-3 gap-3">
+            <button onClick={() => grade("again")} className="btn-red">不知道</button>
+            <button onClick={() => grade("hard")} className="btn-orange">模糊</button>
+            <button onClick={() => grade("good")} className="btn-primary">知道 ✓</button>
           </div>
         </>
       )}

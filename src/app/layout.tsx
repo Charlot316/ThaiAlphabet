@@ -11,7 +11,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#f7f7f8",
+  themeColor: "#fff7e9",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh">
       <body className="antialiased">
         <Nav />
-        <main className="mx-auto w-full max-w-2xl px-4 pb-24 pt-4">{children}</main>
+        <main className="mx-auto w-full max-w-2xl px-4 pb-28 pt-4">{children}</main>
       </body>
     </html>
   );

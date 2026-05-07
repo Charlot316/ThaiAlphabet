@@ -99,7 +99,7 @@ function ModeA({ pool }: { pool: Pool }) {
 
   return (
     <div className="space-y-4">
-      <div className="card p-6 flex flex-col items-center">
+      <div className="card-soft p-7 flex flex-col items-center">
         <div className="text-xs opacity-60 mb-2">这是哪个读音？</div>
         <div className="thai-big text-7xl leading-none">
           {"letter" in q.target ? q.target.letter : (q.target as Vowel).display}
@@ -119,12 +119,12 @@ function ModeA({ pool }: { pool: Pool }) {
           const isPicked = picked === id;
           const isCorrectRoman = text === correctRoman;
           const state = !picked
-            ? "btn-ghost"
+            ? "opt"
             : isCorrectRoman
-            ? "btn-primary bg-emerald-600 dark:bg-emerald-500 text-white"
+            ? "opt opt-correct"
             : isPicked
-            ? "btn-ghost ring-2 ring-rose-500"
-            : "btn-ghost opacity-60";
+            ? "opt opt-wrong"
+            : "opt opt-disabled";
           return (
             <li key={id}>
               <button onClick={() => pick(id)} className={`${state} w-full font-mono text-base`}>
@@ -139,10 +139,10 @@ function ModeA({ pool }: { pool: Pool }) {
         <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
       </div>
       {picked && (
-        <div className={`card p-3 text-sm ${isCorrect ? "ring-2 ring-emerald-500" : "ring-2 ring-rose-500"}`}>
-          {isCorrect ? "✓ 正确" : "✗ 答案"}：<b>{displayRoman(correctRoman)}</b>
+        <div className={`feedback ${isCorrect ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+          {isCorrect ? "✅ 正确！" : "❌ 答案"}：<b>{displayRoman(correctRoman)}</b>
           {"name" in q.target && (
-            <span className="ml-2 opacity-70 thai-big">{(q.target as Consonant).name}</span>
+            <span className="thai-big ml-2 opacity-80">{(q.target as Consonant).name}</span>
           )}
         </div>
       )}
@@ -184,7 +184,7 @@ function ModeBConsonant() {
 
   return (
     <div className="space-y-4">
-      <div className="card p-5 flex items-center justify-between">
+      <div className="card-soft p-5 flex items-center justify-between">
         <div>
           <div className="text-xs opacity-60">哪个辅音读:</div>
           <div className="text-3xl font-mono mt-1">{displayRoman(q.target.romanInitial)}</div>
@@ -197,12 +197,12 @@ function ModeBConsonant() {
           const isPicked = picked === c.id;
           const isCorrect = c.id === q.target.id;
           const cls = !picked
-            ? "btn-ghost"
+            ? "opt"
             : isCorrect
-            ? "btn-primary bg-emerald-600 dark:bg-emerald-500 text-white"
+            ? "opt opt-correct"
             : isPicked
-            ? "btn-ghost ring-2 ring-rose-500"
-            : "btn-ghost opacity-60";
+            ? "opt opt-wrong"
+            : "opt opt-disabled";
           return (
             <li key={c.id}>
               <button onClick={() => pick(c.id)} className={`${cls} w-full thai-big text-2xl py-3`}>
@@ -216,9 +216,9 @@ function ModeBConsonant() {
         <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
       </div>
       {picked && (
-        <div className="card p-3 text-sm">
-          答案: <span className="thai-big text-xl">{q.target.letter}</span>
-          <span className="ml-2 opacity-70">{q.target.name} · {q.target.meaning}</span>
+        <div className="feedback feedback-ok animate-pop">
+          答案：<span className="thai-big text-2xl">{q.target.letter}</span>
+          <span className="ml-2 opacity-80">{q.target.name} · {q.target.meaning}</span>
         </div>
       )}
     </div>
@@ -251,7 +251,7 @@ function ModeBVowel() {
 
   return (
     <div className="space-y-4">
-      <div className="card p-6 flex flex-col items-center">
+      <div className="card-soft p-7 flex flex-col items-center">
         <div className="text-xs opacity-60 mb-2">哪个元音读:</div>
         <div className="text-4xl font-mono">{q.target.roman}</div>
       </div>
@@ -260,12 +260,12 @@ function ModeBVowel() {
           const isPicked = picked === c.id;
           const isCorrect = q.correctIds.has(c.id);
           const state = !picked
-            ? "btn-ghost"
+            ? "opt"
             : isCorrect
-            ? "btn-primary bg-emerald-600 dark:bg-emerald-500 text-white"
+            ? "opt opt-correct"
             : isPicked
-            ? "btn-ghost ring-2 ring-rose-500"
-            : "btn-ghost opacity-60";
+            ? "opt opt-wrong"
+            : "opt opt-disabled";
           return (
             <li key={c.id}>
               <button onClick={() => pick(c.id)} className={`${state} w-full thai-big text-2xl`}>

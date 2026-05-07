@@ -62,14 +62,14 @@ export default function FlashcardsPage() {
 
   return (
     <div className="space-y-4">
-      <section className="card p-4">
+      <section className="card-soft p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="font-semibold">Flashcard 速看</h1>
-            <p className="mt-0.5 text-xs opacity-70">打开页面会重新洗牌，答案直接显示。</p>
+            <h1 className="text-lg font-extrabold">⚡ Flashcard 速看</h1>
+            <p className="mt-0.5 text-xs opacity-70">打开页面会重新洗牌，答案直接显示</p>
           </div>
-          <button onClick={() => reshuffle(0)} className="btn-ghost text-xs px-3 py-2">
-            重新随机
+          <button onClick={() => reshuffle(0)} className="btn-ghost px-3 py-2 text-xs">
+            🔀 重新洗牌
           </button>
         </div>
       </section>
@@ -79,7 +79,7 @@ export default function FlashcardsPage() {
           <button
             key={nextPool}
             onClick={() => setPool(nextPool)}
-            className={pool === nextPool ? "btn-primary text-sm py-2 px-3" : "btn-ghost text-sm py-2 px-3"}
+            className={pool === nextPool ? "btn-primary px-4" : "btn-ghost px-4"}
           >
             {poolLabel(nextPool)}
           </button>
@@ -87,23 +87,28 @@ export default function FlashcardsPage() {
       </div>
 
       {current && (
-        <div className="card p-8 flex min-h-[340px] flex-col items-center justify-center text-center">
-          <div className="text-xs opacity-60">
+        <div
+          key={current.id}
+          className="card-soft animate-pop flex min-h-[360px] flex-col items-center justify-center p-8 text-center"
+        >
+          <div className="chip chip-blue mb-3">
             {index + 1} / {order.length || items.length}
           </div>
-          <div className="thai-big mt-4 text-8xl leading-none">{current.front}</div>
-          <div className="mt-5 text-lg font-semibold">{displayRoman(current.roman)}</div>
-          <div className="thai-big mt-2 text-xl">{current.name}</div>
-          <div className="mt-1 text-sm opacity-70">{current.meaning}</div>
+          <div className="thai-big mt-2 text-8xl leading-none">{current.front}</div>
+          <div className="mt-5 text-2xl font-extrabold" style={{ color: "var(--duo-blue)" }}>
+            {displayRoman(current.roman)}
+          </div>
+          {current.name && <div className="thai-big mt-2 text-xl">{current.name}</div>}
+          {current.meaning && <div className="mt-1 text-sm opacity-70">{current.meaning}</div>}
           <div className="mt-5">
-            <PronounceButton text={current.speak} label="听" />
+            <PronounceButton text={current.speak} label="🔊 听一下" />
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
-        <button onClick={previous} className="btn-ghost text-sm">上一张</button>
-        <button onClick={next} className="btn-primary text-sm">下一张</button>
+      <div className="grid grid-cols-2 gap-3">
+        <button onClick={previous} className="btn-ghost">‹ 上一张</button>
+        <button onClick={next} className="btn-primary">下一张 ›</button>
       </div>
     </div>
   );

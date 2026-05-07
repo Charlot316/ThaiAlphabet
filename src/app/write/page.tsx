@@ -10,7 +10,7 @@ export default function WritePage() {
 
   return (
     <div className="space-y-3">
-      <div className="card p-5 flex flex-col items-center">
+      <div className="card-soft p-5 flex flex-col items-center">
         <div className="text-xs opacity-60">描红：在画布上临摹</div>
         <div className="thai-big text-2xl mt-1">{c.name} <span className="opacity-60">{c.meaning}</span></div>
         <div className="mt-1"><PronounceButton text={`${c.letter} ${c.name}`} label="🔊" /></div>
@@ -100,7 +100,7 @@ function TraceCanvas({ letter }: { letter: string }) {
   }
 
   return (
-    <div className="card p-3 space-y-2">
+    <div className="card-soft space-y-2 p-3">
       <canvas
         ref={canvasRef}
         className="w-full aspect-square touch-none rounded-xl bg-white dark:bg-white/95"
@@ -111,7 +111,7 @@ function TraceCanvas({ letter }: { letter: string }) {
         onPointerLeave={onUp}
       />
       <div className="flex justify-end">
-        <button onClick={clear} className="btn-ghost text-sm py-2 px-3">清空</button>
+        <button onClick={clear} className="btn-orange px-4">🗑 清空</button>
       </div>
     </div>
   );

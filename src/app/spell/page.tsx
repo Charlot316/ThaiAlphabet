@@ -43,7 +43,7 @@ export default function SpellPage() {
 
   return (
     <div className="space-y-4">
-      <div className="card p-3 grid grid-cols-2 gap-2 text-sm">
+      <div className="card-soft grid grid-cols-2 gap-2 p-3 text-sm">
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={withFinal} onChange={(e) => setWithFinal(e.target.checked)} />
           含尾辅音
@@ -63,13 +63,13 @@ export default function SpellPage() {
         <span className="col-span-2 text-right opacity-70">{stats.ok}/{stats.total}</span>
       </div>
 
-      <div className="card p-6 flex flex-col items-center">
+      <div className="card-soft p-7 flex flex-col items-center">
         <div className="text-xs opacity-60 mb-1">读出该音节的罗马音</div>
         <div className="thai-big text-7xl leading-none">{syl.thai}</div>
         <div className="mt-3"><PronounceButton text={syl.thai} label="🔊 听一下" /></div>
       </div>
 
-      <div className="card p-3 space-y-2">
+      <div className="card-soft space-y-2 p-3">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -93,7 +93,7 @@ export default function SpellPage() {
       </div>
 
       {submitted && (
-        <div className={`card p-4 ${isOk ? "ring-2 ring-emerald-500" : "ring-2 ring-rose-500"}`}>
+        <div className={`feedback ${isOk ? "feedback-ok" : "feedback-bad"} animate-pop`}>
           <div className="text-sm">
             {isOk ? "✓ 正确" : "✗ 答案"}：<b className="font-mono">{syl.roman}</b>
           </div>

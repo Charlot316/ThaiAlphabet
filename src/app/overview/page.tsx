@@ -19,7 +19,7 @@ export default function OverviewPage() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={tab === t ? "btn-primary text-sm py-2 px-3" : "btn-ghost text-sm py-2 px-3"}
+            className={tab === t ? "btn-primary px-4" : "btn-ghost px-4"}
           >
             {t === "consonant" ? "辅音 (44)" : t === "vowel" ? "元音" : "声调"}
           </button>
@@ -33,9 +33,9 @@ export default function OverviewPage() {
 }
 
 function classTag(cls: string) {
-  if (cls === "mid") return <span className="tag-mid">中</span>;
-  if (cls === "high") return <span className="tag-high">高</span>;
-  return <span className="tag-low">低</span>;
+  if (cls === "mid") return <span className="chip chip-mid">中</span>;
+  if (cls === "high") return <span className="chip chip-high">高</span>;
+  return <span className="chip chip-low">低</span>;
 }
 
 function Consonants() {
@@ -52,7 +52,7 @@ function Consonants() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={filter === f ? "btn-primary text-xs py-1.5 px-3" : "btn-ghost text-xs py-1.5 px-3"}
+            className={filter === f ? "btn-primary px-3" : "btn-ghost px-3"}
           >
             {f === "all" ? "全部" : f === "mid" ? "中辅音" : f === "high" ? "高辅音" : "低辅音"}
           </button>
@@ -70,8 +70,8 @@ function Consonants() {
                     <span>熟练度</span>
                     <span>{value}/{MASTERY_TARGET}</span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
-                    <div className="h-full bg-black dark:bg-white" style={{ width: `${pct}%` }} />
+                  <div className="progress-track" style={{ height: "6px" }}>
+                    <div className="progress-fill" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               );
@@ -96,7 +96,7 @@ function Consonants() {
         ))}
       </ul>
 
-      <section className="card p-4 mt-4">
+      <section className="card-soft p-4 mt-4">
         <h3 className="font-semibold mb-2">尾辅音读音规则</h3>
         <ul className="text-sm space-y-1">
           {Object.entries(FINAL_GROUPS).map(([k, v]) => (
@@ -184,7 +184,7 @@ function Vowels() {
 function Tones() {
   return (
     <div className="space-y-4">
-      <section className="card p-4">
+      <section className="card-soft p-4">
         <h3 className="font-semibold mb-2">声调符号</h3>
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {TONE_MARKS.map((m) => (
@@ -199,7 +199,7 @@ function Tones() {
         </ul>
       </section>
 
-      <section className="card p-4">
+      <section className="card-soft p-4">
         <h3 className="font-semibold mb-2">5 声</h3>
         <ul className="text-sm space-y-1">
           {Object.entries(TONE_NAMES).map(([k, v]) => (
@@ -212,7 +212,7 @@ function Tones() {
         </ul>
       </section>
 
-      <section className="card p-4 text-sm">
+      <section className="card-soft p-4 text-sm">
         <h3 className="font-semibold mb-2">声调推导规则</h3>
         <p className="opacity-80 mb-2">
           声调由 <b>初辅音类别</b>、<b>元音长短</b>、<b>尾辅音</b>、<b>声调符号</b> 共同决定。
