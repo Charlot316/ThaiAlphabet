@@ -2,12 +2,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONSONANTS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
+import { TONE_MARKS } from "@/data/tones";
 import { letterPath, letterSkeleton } from "@/lib/thaiFont";
 
 interface CompletedStroke {
   d: string;
   pointCount: number;
   source: "auto" | "manual";
+  start: Point;
+  end: Point;
 }
 
 interface CandidateStroke {
@@ -15,9 +18,17 @@ interface CandidateStroke {
   sourceIndex: number;
 }
 
+interface StoredStroke {
+  d: string;
+  order: number;
+  start: Point;
+  end: Point;
+  source?: "auto" | "manual";
+}
+
 interface StrokeDraft {
   v: number;
-  strokes: { d: string }[];
+  strokes: StoredStroke[];
   candidates?: CandidateStroke[];
   updated_at?: number;
 }
@@ -58,7 +69,23 @@ function buildItems(): EditorItem[] {
     meaning: v.notes ?? "",
     kind: "vowel",
   }));
-  return [...consonants, ...vowels];
+  const toneMarks: EditorItem[] = TONE_MARKS.filter((m) => m.symbol).map((m) => ({
+    key: `mark:${m.id}`,
+    display: m.symbol,
+    outlineSource: m.symbol,
+    label: m.name,
+    meaning: m.nameRoman,
+    kind: "vowel",
+  }));
+  const extras = ["ฯ", "ๆ", "๐", "๑", "๒", "๓", "๔", "๕", "๖", "๗", "๘", "๙"].map((symbol) => ({
+    key: `symbol:${symbol}`,
+    display: symbol,
+    outlineSource: symbol,
+    label: symbol,
+    meaning: "符号/数字",
+    kind: "vowel" as const,
+  }));
+  return [...consonants, ...vowels, ...toneMarks, ...extras];
 }
 
 function smoothPath(points: { x: number; y: number }[]): string {
@@ -99,6 +126,41 @@ function parseLinePath(d: string): Point[] {
   return points;
 }
 
+function fallbackPoint(): Point {
+  return { x: 0, y: 0 };
+}
+
+function endpointsFromPoints(points: Point[]): { start: Point; end: Point } {
+  return {
+    start: points[0] ?? fallbackPoint(),
+    end: points[points.length - 1] ?? points[0] ?? fallbackPoint(),
+  };
+}
+
+function endpointsFromPath(d: string): { start: Point; end: Point } {
+  const nums = d.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  if (nums.length < 4) return { start: fallbackPoint(), end: fallbackPoint() };
+  return {
+    start: { x: nums[0], y: nums[1] },
+    end: { x: nums[nums.length - 2], y: nums[nums.length - 1] },
+  };
+}
+
+function makeCompletedStroke(d: string, pointCount: number, source: "auto" | "manual"): CompletedStroke {
+  const endpoints = endpointsFromPath(d);
+  return { d, pointCount, source, ...endpoints };
+}
+
+function storedStrokes(strokes: CompletedStroke[]): StoredStroke[] {
+  return strokes.map((stroke, index) => ({
+    d: stroke.d,
+    order: index,
+    start: stroke.start,
+    end: stroke.end,
+    source: stroke.source,
+  }));
+}
+
 function normalizeSkeletonPoints(
   d: string,
   norm: { offX: number; offY: number; scale: number }
@@ -115,7 +177,18 @@ function normalizeDraft(raw: unknown): StrokeDraft | null {
   if (!Array.isArray(value.strokes)) return null;
   return {
     v: value.v || 1,
-    strokes: value.strokes.filter((stroke) => stroke && typeof stroke.d === "string"),
+    strokes: value.strokes
+      .filter((stroke) => stroke && typeof stroke.d === "string")
+      .map((stroke, order) => {
+        const endpoints = endpointsFromPath(stroke.d);
+        return {
+          d: stroke.d,
+          order: typeof stroke.order === "number" ? stroke.order : order,
+          start: stroke.start ?? endpoints.start,
+          end: stroke.end ?? endpoints.end,
+          source: stroke.source,
+        };
+      }),
     candidates: Array.isArray(value.candidates)
       ? value.candidates
           .map((candidate, sourceIndex) => ({
@@ -180,6 +253,23 @@ async function pushRemoteDraft(key: string, draft: StrokeDraft) {
   });
 }
 
+async function extractCandidatesForItem(item: EditorItem): Promise<CandidateStroke[]> {
+  const fontPath = await letterPath(item.outlineSource, 240);
+  const w = fontPath.bbox.x2 - fontPath.bbox.x1;
+  const h = fontPath.bbox.y2 - fontPath.bbox.y1;
+  if (w <= 0 || h <= 0) return [];
+  const scale = (VB - PAD * 2) / Math.max(w, h);
+  const offX = (VB - w * scale) / 2 - fontPath.bbox.x1 * scale;
+  const offY = (VB - h * scale) / 2 - fontPath.bbox.y1 * scale;
+  const skel = await letterSkeleton(item.outlineSource, 240);
+  return skel.paths
+    .map((path, sourceIndex) => ({
+      points: normalizeSkeletonPoints(path, { offX, offY, scale }),
+      sourceIndex,
+    }))
+    .filter((candidate) => candidate.points.length >= 2);
+}
+
 type Tab = "consonant" | "vowel";
 
 export default function StrokesEditorPage() {
@@ -198,6 +288,7 @@ export default function StrokesEditorPage() {
   const [activeCandidate, setActiveCandidate] = useState<number | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
   const [detecting, setDetecting] = useState(false);
+  const [batchState, setBatchState] = useState({ running: false, done: 0, total: 0 });
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [draft, setDraft] = useState<Record<string, StrokeDraft>>({});
 
@@ -216,7 +307,7 @@ export default function StrokesEditorPage() {
     const d = loadDraft();
     setDraft(d);
     const cur = d[item.key];
-    setStrokes(cur ? cur.strokes.map((s) => ({ d: s.d, pointCount: 0, source: "auto" })) : []);
+    setStrokes(cur ? cur.strokes.map((s) => makeCompletedStroke(s.d, 0, s.source ?? "auto")) : []);
     setCandidates(cur?.candidates ?? []);
     setCurrent([]);
     setSelectedCandidates([]);
@@ -232,7 +323,7 @@ export default function StrokesEditorPage() {
       const next = { ...loadDraft(), [item.key]: remote };
       saveDraft(next);
       setDraft(next);
-      setStrokes(remote.strokes.map((s) => ({ d: s.d, pointCount: 0, source: "auto" })));
+      setStrokes(remote.strokes.map((s) => makeCompletedStroke(s.d, 0, s.source ?? "auto")));
       setCandidates(remote.candidates ?? []);
       setSaveState("saved");
     });
@@ -283,7 +374,7 @@ export default function StrokesEditorPage() {
     saveTimer.current = setTimeout(() => {
       const currentDraft: StrokeDraft = {
         v: 1,
-        strokes: strokes.map((stroke) => ({ d: stroke.d })),
+        strokes: storedStrokes(strokes),
         candidates,
         updated_at: Date.now(),
       };
@@ -333,7 +424,11 @@ export default function StrokesEditorPage() {
       alert("一笔至少需要 2 个点");
       return;
     }
-    setStrokes((s) => [...s, { d: smoothPath(current), pointCount: current.length, source: "manual" }]);
+    const d = smoothPath(current);
+    setStrokes((s) => [
+      ...s,
+      { d, pointCount: current.length, source: "manual", ...endpointsFromPoints(current) },
+    ]);
     setCurrent([]);
   }
 
@@ -361,12 +456,16 @@ export default function StrokesEditorPage() {
       alert("先点选候选段，再合并成一笔");
       return;
     }
+    const mergedPoints = selectedCandidates.flatMap((i) => candidates[i]?.points ?? []);
     const d = selectedCandidates
       .map((i) => candidates[i]?.points)
       .filter(Boolean)
       .map((points) => smoothPath(points))
       .join(" ");
-    setStrokes((s) => [...s, { d, pointCount: selectedCandidates.length, source: "auto" }]);
+    setStrokes((s) => [
+      ...s,
+      { d, pointCount: selectedCandidates.length, source: "auto", ...endpointsFromPoints(mergedPoints) },
+    ]);
     setSelectedCandidates([]);
     setActiveCandidate(null);
     setSelectedPoint(null);
@@ -459,7 +558,7 @@ export default function StrokesEditorPage() {
     if (!item) return;
     const manualCurrent =
       current.length >= 2
-        ? [{ d: smoothPath(current), pointCount: current.length, source: "manual" as const }]
+        ? [{ d: smoothPath(current), pointCount: current.length, source: "manual" as const, ...endpointsFromPoints(current) }]
         : [];
     const allStrokes = [...strokes, ...manualCurrent];
     if (allStrokes.length === 0) {
@@ -471,7 +570,7 @@ export default function StrokesEditorPage() {
     }
     const data: StrokeDraft = {
       v: 1,
-      strokes: allStrokes.map((stroke) => ({ d: stroke.d })),
+      strokes: storedStrokes(allStrokes),
       candidates,
       updated_at: Date.now(),
     };
@@ -530,6 +629,39 @@ export default function StrokesEditorPage() {
     );
   }
 
+  async function extractAllCandidates() {
+    if (!confirm("将为全部字母/元音/符号预提取候选段，并保存到 D1 草稿表。继续？")) return;
+    const all = allItems;
+    setBatchState({ running: true, done: 0, total: all.length });
+    const next = { ...loadDraft() };
+    for (let i = 0; i < all.length; i++) {
+      const target = all[i];
+      const existing = next[target.key];
+      if (existing?.candidates?.length) {
+        setBatchState({ running: true, done: i + 1, total: all.length });
+        continue;
+      }
+      try {
+        const extracted = await extractCandidatesForItem(target);
+        const draftData: StrokeDraft = {
+          v: 1,
+          strokes: existing?.strokes ?? [],
+          candidates: extracted,
+          updated_at: Date.now(),
+        };
+        next[target.key] = draftData;
+        saveDraft(next);
+        await pushRemoteDraft(target.key, draftData);
+      } catch {
+        // 单个字符失败不阻断整批
+      }
+      setBatchState({ running: true, done: i + 1, total: all.length });
+    }
+    setDraft(next);
+    if (next[item.key]?.candidates) setCandidates(next[item.key].candidates ?? []);
+    setBatchState({ running: false, done: all.length, total: all.length });
+  }
+
   function resetDraft() {
     if (!confirm("确定清空所有字母的录入草稿？此操作不可撤销。")) return;
     saveDraft({});
@@ -540,6 +672,7 @@ export default function StrokesEditorPage() {
 
   const totalDoneAll = Object.values(draft).filter((value) => value.strokes.length > 0).length;
   const totalDoneTab = items.filter((it) => (draft[it.key]?.strokes.length || 0) > 0).length;
+  const totalItems = allItems.length;
 
   if (!item) return null;
 
@@ -553,13 +686,13 @@ export default function StrokesEditorPage() {
           </div>
           <div className="text-right">
             <div className="text-2xl font-extrabold" style={{ color: "var(--duo-green)" }}>
-              {totalDoneAll}/76
+              {totalDoneAll}/{totalItems}
             </div>
             <div className="text-[10px] uppercase opacity-60">已录入总数</div>
           </div>
         </div>
         <div className="progress-track mt-2">
-          <div className="progress-fill" style={{ width: `${(totalDoneAll / 76) * 100}%` }} />
+          <div className="progress-fill" style={{ width: `${(totalDoneAll / totalItems) * 100}%` }} />
         </div>
       </div>
 
@@ -823,6 +956,14 @@ export default function StrokesEditorPage() {
         <button onClick={exportJSON} className="btn-primary text-xs">📋 导出全部 JSON</button>
       </div>
 
+      <button onClick={extractAllCandidates} className="btn-blue w-full text-xs" disabled={batchState.running}>
+        {batchState.running
+          ? `正在提取 ${batchState.done}/${batchState.total}`
+          : batchState.total > 0
+            ? `已提取 ${batchState.done}/${batchState.total} · 重新批量提取`
+            : "一键提取全部候选段并存 D1"}
+      </button>
+
       <button onClick={resetDraft} className="btn-red w-full text-xs">⚠️ 重置全部草稿</button>
 
       <section className="card-soft p-3 text-xs leading-relaxed opacity-80">
@@ -833,6 +974,7 @@ export default function StrokesEditorPage() {
           <li>点「合并为一笔」把已选候选段保存成当前字母的一笔</li>
           <li>如果候选段缺失或方向不理想，可以直接在画布点关键点手工补一笔</li>
           <li>手工笔每笔 3-8 个点足够；按「✓ 完成此笔」保存</li>
+          <li>最终笔画会记录 order、start、end；候选段会保存完整点列到 D1</li>
           <li>「下一字」自动保存到浏览器本地草稿</li>
           <li>全部完成「📋 导出全部 JSON」，粘贴到 <code>src/data/strokes.ts</code> 的 <code>LETTER_STROKES</code></li>
           <li>建议每录完 5-10 个就 export 一次备份（清浏览器数据会丢草稿）</li>
