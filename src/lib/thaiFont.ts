@@ -8,7 +8,7 @@
 
 import type { Font } from "opentype.js";
 
-const FONT_URL = "/fonts/NotoSansThai.ttf";
+const FONT_URL = "/fonts/NotoSansThaiLooped.ttf";
 
 let cachedFont: Font | null = null;
 let pending: Promise<Font> | null = null;
