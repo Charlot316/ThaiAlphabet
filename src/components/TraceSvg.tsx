@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { letterPath, letterSkeleton } from "@/lib/thaiFont";
 import { feedbackComplete, feedbackTap } from "@/lib/feedback";
 import { getLetterStrokes } from "@/data/strokes";
+import { lockPageScroll, preventElementTouchScroll, unlockPageScroll, type PageScrollLock } from "@/lib/scrollLock";
 
 const DRAFT_KEY = "thai-alphabet:strokes-draft:v1";
 
@@ -54,6 +55,20 @@ export default function TraceSvg({
   const pathRefs = useRef<(SVGPathElement | null)[]>([]);
   const dragging = useRef(false);
   const lastProgress = useRef(0);
+  const scrollLock = useRef<PageScrollLock | null>(null);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    return preventElementTouchScroll(svg);
+  }, [outline]);
+
+  useEffect(() => {
+    return () => {
+      unlockPageScroll(scrollLock.current);
+      scrollLock.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -206,7 +221,19 @@ export default function TraceSvg({
   const ballPoint =
     activePath && activeTotal > 0 ? activePath.getPointAtLength(progress) : null;
 
+  function lockDrawingScroll() {
+    if (!scrollLock.current) scrollLock.current = lockPageScroll();
+  }
+
+  function unlockDrawingScroll() {
+    unlockPageScroll(scrollLock.current);
+    scrollLock.current = null;
+  }
+
   function onDown(e: React.PointerEvent) {
+    e.preventDefault();
+    lockDrawingScroll();
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
     if (done || !activePath) return;
     const p = svgPoint(e);
     if (!p || !ballPoint) return;
@@ -215,10 +242,10 @@ export default function TraceSvg({
     if (Math.hypot(p.x - ballPoint.x, p.y - ballPoint.y) > tolerance) return;
     dragging.current = true;
     feedbackTap();
-    (e.target as Element).setPointerCapture(e.pointerId);
   }
 
   function onMove(e: React.PointerEvent) {
+    e.preventDefault();
     if (!dragging.current || done || !activePath) return;
     const p = svgPoint(e);
     if (!p) return;
@@ -249,8 +276,10 @@ export default function TraceSvg({
     }
   }
 
-  function onUp() {
+  function onUp(e?: React.PointerEvent) {
+    e?.preventDefault();
     dragging.current = false;
+    unlockDrawingScroll();
   }
 
   function reset() {
@@ -287,7 +316,13 @@ export default function TraceSvg({
           ref={svgRef}
           viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
           className="block w-full select-none touch-none"
-          style={{ aspectRatio: `${vb.w} / ${vb.h}`, background: "white" }}
+          style={{
+            aspectRatio: `${vb.w} / ${vb.h}`,
+            background: "white",
+            touchAction: "none",
+            overscrollBehavior: "contain",
+            WebkitUserSelect: "none",
+          }}
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}

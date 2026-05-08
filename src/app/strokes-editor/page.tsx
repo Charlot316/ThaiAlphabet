@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CONSONANTS } from "@/data/consonants";
 import { TONE_MARKS } from "@/data/tones";
 import { VOWELS } from "@/data/vowels";
+import { lockPageScroll, preventElementTouchScroll, unlockPageScroll, type PageScrollLock } from "@/lib/scrollLock";
 import { letterPath } from "@/lib/thaiFont";
 
 type Point = { x: number; y: number };
@@ -268,10 +269,24 @@ export default function StrokesEditorPage() {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const outlinePathRef = useRef<SVGPathElement | null>(null);
   const currentRef = useRef<TimedPoint[]>([]);
+  const scrollLock = useRef<PageScrollLock | null>(null);
   const startTime = useRef(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => setIdx(0), [tab]);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    return preventElementTouchScroll(svg);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      unlockPageScroll(scrollLock.current);
+      scrollLock.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (!item) return;
@@ -388,21 +403,32 @@ export default function StrokesEditorPage() {
     setRecorded([...points, { ...p, t }]);
   }
 
+  function lockDrawingScroll() {
+    if (!scrollLock.current) scrollLock.current = lockPageScroll();
+  }
+
+  function unlockDrawingScroll() {
+    unlockPageScroll(scrollLock.current);
+    scrollLock.current = null;
+  }
+
   function onDown(e: React.PointerEvent) {
+    e.preventDefault();
+    lockDrawingScroll();
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
     const p = svgPoint(e);
     if (!p || !isInsideGlyph(p)) {
       setOutside(true);
       return;
     }
-    e.preventDefault();
     startTime.current = performance.now();
     setRecorded([{ ...p, t: 0 }]);
     setRecording(true);
     setOutside(false);
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
 
   function onMove(e: React.PointerEvent) {
+    e.preventDefault();
     if (!recording) return;
     const p = svgPoint(e);
     if (!p) return;
@@ -414,7 +440,9 @@ export default function StrokesEditorPage() {
     appendPoint(p);
   }
 
-  function onUp() {
+  function onUp(e?: React.PointerEvent) {
+    e?.preventDefault();
+    unlockDrawingScroll();
     if (!recording) return;
     setRecording(false);
     setOutside(false);
@@ -541,7 +569,13 @@ export default function StrokesEditorPage() {
           ref={svgRef}
           viewBox={`0 0 ${VB} ${VB}`}
           className="block w-full select-none touch-none"
-          style={{ aspectRatio: "1 / 1", background: "white" }}
+          style={{
+            aspectRatio: "1 / 1",
+            background: "white",
+            touchAction: "none",
+            overscrollBehavior: "contain",
+            WebkitUserSelect: "none",
+          }}
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
