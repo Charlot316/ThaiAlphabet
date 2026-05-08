@@ -4,6 +4,21 @@ import { letterPath, letterSkeleton } from "@/lib/thaiFont";
 import { feedbackComplete, feedbackTap } from "@/lib/feedback";
 import { getLetterStrokes } from "@/data/strokes";
 
+const DRAFT_KEY = "thai-alphabet:strokes-draft:v1";
+
+function loadLocalStrokeDraft(key: string): { strokes: { d: string }[] } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as Record<string, { strokes?: Array<{ d?: string }> }>;
+    const strokes = draft[key]?.strokes?.filter((stroke): stroke is { d: string } => typeof stroke.d === "string") ?? [];
+    return strokes.length > 0 ? { strokes } : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 沿字母骨架（中线）拖小球的描红组件，Duolingo 风。
  * - 背景显示字体 outline 作视觉参考
@@ -23,7 +38,7 @@ export default function TraceSvg({
   onComplete?: () => void;
 }) {
   const lookupKey = strokeKey ?? letter;
-  const [outline, setOutline] = useState<{ d: string; transform?: string } | null>(null);
+  const [outline, setOutline] = useState<{ d: string; transform?: string; offX?: number; offY?: number; scale?: number } | null>(null);
   const [skeletonPaths, setSkeletonPaths] = useState<string[]>([]);
   const [vb, setVb] = useState({ x: 0, y: 0, w: 100, h: 100 });
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +50,7 @@ export default function TraceSvg({
   const [done, setDone] = useState(false);
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const outlinePathRef = useRef<SVGPathElement | null>(null);
   const pathRefs = useRef<(SVGPathElement | null)[]>([]);
   const dragging = useRef(false);
   const lastProgress = useRef(0);
@@ -49,8 +65,9 @@ export default function TraceSvg({
     lastProgress.current = 0;
     setDone(false);
 
-    // 优先尝试用手工录入的笔画数据（src/data/strokes.ts）
-    const manual = getLetterStrokes(lookupKey);
+    const localDraft = loadLocalStrokeDraft(lookupKey);
+    // 优先尝试用录制草稿，其次用手工录入的笔画数据（src/data/strokes.ts）
+    const manual = localDraft ?? getLetterStrokes(lookupKey);
     if (manual && manual.strokes.length > 0) {
       // 手工数据用 viewBox 0..100，把字体 outline 映射进同一个 viewBox 作背景
       letterPath(letter, 240)
@@ -67,6 +84,9 @@ export default function TraceSvg({
             setOutline({
               d,
               transform: `translate(${offX} ${offY}) scale(${scale})`,
+              offX,
+              offY,
+              scale,
             });
           }
           setVb({ x: 0, y: 0, w: 100, h: 100 });
@@ -139,6 +159,22 @@ export default function TraceSvg({
     return { x: p.x, y: p.y };
   }
 
+  function isInsideGlyph(p: { x: number; y: number }): boolean {
+    const path = outlinePathRef.current;
+    const svg = svgRef.current;
+    if (!path || !svg) return true;
+    const local = svg.createSVGPoint();
+    if (outline?.scale) {
+      local.x = (p.x - (outline.offX ?? 0)) / outline.scale;
+      local.y = (p.y - (outline.offY ?? 0)) / outline.scale;
+    } else {
+      local.x = p.x;
+      local.y = p.y;
+    }
+    const hit = path as unknown as { isPointInFill?: (point: DOMPointInit) => boolean };
+    return hit.isPointInFill ? hit.isPointInFill(local) : true;
+  }
+
   function nearestLengthAhead(
     pathEl: SVGPathElement,
     x: number,
@@ -174,6 +210,7 @@ export default function TraceSvg({
     if (done || !activePath) return;
     const p = svgPoint(e);
     if (!p || !ballPoint) return;
+    if (!isInsideGlyph(p)) return;
     const tolerance = vb.w * 0.18;
     if (Math.hypot(p.x - ballPoint.x, p.y - ballPoint.y) > tolerance) return;
     dragging.current = true;
@@ -185,6 +222,7 @@ export default function TraceSvg({
     if (!dragging.current || done || !activePath) return;
     const p = svgPoint(e);
     if (!p) return;
+    if (!isInsideGlyph(p)) return;
     const tolerance = vb.w * 0.22;
     const r = nearestLengthAhead(activePath, p.x, p.y, lastProgress.current, activeTotal);
     if (r.dist > tolerance) return;
@@ -255,6 +293,13 @@ export default function TraceSvg({
           onPointerUp={onUp}
           onPointerCancel={onUp}
         >
+          <path
+            ref={outlinePathRef}
+            d={outline.d}
+            fill="black"
+            opacity={0}
+            style={{ pointerEvents: "none" }}
+          />
           {/* 背景：字体 outline 淡色填充作视觉参考 */}
           {outline.transform ? (
             <g transform={outline.transform}>
