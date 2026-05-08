@@ -52,41 +52,132 @@ function hasBackgroundNeighbor(mask: Uint8Array, x: number, y: number, w: number
 }
 
 function distanceTransform(mask: Uint8Array, w: number, h: number): Float32Array {
-  const inf = 1_000_000;
-  const dist = new Float32Array(w * h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = y * w + x;
-      dist[idx] = mask[idx] ? inf : 0;
+  const inf = 1_000_000_000;
+  const maxLen = Math.max(w, h);
+  const f = new Float32Array(maxLen);
+  const d = new Float32Array(maxLen);
+  const tmp = new Float32Array(w * h);
+  const out = new Float32Array(w * h);
+
+  function transform1d(n: number) {
+    const v = new Int32Array(n);
+    const z = new Float32Array(n + 1);
+    let k = 0;
+    v[0] = 0;
+    z[0] = -inf;
+    z[1] = inf;
+
+    for (let q = 1; q < n; q++) {
+      let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      while (s <= z[k]) {
+        k--;
+        s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      }
+      k++;
+      v[k] = q;
+      z[k] = s;
+      z[k + 1] = inf;
+    }
+
+    k = 0;
+    for (let q = 0; q < n; q++) {
+      while (z[k + 1] < q) k++;
+      const dx = q - v[k];
+      d[q] = dx * dx + f[v[k]];
     }
   }
 
-  // 3-4 chamfer distance，速度稳定，足够定位等线字体的中轴 ridge。
+  // 精确欧氏距离场。斜线和弧线处比 chamfer distance 更少出现棋盘方向假峰。
   for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
+    for (let x = 0; x < w; x++) f[x] = mask[y * w + x] ? inf : 0;
+    transform1d(w);
+    for (let x = 0; x < w; x++) tmp[y * w + x] = d[x];
+  }
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) f[y] = tmp[y * w + x];
+    transform1d(h);
+    for (let y = 0; y < h; y++) {
       const idx = y * w + x;
-      if (!mask[idx]) continue;
-      let best = dist[idx];
-      if (x > 0) best = Math.min(best, dist[idx - 1] + 1);
-      if (y > 0) best = Math.min(best, dist[idx - w] + 1);
-      if (x > 0 && y > 0) best = Math.min(best, dist[idx - w - 1] + Math.SQRT2);
-      if (x < w - 1 && y > 0) best = Math.min(best, dist[idx - w + 1] + Math.SQRT2);
-      dist[idx] = best;
+      out[idx] = mask[idx] ? Math.sqrt(d[y]) : 0;
     }
   }
-  for (let y = h - 1; y >= 0; y--) {
-    for (let x = w - 1; x >= 0; x--) {
-      const idx = y * w + x;
-      if (!mask[idx]) continue;
-      let best = dist[idx];
-      if (x < w - 1) best = Math.min(best, dist[idx + 1] + 1);
-      if (y < h - 1) best = Math.min(best, dist[idx + w] + 1);
-      if (x < w - 1 && y < h - 1) best = Math.min(best, dist[idx + w + 1] + Math.SQRT2);
-      if (x > 0 && y < h - 1) best = Math.min(best, dist[idx + w - 1] + Math.SQRT2);
-      dist[idx] = best;
-    }
+
+  return out;
+}
+
+function degreeAt(mask: Uint8Array, x: number, y: number, w: number, h: number): number {
+  return neighbors8(mask, x, y, w, h).length;
+}
+
+function idxPoint(idx: number, w: number): [number, number] {
+  return [idx % w, Math.floor(idx / w)];
+}
+
+function neighborIndices(mask: Uint8Array, idx: number, w: number, h: number): number[] {
+  const [x, y] = idxPoint(idx, w);
+  return neighbors8(mask, x, y, w, h).map(([nx, ny]) => ny * w + nx);
+}
+
+function branchLength(path: number[], w: number): number {
+  let length = 0;
+  for (let i = 1; i < path.length; i++) {
+    const [ax, ay] = idxPoint(path[i - 1], w);
+    const [bx, by] = idxPoint(path[i], w);
+    length += Math.hypot(ax - bx, ay - by);
   }
-  return dist;
+  return length;
+}
+
+function pruneTerminalBranches(mask: Uint8Array, dist: Float32Array, w: number, h: number) {
+  for (let pass = 0; pass < 10; pass++) {
+    const toRemove = new Set<number>();
+
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const start = y * w + x;
+        if (!mask[start] || degreeAt(mask, x, y, w, h) !== 1) continue;
+
+        const path = [start];
+        let prev = -1;
+        let cur = start;
+
+        while (path.length < 160) {
+          const next = neighborIndices(mask, cur, w, h).filter((idx) => idx !== prev);
+          if (next.length === 0) break;
+          if (next.length > 1 && cur !== start) break;
+          prev = cur;
+          cur = next[0];
+          path.push(cur);
+          const [cx, cy] = idxPoint(cur, w);
+          if (degreeAt(mask, cx, cy, w, h) !== 2) break;
+        }
+
+        const attach = path[path.length - 1];
+        const [ax, ay] = idxPoint(attach, w);
+        const attachDegree = degreeAt(mask, ax, ay, w, h);
+        if (attachDegree < 3) continue;
+
+        const length = branchLength(path, w);
+        const attachRadius = dist[attach];
+        const endpointRadius = dist[start];
+        let maxRadius = 0;
+        for (const idx of path) maxRadius = Math.max(maxRadius, dist[idx]);
+
+        // 角点和端帽会长出短枝：长度很短，并且半径从分叉点向端点收缩。
+        // 真正的笔画主干一般不会在这么短的距离内接到一个分叉点。
+        const shortByWidth = length <= Math.max(8, attachRadius * 2.35);
+        const shrinksToTip = endpointRadius <= attachRadius + 0.75;
+        const lowPersistence = maxRadius - endpointRadius <= Math.max(1.4, attachRadius * 0.35);
+        if (shortByWidth && shrinksToTip && lowPersistence) {
+          for (let i = 0; i < path.length - 1; i++) toRemove.add(path[i]);
+        }
+      }
+    }
+
+    if (toRemove.size === 0) break;
+    for (const idx of toRemove) mask[idx] = 0;
+    zhangSuen(mask, w, h);
+  }
 }
 
 function buildRidgeMask(mask: Uint8Array, dist: Float32Array, w: number, h: number): Uint8Array {
@@ -127,7 +218,8 @@ function buildRidgeMask(mask: Uint8Array, dist: Float32Array, w: number, h: numb
   }
 
   zhangSuen(ridge, w, h);
-  pruneSpurs(ridge, w, h, 5);
+  pruneTerminalBranches(ridge, dist, w, h);
+  pruneSpurs(ridge, w, h, 2);
   return ridge;
 }
 
