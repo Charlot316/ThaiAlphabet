@@ -3,11 +3,12 @@
 // 字符 → 中线骨架。算法：
 // 1. 把字体 fill outline 渲染到位图（offscreen canvas）
 // 2. 二值化
-// 3. Zhang-Suen 细化（迭代删除边界像素直到只剩 1px 宽骨架）
-// 4. 沿骨架追踪生成 polyline 列表
-// 5. Douglas-Peucker 简化 + 转为 SVG path
+// 3. 计算黑色区域内每个像素到边界的距离场
+// 4. 保留距离场 ridge：这些点可理解为“尽可能大的内接圆”的圆心
+// 5. 轻量细化 + 沿 ridge 追踪生成 polyline 列表
+// 6. Douglas-Peucker 简化 + 转为 SVG path
 
-const RES = 256;
+const RES = 384;
 
 export interface Skeleton {
   /** 一段或多段 SVG path（按笔画连通分量分开） */
@@ -35,6 +36,114 @@ function neighbors8(mask: Uint8Array, x: number, y: number, w: number, h: number
     }
   }
   return res;
+}
+
+function hasBackgroundNeighbor(mask: Uint8Array, x: number, y: number, w: number, h: number): boolean {
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || nx >= w || ny < 0 || ny >= h) return true;
+      if (!mask[ny * w + nx]) return true;
+    }
+  }
+  return false;
+}
+
+function distanceTransform(mask: Uint8Array, w: number, h: number): Float32Array {
+  const inf = 1_000_000;
+  const dist = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = y * w + x;
+      dist[idx] = mask[idx] ? inf : 0;
+    }
+  }
+
+  // 3-4 chamfer distance，速度稳定，足够定位等线字体的中轴 ridge。
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = y * w + x;
+      if (!mask[idx]) continue;
+      let best = dist[idx];
+      if (x > 0) best = Math.min(best, dist[idx - 1] + 1);
+      if (y > 0) best = Math.min(best, dist[idx - w] + 1);
+      if (x > 0 && y > 0) best = Math.min(best, dist[idx - w - 1] + Math.SQRT2);
+      if (x < w - 1 && y > 0) best = Math.min(best, dist[idx - w + 1] + Math.SQRT2);
+      dist[idx] = best;
+    }
+  }
+  for (let y = h - 1; y >= 0; y--) {
+    for (let x = w - 1; x >= 0; x--) {
+      const idx = y * w + x;
+      if (!mask[idx]) continue;
+      let best = dist[idx];
+      if (x < w - 1) best = Math.min(best, dist[idx + 1] + 1);
+      if (y < h - 1) best = Math.min(best, dist[idx + w] + 1);
+      if (x < w - 1 && y < h - 1) best = Math.min(best, dist[idx + w + 1] + Math.SQRT2);
+      if (x > 0 && y < h - 1) best = Math.min(best, dist[idx + w - 1] + Math.SQRT2);
+      dist[idx] = best;
+    }
+  }
+  return dist;
+}
+
+function buildRidgeMask(mask: Uint8Array, dist: Float32Array, w: number, h: number): Uint8Array {
+  const ridge = new Uint8Array(w * h);
+  const axes = [
+    [[1, 0], [-1, 0]],
+    [[0, 1], [0, -1]],
+    [[1, 1], [-1, -1]],
+    [[1, -1], [-1, 1]],
+  ] as const;
+
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const idx = y * w + x;
+      if (!mask[idx]) continue;
+      const d = dist[idx];
+      if (d < 1.6) continue;
+
+      let ridgeAxes = 0;
+      let maxAround = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          maxAround = Math.max(maxAround, dist[(y + dy) * w + x + dx]);
+        }
+      }
+      for (const [[ax, ay], [bx, by]] of axes) {
+        const da = dist[(y + ay) * w + x + ax];
+        const db = dist[(y + by) * w + x + bx];
+        if (d >= da - 0.25 && d >= db - 0.25 && (d > da + 0.01 || d > db + 0.01 || d >= maxAround - 0.1)) {
+          ridgeAxes++;
+        }
+      }
+
+      // 边界附近一律不要；内部的局部高线才是最大圆圆心候选。
+      if (ridgeAxes >= 1 && !hasBackgroundNeighbor(mask, x, y, w, h)) ridge[idx] = 1;
+    }
+  }
+
+  zhangSuen(ridge, w, h);
+  pruneSpurs(ridge, w, h, 5);
+  return ridge;
+}
+
+function pruneSpurs(mask: Uint8Array, w: number, h: number, iterations: number) {
+  for (let pass = 0; pass < iterations; pass++) {
+    const remove: number[] = [];
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const idx = y * w + x;
+        if (!mask[idx]) continue;
+        if (neighbors8(mask, x, y, w, h).length <= 1) remove.push(idx);
+      }
+    }
+    if (remove.length === 0) break;
+    for (const idx of remove) mask[idx] = 0;
+  }
 }
 
 /** Zhang-Suen 二值图细化算法 */
@@ -259,8 +368,9 @@ export function buildSkeleton(opts: BuildOptions): Skeleton {
     mask[i] = img.data[i * 4] < 128 ? 1 : 0;
   }
 
-  zhangSuen(mask, cw, ch);
-  const polylines = traceSkeleton(mask, cw, ch);
+  const dist = distanceTransform(mask, cw, ch);
+  const ridgeMask = buildRidgeMask(mask, dist, cw, ch);
+  const polylines = traceSkeleton(ridgeMask, cw, ch);
 
   // 简化 + 映射回字体坐标
   const paths = polylines
