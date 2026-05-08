@@ -1,5 +1,13 @@
 @import url("https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&family=Noto+Sans+Thai+Looped:wght@400;600;700&family=Prompt:wght@400;600;700&family=Sarabun:wght@400;600;700&family=Nunito:wght@500;700;800;900&display=swap");
 
+@font-face {
+  font-family: "Droid Sans Thai";
+  src: url("/fonts/DroidSansThai.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -36,9 +44,9 @@ html, body {
 body {
   background: var(--duo-bg);
   color: var(--duo-text);
-  font-family: "Nunito", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    "Helvetica Neue", "Noto Sans Thai Looped", "Noto Sans Thai", "Leelawadee UI",
-    "Tahoma", sans-serif;
+  font-family: "Droid Sans Thai", "Noto Sans Thai Looped", "Noto Sans Thai",
+    "Nunito", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    "Helvetica Neue", "Leelawadee UI", "Tahoma", sans-serif;
   font-weight: 700;
 }
 
@@ -54,12 +62,13 @@ body {
 }
 
 .thai-big {
-  font-family: "Noto Sans Thai Looped", "Noto Sans Thai", "Leelawadee UI", "Tahoma", sans-serif;
+  font-family: "Droid Sans Thai", "Noto Sans Thai Looped", "Noto Sans Thai", "Leelawadee UI", "Tahoma", sans-serif;
   font-feature-settings: "kern" 1;
   letter-spacing: 0.005em;
 }
 
-.thai-font-looped { font-family: "Noto Sans Thai Looped", "Leelawadee UI", "Tahoma", sans-serif; }
+.thai-font-droid { font-family: "Droid Sans Thai", "Noto Sans Thai Looped", "Leelawadee UI", "Tahoma", sans-serif; }
+.thai-font-looped { font-family: "Noto Sans Thai Looped", "Droid Sans Thai", "Leelawadee UI", "Tahoma", sans-serif; }
 .thai-font-noto { font-family: "Noto Sans Thai", "Leelawadee UI", "Tahoma", sans-serif; }
 .thai-font-prompt { font-family: "Prompt", "Noto Sans Thai", sans-serif; }
 .thai-font-kanit { font-family: "Kanit", "Noto Sans Thai", sans-serif; }

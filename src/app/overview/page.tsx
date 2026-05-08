@@ -151,7 +151,8 @@ function Consonants() {
 
 function FontSamples({ letter }: { letter: string }) {
   const fonts = [
-    { label: "主", className: "thai-font-looped" },
+    { label: "Droid", className: "thai-font-droid" },
+    { label: "副", className: "thai-font-looped" },
     { label: "Noto", className: "thai-font-noto" },
     { label: "Prompt", className: "thai-font-prompt" },
     { label: "Kanit", className: "thai-font-kanit" },
@@ -159,7 +160,7 @@ function FontSamples({ letter }: { letter: string }) {
   ];
 
   return (
-    <div className="mt-3 grid grid-cols-5 gap-1">
+    <div className="mt-3 grid grid-cols-3 gap-1 sm:grid-cols-6">
       {fonts.map((font) => (
         <div key={font.label} className="rounded-lg border border-black/5 bg-black/[0.02] p-1 text-center dark:border-white/10 dark:bg-white/[0.03]">
           <div className={`${font.className} text-2xl leading-none`}>{letter}</div>
@@ -212,6 +213,7 @@ function Vowels() {
                   <div className="mt-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
                     🔊 应念: {vowelPhonetic(v)}
                   </div>
+                  <FontSamples letter={v.display} />
                 </div>
               </li>
             ))}
@@ -234,6 +236,7 @@ function Tones() {
               <div className="mt-1 text-xs">
                 <div className="thai-big">{m.name}</div>
                 <div className="opacity-70">{m.nameRoman}</div>
+                {m.symbol !== "—" && <FontSamples letter={m.symbol} />}
               </div>
             </li>
           ))}

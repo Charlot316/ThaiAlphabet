@@ -1,0 +1,7 @@
+DroidSansThai.ttf
+
+Source: Android Open Source Project
+https://android.googlesource.com/platform/frameworks/base/+/c049f9a/data/fonts/DroidSansThai.ttf
+
+License: Apache License 2.0
+The AOSP font directory includes MODULE_LICENSE_APACHE2.

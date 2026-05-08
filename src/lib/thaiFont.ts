@@ -1,6 +1,6 @@
 "use client";
 
-// 用 opentype.js 加载 Noto Sans Thai 字体，得到每个字母的 SVG path 数据
+// 用 opentype.js 加载主泰文字体，得到每个字母的 SVG path 数据
 // 用于书写描红「沿轮廓拖小球」交互。
 //
 // 注意：opentype.js 的 .load() 在 Next.js 浏览器构建里偶尔解析不到正确的导出
@@ -8,7 +8,7 @@
 
 import type { Font } from "opentype.js";
 
-const FONT_URL = "/fonts/NotoSansThaiLooped.ttf";
+const FONT_URL = "/fonts/DroidSansThai.ttf";
 
 let cachedFont: Font | null = null;
 let pending: Promise<Font> | null = null;
