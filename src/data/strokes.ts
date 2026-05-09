@@ -1019,7 +1019,7 @@ const SLOT_COMPONENT_BOX: Record<string, Omit<TargetBox, "x" | "w"> & { wScale: 
   "v:o-letter": { y: 38, h: 30, wScale: 0.76 },
   "v:yo": { y: 39, h: 26, wScale: 0.66 },
   "v:wo": { y: 42, h: 18, wScale: 0.62 },
-  "v:mai-kham": { y: 38, h: 30, wScale: 0.56 },
+  "v:mai-kham": { y: 18, h: 62, wScale: 0.7 },
   "v:rue": { y: 8, h: 82, wScale: 0.8 },
   "v:lue": { y: 8, h: 82, wScale: 0.8 },
 };
@@ -1111,13 +1111,11 @@ function placeComponent(componentKey: string, component: LetterStrokes, target: 
     return {
       ...component,
       strokes: component.strokes.map(cloneStroke),
-      guides: component.guides?.map(cloneStroke),
     };
   }
   return {
     ...component,
     strokes: component.strokes.map((stroke) => transformStroke(stroke, target)),
-    guides: component.guides?.map((guide) => transformStroke(guide, target)),
   };
 }
 
@@ -1145,17 +1143,10 @@ export function composeLetterStrokes(
   });
 
   const strokes = resolvedComponents.flatMap((component) => component.strokes.map(cloneStroke));
-  const guideMap = new Map<string, Stroke>();
-  for (const component of resolvedComponents) {
-    for (const guide of component.guides ?? []) {
-      if (!guideMap.has(guide.d)) guideMap.set(guide.d, cloneStroke(guide));
-    }
-  }
 
   return {
     v: Math.max(...resolvedComponents.map((component) => component.v), 5),
     strokes,
-    guides: guideMap.size > 0 ? [...guideMap.values()] : undefined,
   };
 }
 
