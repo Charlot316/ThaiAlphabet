@@ -32,6 +32,12 @@ interface EditorItem {
 
 const DRAFT_KEY = "thai-alphabet:strokes-draft:v1";
 const VB = 100;
+const EDITABLE_TONE_IDS = new Set(["ek", "tho", "tri", "chattawa"]);
+const EDITABLE_STROKE_KEYS = new Set([
+  ...CONSONANTS.map((c) => c.letter),
+  ...VOWELS.map((v) => `v:${v.id}`),
+  ...TONE_MARKS.filter((m) => EDITABLE_TONE_IDS.has(m.id)).map((m) => `mark:${m.id}`),
+]);
 
 function buildItems(): EditorItem[] {
   const consonants: EditorItem[] = CONSONANTS.map((c) => ({
@@ -48,7 +54,7 @@ function buildItems(): EditorItem[] {
     meaning: v.notes ?? "",
     kind: "vowel",
   }));
-  const toneMarks: EditorItem[] = TONE_MARKS.filter((m) => m.symbol && m.id !== "none").map((m) => ({
+  const toneMarks: EditorItem[] = TONE_MARKS.filter((m) => m.symbol && EDITABLE_TONE_IDS.has(m.id)).map((m) => ({
     key: `mark:${m.id}`,
     display: m.symbol,
     label: m.name,
@@ -100,6 +106,7 @@ function loadDraft(): Record<string, StrokeDraft> {
     const parsed = JSON.parse(window.localStorage.getItem(DRAFT_KEY) || "{}") as Record<string, unknown>;
     return Object.fromEntries(
       Object.entries(parsed)
+        .filter(([key]) => EDITABLE_STROKE_KEYS.has(key))
         .map(([key, value]) => [key, normalizeDraft(value)] as const)
         .filter((entry): entry is [string, StrokeDraft] => Boolean(entry[1]))
     );
@@ -118,6 +125,7 @@ function authHeaders(): HeadersInit {
 }
 
 async function fetchRemoteDraft(key: string): Promise<StrokeDraft | null> {
+  if (!EDITABLE_STROKE_KEYS.has(key)) return null;
   const res = await fetch(`/api/strokes?key=${encodeURIComponent(key)}`, { headers: authHeaders() });
   if (!res.ok) return null;
   const data = (await res.json()) as { item?: { value: string; updated_at: number } | null };
@@ -131,6 +139,7 @@ async function fetchRemoteDraft(key: string): Promise<StrokeDraft | null> {
 }
 
 async function pushRemoteDraft(key: string, draft: StrokeDraft) {
+  if (!EDITABLE_STROKE_KEYS.has(key)) return;
   await fetch("/api/strokes", {
     method: "POST",
     headers: { "content-type": "application/json", ...authHeaders() },
