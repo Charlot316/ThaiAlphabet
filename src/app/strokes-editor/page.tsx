@@ -6,11 +6,13 @@ import { getLetterStrokes, type LetterStrokes, type Stroke } from "@/data/stroke
 import { TONE_MARKS } from "@/data/tones";
 import { VOWELS } from "@/data/vowels";
 import {
+  buildPathFromPointSequence,
   fmtPathNumber,
-  moveSegmentForPoint,
-  orderedPointsFromPath,
+  parsePointSequence,
+  pointModelFromStroke,
   reversePathBySegments,
-  type OrderedPathPoint,
+  sequenceToText,
+  type PathNode,
 } from "@/lib/pathOrder";
 
 type Point = { x: number; y: number };
@@ -61,11 +63,13 @@ function fallbackPoint(): Point {
 }
 
 function endpointsFromPath(d: string): { start: Point; end: Point } {
-  const points = orderedPointsFromPath(d);
-  if (points.length > 0) {
+  const model = pointModelFromStroke({ d });
+  const startNode = model.nodes.find((node) => node.id === model.sequence[0]);
+  const endNode = model.nodes.find((node) => node.id === model.sequence[model.sequence.length - 1]);
+  if (startNode && endNode) {
     return {
-      start: points[0].point,
-      end: points[points.length - 1].point,
+      start: startNode.point,
+      end: endNode.point,
     };
   }
   const nums = d.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
@@ -149,7 +153,8 @@ export default function StrokesEditorPage() {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [guides, setGuides] = useState<Stroke[]>([]);
   const [selected, setSelected] = useState(0);
-  const [selectedPoint, setSelectedPoint] = useState(0);
+  const [sequenceText, setSequenceText] = useState("");
+  const [sequenceError, setSequenceError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, StrokeDraft>>({});
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const dirty = useRef(false);
@@ -166,7 +171,7 @@ export default function StrokesEditorPage() {
     setStrokes(current?.strokes ?? []);
     setGuides(current?.guides ?? base?.guides ?? []);
     setSelected(0);
-    setSelectedPoint(0);
+    setSequenceError(null);
     setSaveState(localDraft[item.key] ? "saved" : "idle");
 
     fetchRemoteDraft(item.key).then((remote) => {
@@ -178,7 +183,7 @@ export default function StrokesEditorPage() {
       setDraft(next);
       setStrokes(remote.strokes);
       setGuides(remote.guides ?? base?.guides ?? []);
-      setSelectedPoint(0);
+      setSequenceError(null);
       setSaveState("saved");
       dirty.current = false;
     });
@@ -208,28 +213,30 @@ export default function StrokesEditorPage() {
     };
   }, [item, strokes, guides]);
 
+  useEffect(() => {
+    const stroke = strokes[selected];
+    if (!stroke) {
+      setSequenceText("");
+      setSequenceError(null);
+      return;
+    }
+    setSequenceText(sequenceToText(pointModelFromStroke(stroke).sequence));
+    setSequenceError(null);
+  }, [item?.key, selected, strokes]);
+
   if (!item) return null;
 
   const totalDoneAll = Object.values(draft).filter((value) => value.strokes.length > 0).length;
   const totalDoneTab = items.filter((it) => (draft[it.key]?.strokes.length || 0) > 0).length;
   const selectedStroke = strokes[selected] ?? null;
-  const pointRows = selectedStroke ? orderedPointsFromPath(selectedStroke.d) : [];
-  const currentPoint = pointRows[selectedPoint] ?? pointRows[0] ?? null;
-  const maxSegmentIndex = pointRows.reduce((max, row) => Math.max(max, row.segmentIndex), -1);
+  const selectedModel = selectedStroke ? pointModelFromStroke(selectedStroke) : null;
+  const pointNodes = selectedModel?.nodes ?? [];
+  const currentSequence = selectedModel?.sequence ?? [];
 
   function updateStrokes(next: Stroke[], nextSelected = selected) {
     dirty.current = true;
     setStrokes(next);
     setSelected(Math.max(0, Math.min(next.length - 1, nextSelected)));
-    setSelectedPoint(0);
-  }
-
-  function updateSelectedStrokeD(nextD: string, nextPoint = selectedPoint) {
-    if (!strokes[selected]) return;
-    const next = strokes.map((stroke, index) => (index === selected ? { ...stroke, d: nextD } : stroke));
-    dirty.current = true;
-    setStrokes(next);
-    setSelectedPoint(Math.max(0, Math.min(orderedPointsFromPath(nextD).length - 1, nextPoint)));
   }
 
   function moveSelected(delta: number) {
@@ -242,17 +249,50 @@ export default function StrokesEditorPage() {
   }
 
   function reverseSelected() {
-    if (!strokes[selected]) return;
-    const next = strokes.map((stroke, index) => (index === selected ? { ...stroke, d: reversePathBySegments(stroke.d) } : stroke));
+    const stroke = strokes[selected];
+    if (!stroke) return;
+    const model = pointModelFromStroke(stroke);
+    const points = model.nodes.map((node) => ({ id: node.id, x: node.point.x, y: node.point.y }));
+    const sourceD = stroke.sourceD ?? stroke.d;
+    const sequence = [...model.sequence].reverse();
+    const d = buildPathFromPointSequence({ ...stroke, d: sourceD, sourceD, points }, sequence) ?? reversePathBySegments(stroke.d);
+    const next = strokes.map((item, index) => (index === selected ? { ...item, d, sourceD, points, sequence } : item));
     updateStrokes(next);
   }
 
-  function moveSelectedPoint(delta: -1 | 1) {
+  function applySequence() {
     const stroke = strokes[selected];
     if (!stroke) return;
-    const nextD = moveSegmentForPoint(stroke.d, selectedPoint, delta);
-    if (!nextD) return;
-    updateSelectedStrokeD(nextD, selectedPoint + delta);
+    const model = pointModelFromStroke(stroke);
+    const sequence = parsePointSequence(sequenceText, model.nodes.length);
+    if (!sequence) {
+      setSequenceError(`请输入 1-${model.nodes.length} 之间的点 ID，至少两个。`);
+      return;
+    }
+    const points = model.nodes.map((node) => ({ id: node.id, x: node.point.x, y: node.point.y }));
+    const sourceD = stroke.sourceD ?? stroke.d;
+    const d = buildPathFromPointSequence({ ...stroke, d: sourceD, sourceD, points }, sequence);
+    if (!d) {
+      setSequenceError("这个顺序没法生成路径。");
+      return;
+    }
+    const next = strokes.map((item, index) => (index === selected ? { ...item, d, sourceD, points, sequence } : item));
+    setSequenceError(null);
+    updateStrokes(next);
+    setSequenceText(sequenceToText(sequence));
+  }
+
+  function resetSequenceInput() {
+    if (!selectedStroke) return;
+    setSequenceText(sequenceToText(pointModelFromStroke(selectedStroke).sequence));
+    setSequenceError(null);
+  }
+
+  function appendPointId(id: number) {
+    setSequenceText((value) => {
+      const trimmed = value.trim();
+      return trimmed ? `${trimmed} ${id}` : String(id);
+    });
   }
 
   function deleteSelected() {
@@ -267,7 +307,7 @@ export default function StrokesEditorPage() {
     setStrokes(base.strokes);
     setGuides(base.guides ?? []);
     setSelected(0);
-    setSelectedPoint(0);
+    setSequenceError(null);
   }
 
   function commitToDraft() {
@@ -320,14 +360,8 @@ export default function StrokesEditorPage() {
     setStrokes(base?.strokes ?? []);
     setGuides(base?.guides ?? []);
     setSelected(0);
-    setSelectedPoint(0);
+    setSequenceError(null);
     dirty.current = false;
-  }
-
-  function markerOffset(point: OrderedPathPoint) {
-    if (point.repeatCount <= 1) return { x: 0, y: 0 };
-    const angle = ((point.repeatIndex - 1) / point.repeatCount) * Math.PI * 2 - Math.PI / 2;
-    return { x: Math.cos(angle) * 2.8, y: Math.sin(angle) * 2.8 };
   }
 
   return (
@@ -372,7 +406,7 @@ export default function StrokesEditorPage() {
             {item.meaning && <span className="opacity-70">· {item.meaning}</span>}
           </div>
           <div className="mt-0.5 text-xs opacity-60">
-            笔画 {strokes.length}；当前点序 {pointRows.length}；参考线 {guides.length}
+            笔画 {strokes.length}；点 {pointNodes.length}；顺序 {currentSequence.length}；参考线 {guides.length}
             {" · "}
             {saveState === "saving" ? "同步中..." : saveState === "saved" ? "已同步" : saveState === "error" ? "同步失败" : "未保存"}
           </div>
@@ -415,7 +449,7 @@ export default function StrokesEditorPage() {
                   onPointerDown={(event) => {
                     event.preventDefault();
                     setSelected(index);
-                    setSelectedPoint(0);
+                    setSequenceError(null);
                   }}
                   style={{ cursor: "pointer" }}
                 />
@@ -426,38 +460,34 @@ export default function StrokesEditorPage() {
               </g>
             );
           })}
-          {pointRows.map((row, index) => {
-            const active = index === selectedPoint;
-            const offset = markerOffset(row);
-            const x = row.point.x + offset.x;
-            const y = row.point.y + offset.y;
+          {pointNodes.map((node) => {
             return (
               <g
-                key={`point-${row.order}-${row.segmentIndex}-${row.repeatIndex}`}
+                key={`point-${node.id}`}
                 onPointerDown={(event) => {
                   event.preventDefault();
-                  setSelectedPoint(index);
+                  appendPointId(node.id);
                 }}
                 style={{ cursor: "pointer" }}
               >
                 <circle
-                  cx={x}
-                  cy={y}
-                  r={active ? 3.4 : 2.5}
-                  fill={active ? "var(--duo-green)" : "white"}
-                  stroke={row.repeatCount > 1 ? "var(--duo-red)" : "var(--duo-green)"}
+                  cx={node.point.x}
+                  cy={node.point.y}
+                  r={3}
+                  fill="white"
+                  stroke={node.useCount > 1 ? "var(--duo-red)" : "var(--duo-green)"}
                   strokeWidth={0.9}
                 />
                 <text
-                  x={x}
-                  y={y + 1.35}
+                  x={node.point.x}
+                  y={node.point.y + 1.3}
                   textAnchor="middle"
-                  fontSize={active ? 3.7 : 3.3}
-                  fill={active ? "white" : "var(--duo-green-d)"}
+                  fontSize={3.4}
+                  fill="var(--duo-green-d)"
                   fontWeight={900}
                   style={{ pointerEvents: "none" }}
                 >
-                  {row.order}
+                  {node.id}
                 </text>
               </g>
             );
@@ -475,51 +505,46 @@ export default function StrokesEditorPage() {
       {selectedStroke && (
         <div className="card-soft p-3 text-xs">
           <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="font-bold">第 {selected + 1} 笔的经过点</div>
-              <div className="mt-0.5 opacity-60">
-                {currentPoint
-                  ? `当前 #${currentPoint.order} (${fmtPathNumber(currentPoint.point.x)}, ${fmtPathNumber(currentPoint.point.y)})`
-                  : "当前 path 里没有可解析点"}
-              </div>
-            </div>
-            {currentPoint?.repeatCount && currentPoint.repeatCount > 1 && (
-              <span className="rounded-full bg-red-100 px-2 py-1 font-bold text-red-700">
-                重复点 {currentPoint.repeatIndex}/{currentPoint.repeatCount}
-              </span>
-            )}
+            <div className="font-bold">第 {selected + 1} 笔：点 ID / 顺序</div>
+            <div className="font-mono opacity-60">{currentSequence.join(" ")}</div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button onClick={() => moveSelectedPoint(-1)} className="btn-ghost text-xs" disabled={!currentPoint || currentPoint.segmentIndex <= 0}>
-              点序前移
+          <textarea
+            value={sequenceText}
+            onChange={(event) => {
+              setSequenceText(event.target.value);
+              setSequenceError(null);
+            }}
+            className="mt-3 min-h-16 w-full resize-y rounded-xl border border-black/10 bg-white p-2 font-mono text-sm outline-none focus:border-green-400"
+            spellCheck={false}
+          />
+          {sequenceError && <div className="mt-2 font-bold text-red-600">{sequenceError}</div>}
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <button onClick={applySequence} className="btn-primary text-xs" disabled={!selectedStroke}>
+              套用顺序
             </button>
-            <button
-              onClick={() => moveSelectedPoint(1)}
-              className="btn-ghost text-xs"
-              disabled={!currentPoint || currentPoint.segmentIndex >= maxSegmentIndex}
-            >
-              点序后移
+            <button onClick={resetSequenceInput} className="btn-ghost text-xs" disabled={!selectedStroke}>
+              还原输入
+            </button>
+            <button onClick={() => setSequenceText("")} className="btn-red text-xs" disabled={!selectedStroke}>
+              清空输入
             </button>
           </div>
-          <ol className="mt-3 max-h-48 space-y-1 overflow-auto pr-1">
-            {pointRows.map((row, index) => (
-              <li
-                key={`row-${row.order}-${row.segmentIndex}-${row.repeatIndex}`}
-                className={`flex items-center justify-between rounded-lg px-2 py-1 ${
-                  index === selectedPoint ? "bg-green-100 text-green-800" : "bg-black/5"
+          <div className="mt-3 grid max-h-48 grid-cols-2 gap-1 overflow-auto pr-1 sm:grid-cols-3">
+            {pointNodes.map((node: PathNode) => (
+              <button
+                key={node.id}
+                onClick={() => appendPointId(node.id)}
+                className={`flex items-center justify-between rounded-lg px-2 py-1 text-left ${
+                  node.useCount > 1 ? "bg-red-50 text-red-700" : "bg-black/5"
                 }`}
-                onClick={() => setSelectedPoint(index)}
               >
-                <span>
-                  #{row.order} {row.role === "start" ? "起点" : "经过点"}
-                  {row.repeatCount > 1 ? ` · 重复 ${row.repeatIndex}/${row.repeatCount}` : ""}
-                </span>
+                <span className="font-bold">#{node.id}{node.useCount > 1 ? ` x${node.useCount}` : ""}</span>
                 <span className="font-mono opacity-60">
-                  {fmtPathNumber(row.point.x)}, {fmtPathNumber(row.point.y)}
+                  {fmtPathNumber(node.point.x)}, {fmtPathNumber(node.point.y)}
                 </span>
-              </li>
+              </button>
             ))}
-          </ol>
+          </div>
         </div>
       )}
 
@@ -533,11 +558,11 @@ export default function StrokesEditorPage() {
                 className={`flex items-center justify-between rounded-lg px-2 py-1 ${index === selected ? "bg-orange-100 text-orange-700" : "bg-black/5"}`}
                 onClick={() => {
                   setSelected(index);
-                  setSelectedPoint(0);
+                  setSequenceError(null);
                 }}
               >
                 <span>第 {index + 1} 笔</span>
-                <span className="font-mono opacity-50">{orderedPointsFromPath(stroke.d).length} 点</span>
+                <span className="font-mono opacity-50">{pointModelFromStroke(stroke).nodes.length} 点</span>
               </li>
             ))}
           </ul>

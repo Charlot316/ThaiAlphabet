@@ -2,7 +2,17 @@
 // Coordinates are normalized to viewBox 0 0 100 100.
 // guides are visual-only reference marks such as ◌; they are not traced as strokes.
 
-export type Stroke = { d: string };
+export type StrokePoint = { id: number; x: number; y: number };
+
+export type Stroke = {
+  d: string;
+  /** 原始完整路径；多次重排 sequence 时用于保留可复用线段 */
+  sourceD?: string;
+  /** 固定点位 ID；编辑器只改 sequence，不移动这些点 */
+  points?: StrokePoint[];
+  /** 书写时经过的点 ID 顺序；允许重复经过同一个点 */
+  sequence?: number[];
+};
 
 export interface LetterStrokes {
   /** 录入版本，每次大改递增 */
