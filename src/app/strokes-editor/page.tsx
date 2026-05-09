@@ -8,10 +8,8 @@ import { VOWELS } from "@/data/vowels";
 import {
   buildPathFromPointSequence,
   fmtPathNumber,
-  parsePointSequence,
   pointModelFromStroke,
   reversePathBySegments,
-  sequenceToText,
   type PathNode,
 } from "@/lib/pathOrder";
 
@@ -162,7 +160,7 @@ export default function StrokesEditorPage() {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [guides, setGuides] = useState<Stroke[]>([]);
   const [selected, setSelected] = useState(0);
-  const [sequenceText, setSequenceText] = useState("");
+  const [sequenceDraft, setSequenceDraft] = useState<number[]>([]);
   const [sequenceError, setSequenceError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, StrokeDraft>>({});
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -225,11 +223,11 @@ export default function StrokesEditorPage() {
   useEffect(() => {
     const stroke = strokes[selected];
     if (!stroke) {
-      setSequenceText("");
+      setSequenceDraft([]);
       setSequenceError(null);
       return;
     }
-    setSequenceText(sequenceToText(pointModelFromStroke(stroke).sequence));
+    setSequenceDraft(pointModelFromStroke(stroke).sequence);
     setSequenceError(null);
   }, [item?.key, selected, strokes]);
 
@@ -273,35 +271,44 @@ export default function StrokesEditorPage() {
     const stroke = strokes[selected];
     if (!stroke) return;
     const model = pointModelFromStroke(stroke);
-    const sequence = parsePointSequence(sequenceText, model.nodes.length);
-    if (!sequence) {
-      setSequenceError(`请输入 1-${model.nodes.length} 之间的点 ID，至少两个。`);
+    const validIds = new Set(model.nodes.map((node) => node.id));
+    if (sequenceDraft.length < 2 || sequenceDraft.some((id) => !validIds.has(id))) {
+      setSequenceError(`顺序至少需要两个点，且只能使用 1-${model.nodes.length} 的点 ID。`);
       return;
     }
     const points = model.nodes.map((node) => ({ id: node.id, x: node.point.x, y: node.point.y }));
     const sourceD = stroke.sourceD ?? stroke.d;
-    const d = buildPathFromPointSequence({ ...stroke, d: sourceD, sourceD, points }, sequence);
+    const d = buildPathFromPointSequence({ ...stroke, d: sourceD, sourceD, points }, sequenceDraft);
     if (!d) {
       setSequenceError("这个顺序没法生成路径。");
       return;
     }
+    const sequence = sequenceDraft;
     const next = strokes.map((item, index) => (index === selected ? { ...item, d, sourceD, points, sequence } : item));
     setSequenceError(null);
     updateStrokes(next);
-    setSequenceText(sequenceToText(sequence));
+    setSequenceDraft(sequence);
   }
 
   function resetSequenceInput() {
     if (!selectedStroke) return;
-    setSequenceText(sequenceToText(pointModelFromStroke(selectedStroke).sequence));
+    setSequenceDraft(pointModelFromStroke(selectedStroke).sequence);
     setSequenceError(null);
   }
 
   function appendPointId(id: number) {
-    setSequenceText((value) => {
-      const trimmed = value.trim();
-      return trimmed ? `${trimmed} ${id}` : String(id);
-    });
+    setSequenceDraft((value) => [...value, id]);
+    setSequenceError(null);
+  }
+
+  function removeSequenceAt(index: number) {
+    setSequenceDraft((value) => value.filter((_, i) => i !== index));
+    setSequenceError(null);
+  }
+
+  function undoSequence() {
+    setSequenceDraft((value) => value.slice(0, -1));
+    setSequenceError(null);
   }
 
   function deleteSelected() {
@@ -515,42 +522,58 @@ export default function StrokesEditorPage() {
         <div className="card-soft p-3 text-xs">
           <div className="flex items-center justify-between gap-2">
             <div className="font-bold">第 {selected + 1} 笔：点 ID / 顺序</div>
-            <div className="font-mono opacity-60">{currentSequence.join(" ")}</div>
+            <div className="font-mono opacity-60">已套用 {currentSequence.length}</div>
           </div>
-          <textarea
-            value={sequenceText}
-            onChange={(event) => {
-              setSequenceText(event.target.value);
-              setSequenceError(null);
-            }}
-            className="mt-3 min-h-16 w-full resize-y rounded-xl border border-black/10 bg-white p-2 font-mono text-sm outline-none focus:border-green-400"
-            spellCheck={false}
-          />
+
+          <div className="mt-3 flex min-h-12 flex-wrap gap-1.5 rounded-xl border border-black/10 bg-white p-2">
+            {sequenceDraft.length === 0 ? (
+              <span className="px-1 py-1 text-xs opacity-45">点画布上的点，或点下面的 ID 按钮</span>
+            ) : (
+              sequenceDraft.map((id, index) => (
+                <button
+                  key={`${id}-${index}`}
+                  onClick={() => removeSequenceAt(index)}
+                  className="rounded-lg bg-green-100 px-2.5 py-1.5 font-mono text-sm font-extrabold text-green-800"
+                  title="点一下移除这个顺序点"
+                >
+                  {id}
+                </button>
+              ))
+            )}
+          </div>
+
           {sequenceError && <div className="mt-2 font-bold text-red-600">{sequenceError}</div>}
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-4 gap-2">
             <button onClick={applySequence} className="btn-primary text-xs" disabled={!selectedStroke}>
               套用顺序
             </button>
-            <button onClick={resetSequenceInput} className="btn-ghost text-xs" disabled={!selectedStroke}>
-              还原输入
+            <button onClick={undoSequence} className="btn-ghost text-xs" disabled={sequenceDraft.length === 0}>
+              撤销一步
             </button>
-            <button onClick={() => setSequenceText("")} className="btn-red text-xs" disabled={!selectedStroke}>
-              清空输入
+            <button onClick={resetSequenceInput} className="btn-ghost text-xs" disabled={!selectedStroke}>
+              还原
+            </button>
+            <button
+              onClick={() => {
+                setSequenceDraft([]);
+                setSequenceError(null);
+              }}
+              className="btn-red text-xs"
+              disabled={sequenceDraft.length === 0}
+            >
+              清空
             </button>
           </div>
-          <div className="mt-3 grid max-h-48 grid-cols-2 gap-1 overflow-auto pr-1 sm:grid-cols-3">
+
+          <div className="mt-3 grid grid-cols-6 gap-1.5 sm:grid-cols-8">
             {pointNodes.map((node: PathNode) => (
               <button
                 key={node.id}
                 onClick={() => appendPointId(node.id)}
-                className={`flex items-center justify-between rounded-lg px-2 py-1 text-left ${
-                  node.useCount > 1 ? "bg-red-50 text-red-700" : "bg-black/5"
-                }`}
+                className={node.useCount > 1 ? "btn-red h-10 px-0 text-sm" : "btn-ghost h-10 px-0 text-sm"}
+                title={`${fmtPathNumber(node.point.x)}, ${fmtPathNumber(node.point.y)}`}
               >
-                <span className="font-bold">#{node.id}{node.useCount > 1 ? ` x${node.useCount}` : ""}</span>
-                <span className="font-mono opacity-60">
-                  {fmtPathNumber(node.point.x)}, {fmtPathNumber(node.point.y)}
-                </span>
+                {node.id}
               </button>
             ))}
           </div>
