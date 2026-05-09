@@ -934,5 +934,12 @@ export function vowelStrokeKey(vowelId: string): string {
 }
 
 export function getLetterStrokes(key: string): LetterStrokes | null {
-  return LETTER_STROKES[key] ?? null;
+  // Map vowel elements to consonant strokes
+  const vowelToConsonant: Record<string, string> = {
+    "v:o-letter": "อ",
+    "v:yo": "ย",
+    "v:wo": "ว",
+  };
+  const mappedKey = vowelToConsonant[key] || key;
+  return LETTER_STROKES[mappedKey] ?? null;
 }
