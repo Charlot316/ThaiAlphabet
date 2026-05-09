@@ -5018,6 +5018,26 @@ export const LETTER_STROKES: Record<string, LetterStrokes> = {
           2,
           1
         ]
+      },
+      {
+        "d": "M 54.57 29.1 L 54.57 25.81",
+        "sourceD": "M 54.57 25.81 V 29.1",
+        "points": [
+          {
+            "id": 1,
+            "x": 54.57,
+            "y": 25.81
+          },
+          {
+            "id": 2,
+            "x": 54.57,
+            "y": 29.1
+          }
+        ],
+        "sequence": [
+          2,
+          1
+        ]
       }
     ],
     "guides": [
