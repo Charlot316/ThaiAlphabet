@@ -45,7 +45,11 @@ function strokeDraftMatchesBase(draft: LetterStrokes, base: LetterStrokes | null
 
 function localOrSavedStrokes(key: string): LetterStrokes | null {
   const saved = getLetterStrokes(key);
-  const local = loadLocalStrokeDraft(key) ?? loadLocalStrokeDraft(VOWEL_TO_CONSONANT[key] ?? key);
+  // For v:wo, v:yo, v:o-letter etc. that mirror consonants, prefer the consonant's draft
+  // so the user's stroke order set in consonant tab applies everywhere.
+  const consonantKey = VOWEL_TO_CONSONANT[key];
+  const consonantDraft = consonantKey ? loadLocalStrokeDraft(consonantKey) : null;
+  const local = consonantDraft ?? loadLocalStrokeDraft(key);
   return local && strokeDraftMatchesBase(local, saved) ? local : saved;
 }
 
