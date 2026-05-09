@@ -254,13 +254,14 @@ export default function TraceSvg({
       // 当前 sub-path 完成
       lastProgress.current = activeTotal;
       setProgress(activeTotal);
-      // 推进到下一段
+      // 推进到下一段；强制松手再继续，避免一口气连画下一笔。
       const nextIdx = activeIdx + 1;
       if (nextIdx < skeletonPaths.length) {
         feedbackTap();
         setActiveIdx(nextIdx);
         setProgress(0);
         lastProgress.current = 0;
+        dragging.current = false;
       } else {
         setDone(true);
         dragging.current = false;
