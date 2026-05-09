@@ -750,8 +750,8 @@ function MatchCard({
             const cls = ok ? "opt opt-correct" : isPicked ? "opt opt-selected" : "opt";
             return (
               <li key={`L-${it.id}`}>
-                <button onClick={() => onLeft(it.id)} disabled={ok} className={`${cls} thai-big text-3xl min-h-[64px]`}>
-                  {it.front}
+                <button onClick={() => onLeft(it.id)} disabled={ok} className={`${cls} flex min-h-[72px] w-full items-center justify-center`}>
+                  <span className="thai-big text-3xl leading-none">{it.front}</span>
                 </button>
               </li>
             );
@@ -764,8 +764,8 @@ function MatchCard({
             const cls = ok ? "opt opt-correct" : isPicked ? "opt opt-selected" : "opt";
             return (
               <li key={`R-${it.id}`}>
-                <button onClick={() => onRight(it.id)} disabled={ok} className={`${cls} font-mono text-base min-h-[64px]`}>
-                  {displayRoman(it.roman)}
+                <button onClick={() => onRight(it.id)} disabled={ok} className={`${cls} flex min-h-[72px] w-full items-center justify-center`}>
+                  <span className="font-mono text-lg leading-none">{displayRoman(it.roman)}</span>
                 </button>
               </li>
             );
