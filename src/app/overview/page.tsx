@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CONSONANTS, FINAL_GROUPS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import { Consonant, Vowel } from "@/data/types";
@@ -8,6 +8,7 @@ import PronounceButton from "@/components/PronounceButton";
 import TraceSvg from "@/components/TraceSvg";
 import { MASTERY_TARGET, clearMastery, resetMastery, useMastery } from "@/lib/mastery";
 import { consonantPhonetic, consonantSpeak, displayRoman, vowelPhonetic, vowelSpeak } from "@/lib/study";
+import { speak } from "@/lib/tts";
 
 type Tab = "consonant" | "vowel" | "tone";
 
@@ -65,6 +66,10 @@ function Consonants() {
       resetMastery();
     }
   }
+
+  useEffect(() => {
+    if (selected) speak(consonantSpeak(selected));
+  }, [selected]);
 
   return (
     <>
@@ -162,11 +167,19 @@ function Consonants() {
             <div className="flex items-start justify-between p-5 border-b border-black/10 dark:border-white/10">
               <div className="flex-1">
                 <div className="thai-big text-5xl leading-none mb-2">{selected.letter}</div>
-                <div className="thai-big text-lg opacity-80">{selected.name}</div>
-                <div className="text-sm opacity-60 mt-1">{selected.meaning}</div>
-                <div className="mt-2 text-xs">
-                  初: <b>{displayRoman(selected.romanInitial)}</b> · 尾: <b>{selected.finalSound === "none" ? "无" : selected.finalSound}</b>
+                <div className="flex flex-wrap items-center gap-2">
+                  {classTag(selected.class)}
+                  <PronounceButton text={consonantSpeak(selected)} />
                 </div>
+                <div className="thai-big mt-2 text-lg opacity-80">{selected.name}</div>
+                <div className="mt-1 text-sm opacity-60">{selected.meaning}</div>
+                <div className="mt-2 text-xs leading-relaxed">
+                  初: <b>{displayRoman(selected.romanInitial)}</b> · 尾: <b>{selected.finalSound === "none" ? "无" : selected.finalSound}</b>
+                  <br />
+                  <span style={{ color: "var(--duo-blue)" }}>🔊 应念: {consonantPhonetic(selected)}</span>
+                  {selected.obsolete && <span className="ml-2 opacity-60">已废</span>}
+                </div>
+                <FontSamples letter={selected.letter} />
               </div>
               <button onClick={() => setSelected(null)} className="text-2xl opacity-60 hover:opacity-100">✕</button>
             </div>
@@ -233,7 +246,6 @@ function ConsonantCard({
         <div className="mt-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
           🔊 应念: {consonantPhonetic(c)}
         </div>
-        <FontSamples letter={c.letter} />
       </div>
     </li>
   );
@@ -303,6 +315,10 @@ function Vowels() {
     }
   }
 
+  useEffect(() => {
+    if (selected) speak(vowelSpeak(selected));
+  }, [selected]);
+
   return (
     <>
     <div className="space-y-4">
@@ -353,8 +369,19 @@ function Vowels() {
           <div className="flex items-start justify-between p-5 border-b border-black/10 dark:border-white/10">
             <div className="flex-1">
               <div className="thai-big text-5xl leading-none mb-2">{selected.display}</div>
-              <div className="text-sm opacity-60 mt-1">罗马音: <b>{selected.roman}</b></div>
-              <div className="text-sm opacity-60">{selected.length === "long" ? "长" : "短"}{selected.notes ? ` · ${selected.notes}` : ""}</div>
+              <div className="flex flex-wrap items-center gap-2">
+                {vowelLengthTag(selected.length)}
+                <PronounceButton text={vowelSpeak(selected)} />
+              </div>
+              <div className="mt-2 text-sm opacity-70">罗马音: <b>{selected.roman}</b></div>
+              <div className="text-sm opacity-60">
+                {selected.category === "diphthong" ? "复合元音" : selected.category === "special" ? "特殊元音" : "单元音"}
+                {selected.notes ? ` · ${selected.notes}` : ""}
+              </div>
+              <div className="mt-1 font-mono text-xs" style={{ color: "var(--duo-blue)" }}>
+                🔊 应念: {vowelPhonetic(selected)}
+              </div>
+              <FontSamples letter={selected.display} />
             </div>
             <button onClick={() => setSelected(null)} className="text-2xl opacity-60 hover:opacity-100">✕</button>
           </div>
@@ -420,7 +447,6 @@ function VowelCard({
         <div className="mt-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
           🔊 应念: {vowelPhonetic(v)}
         </div>
-        <FontSamples letter={v.display} />
       </div>
     </li>
   );
