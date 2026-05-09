@@ -54,12 +54,26 @@ function matchesByRoman(a: StudyItem, b: StudyItem): boolean {
   return a.roman === b.roman;
 }
 
+// 多重集合差：a 中"多于" b 的元素列表（保留重复）。
+// 例：multisetDiff([k, kh, kh], [kh]) = [k, kh]
+function multisetDiff(a: string[], b: string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const x of b) counts.set(x, (counts.get(x) ?? 0) + 1);
+  const out: string[] = [];
+  for (const x of a) {
+    const c = counts.get(x) ?? 0;
+    if (c > 0) counts.set(x, c - 1);
+    else out.push(x);
+  }
+  return out;
+}
+
 // 强制让"补这两个槽以后整个 5/5 全配"。返回 null 时调用方应回退到普通补充。
 //
-// 关键观察：双方各 4 个 distinct roman，所以 |lonelyL| == |lonelyR|（设为 k）。
-// k=0 时 4/4 已全配，左右各补一个相同 roman 的字母即可让 5/5 全配；
-// k>=1 时让 left 补的 roman ∈ lonelyR、right 补的 roman ∈ lonelyL，
-// 一次能各消除 1 个 lonely。多 lonely 时余下的 lonely 由后续补充继续推平。
+// 同侧允许 roman 重复（用户喜欢"右边两个 kh、左边两个对应字母任意配"），
+// 所以这里用多重集合（不是 set）来算 lonely。两侧各 4 个 item，
+// |lonelyL| == |lonelyR|（设为 k）：k=0 时多重集合相同（5/5 全配只需补一对同 roman 字母）；
+// k>=1 时 left 补的 roman ∈ lonelyR、right 补的 roman ∈ lonelyL，一次各消除 1 个 lonely。
 function pickFullyMatchablePair(
   leftQueue: StudyItem[],
   rightQueue: StudyItem[],
@@ -71,29 +85,29 @@ function pickFullyMatchablePair(
   leftQueue: StudyItem[];
   rightQueue: StudyItem[];
 } | null {
-  const LR = new Set(leftAfterClear.filter(Boolean).map((s) => (s as StudyItem).roman));
-  const RR = new Set(rightAfterClear.filter(Boolean).map((s) => (s as StudyItem).roman));
-  const lonelyL = [...LR].filter((r) => !RR.has(r));
-  const lonelyR = [...RR].filter((r) => !LR.has(r));
+  const LRArr = leftAfterClear.filter(Boolean).map((s) => (s as StudyItem).roman);
+  const RRArr = rightAfterClear.filter(Boolean).map((s) => (s as StudyItem).roman);
+  const lonelyL = multisetDiff(LRArr, RRArr);
+  const lonelyR = multisetDiff(RRArr, LRArr);
 
   if (lonelyL.length === 0 && lonelyR.length === 0) {
-    // 4/4 全配。左右各补一个相同 roman 的 fresh 字母 → 5/5 全配。
-    const lIdx = leftQueue.findIndex((it) => !LR.has(it.roman));
-    if (lIdx < 0) return null;
-    const targetRoman = leftQueue[lIdx].roman;
+    // 4/4 多重集合相同。左右各补一个相同 roman 的字母即可让 5/5 仍然全配。
+    if (leftQueue.length === 0) return null;
+    const leftItem = leftQueue[0];
+    const targetRoman = leftItem.roman;
     const rIdx = rightQueue.findIndex((it) => it.roman === targetRoman);
     if (rIdx < 0) return null;
     return {
-      leftItem: leftQueue[lIdx],
+      leftItem,
       rightItem: rightQueue[rIdx],
-      leftQueue: [...leftQueue.slice(0, lIdx), ...leftQueue.slice(lIdx + 1)],
+      leftQueue: leftQueue.slice(1),
       rightQueue: [...rightQueue.slice(0, rIdx), ...rightQueue.slice(rIdx + 1)],
     };
   }
 
   // k>=1：消除 1 个 lonely 各自侧
-  const targetForLeft = lonelyR[0]; // left 补这个 roman → 与 right 那个孤独项配
-  const targetForRight = lonelyL[0]; // right 补这个 roman → 与 left 那个孤独项配
+  const targetForLeft = lonelyR[0];
+  const targetForRight = lonelyL[0];
   const lIdx = leftQueue.findIndex((it) => it.roman === targetForLeft);
   const rIdx = rightQueue.findIndex((it) => it.roman === targetForRight);
   if (lIdx < 0 || rIdx < 0) return null;
@@ -105,21 +119,30 @@ function pickFullyMatchablePair(
   };
 }
 
-// 当前 active 槽中"罗马音已在另一侧出现"的字母数 = 立刻可配对的对数
+// 当前 active 槽里能成对配对的对数（多重集合交集大小）。
+// 例：left=[k, kh, kh, ng, b] vs right=[kh, kh, ng, b, c] → 4 对（kh kh ng b 各一对）。
 function matchableCount(thisSlots: (StudyItem | null)[], otherSlots: (StudyItem | null)[]): number {
-  const otherRomans = new Set(otherSlots.filter(Boolean).map((s) => (s as StudyItem).roman));
+  const otherCounts = new Map<string, number>();
+  for (const s of otherSlots) {
+    if (s) otherCounts.set(s.roman, (otherCounts.get(s.roman) ?? 0) + 1);
+  }
   let count = 0;
   for (const s of thisSlots) {
-    if (s && otherRomans.has(s.roman)) count++;
+    if (!s) continue;
+    const c = otherCounts.get(s.roman) ?? 0;
+    if (c > 0) {
+      count++;
+      otherCounts.set(s.roman, c - 1);
+    }
   }
   return count;
 }
 
 // 从 queue 里挑一个补到本侧空槽。
-//   - 当前 matchable < MIN_MATCHABLE 时，强制挑一个 roman 已在 otherSlots 出现、
-//     且 roman 不在 thisSlots 出现的项；
-//   - 否则尽量避开本侧已有的 roman（避免两个 "kh" 同时在一边）。
-// 返回挑出的项 + 处理后的 queue。
+//   - matchable < MIN_MATCHABLE 时，强制挑一个 roman 已在另一侧出现的项（避免补完
+//     依然没人能配），同 roman 是允许的；
+//   - 否则按队头来，但跳过 id 已在本侧的（不让同一字母占两个槽）。
+//   - 同 roman 不同字母是允许的（用户的"右边两个 kh、左边两个对应字母"诉求）。
 function pickReplenishment(
   queue: StudyItem[],
   thisSlots: (StudyItem | null)[],
@@ -127,23 +150,21 @@ function pickReplenishment(
 ): { item: StudyItem | null; queue: StudyItem[] } {
   if (queue.length === 0) return { item: null, queue };
   const otherRomans = new Set(otherSlots.filter(Boolean).map((s) => (s as StudyItem).roman));
-  const thisRomans = new Set(thisSlots.filter(Boolean).map((s) => (s as StudyItem).roman));
+  const thisIds = new Set(thisSlots.filter(Boolean).map((s) => (s as StudyItem).id));
   const matchable = matchableCount(thisSlots, otherSlots);
 
-  const idxMatchable = queue.findIndex((it) => otherRomans.has(it.roman) && !thisRomans.has(it.roman));
-  const idxFresh = queue.findIndex((it) => !thisRomans.has(it.roman));
-
-  let pickedIdx: number;
-  if (matchable < MIN_MATCHABLE && idxMatchable >= 0) {
-    pickedIdx = idxMatchable;
-  } else if (idxFresh >= 0) {
-    pickedIdx = idxFresh;
-  } else {
-    pickedIdx = 0;
+  if (matchable < MIN_MATCHABLE) {
+    const idx = queue.findIndex((it) => otherRomans.has(it.roman) && !thisIds.has(it.id));
+    if (idx >= 0) {
+      return { item: queue[idx], queue: [...queue.slice(0, idx), ...queue.slice(idx + 1)] };
+    }
   }
 
-  const item = queue[pickedIdx];
-  return { item, queue: [...queue.slice(0, pickedIdx), ...queue.slice(pickedIdx + 1)] };
+  const idx = queue.findIndex((it) => !thisIds.has(it.id));
+  if (idx >= 0) {
+    return { item: queue[idx], queue: [...queue.slice(0, idx), ...queue.slice(idx + 1)] };
+  }
+  return { item: queue[0], queue: queue.slice(1) };
 }
 
 export default function EndlessMatchPage() {
@@ -179,21 +200,14 @@ export default function EndlessMatchPage() {
     setBestStreak(loadBest());
   }, []);
 
-  // 初始化：5 对必须全部可配。做法：选 SLOT_COUNT 个 distinct-roman 的字母作为
-  // 起始 items，左右两侧用 same items 但不同 shuffle 顺序，所以 5/5 全配。
-  // 之后两个 queue 各自独立 shuffle 全池补进。
+  // 初始化：5 对必须全部可配。做法：选 SLOT_COUNT 个不同 id 的字母作为起始
+  // items（romans 不要求 distinct — 用户允许同侧出现两个同 roman），
+  // 左右两侧用 same items 但不同 shuffle 顺序，所以 5/5 全配。
   useEffect(() => {
     if (initialized.current || allItems.length === 0) return;
     initialized.current = true;
     const pool = shuffleStrong(allItems);
-    const initialItems: StudyItem[] = [];
-    const seenRoman = new Set<string>();
-    for (const it of pool) {
-      if (seenRoman.has(it.roman)) continue;
-      seenRoman.add(it.roman);
-      initialItems.push(it);
-      if (initialItems.length >= SLOT_COUNT) break;
-    }
+    const initialItems = pool.slice(0, SLOT_COUNT);
     const initialIds = new Set(initialItems.map((it) => it.id));
     const restPool = allItems.filter((it) => !initialIds.has(it.id));
     setBoard({

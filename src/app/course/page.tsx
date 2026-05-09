@@ -123,15 +123,13 @@ function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Questi
     })),
   };
 
+  // look 始终在最前作为介绍。前半（带提示的 sound/letter/write1/write2）
+  // 之间打乱顺序；后半（无提示的 memory/soundBlind/letterBlind）也打乱，
+  // 但永远都在前半之后出现。
   const order = [
     "look",
-    "sound",
-    "letter",
-    "write1",
-    "memory",
-    "write2",
-    "soundBlind",
-    "letterBlind",
+    ...shuffleStrong(["sound", "letter", "write1", "write2"]),
+    ...shuffleStrong(["memory", "soundBlind", "letterBlind"]),
   ];
 
   const result: Question[] = [];
@@ -531,12 +529,21 @@ function QuestionCard({
   }
 
   if (question.kind === "match") {
-    return <MatchCard question={question} submitted={submitted} onComplete={onCompleteMatch} onNext={onNext} />;
+    return (
+      <MatchCard
+        key={question.id}
+        question={question}
+        submitted={submitted}
+        onComplete={onCompleteMatch}
+        onNext={onNext}
+      />
+    );
   }
 
   if (question.kind === "memory") {
     return (
       <MemoryCard
+        key={question.id}
         question={question}
         submitted={submitted}
         feedback={feedback}
