@@ -2,63 +2,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { letterSkeleton } from "@/lib/thaiFont";
 import { feedbackComplete, feedbackTap } from "@/lib/feedback";
-import { composeLetterStrokes, getLetterStrokes, getVowelStrokeComponentKeys, VOWEL_TO_CONSONANT, type LetterStrokes } from "@/data/strokes";
+import { composeLetterStrokes, getLetterStrokes, getVowelStrokeComponentKeys, type LetterStrokes } from "@/data/strokes";
 import { lockPageScroll, preventElementTouchScroll, unlockPageScroll, type PageScrollLock } from "@/lib/scrollLock";
 import { resolveStrokeSequence } from "@/lib/pathOrder";
 
-const DRAFT_KEY = "thai-alphabet:strokes-draft:v1";
-
-type LocalStroke = {
-  d: string;
-  sourceD?: string;
-  points?: Array<{ id: number; x: number; y: number }>;
-  sequence?: number[];
-};
-
-function loadLocalStrokeDraft(key: string): LetterStrokes | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    const draft = JSON.parse(raw) as Record<string, { v?: number; strokes?: Array<Partial<LocalStroke>>; guides?: Array<{ d?: string }> }>;
-    const item = draft[key];
-    if (!item || (item.v ?? 0) < 5) return null;
-    const strokes = item.strokes
-      ?.filter((stroke): stroke is LocalStroke => typeof stroke.d === "string")
-      .map((stroke) => resolveStrokeSequence(stroke))
-      .filter((stroke) => stroke.d.trim().length > 0) ?? [];
-    const guides = item.guides?.filter((stroke): stroke is { d: string } => typeof stroke.d === "string");
-    return strokes.length > 0 ? { v: item.v ?? 5, strokes, guides } : null;
-  } catch {
-    return null;
-  }
-}
-
-function strokeDraftMatchesBase(draft: LetterStrokes, base: LetterStrokes | null): boolean {
-  if (!base) return true;
-  const baseSources = new Set(base.strokes.map((stroke) => stroke.sourceD ?? stroke.d));
-  return draft.strokes.every((stroke) => {
-    const strokeSourceD = stroke.sourceD ?? stroke.d;
-    return stroke.d.trim().length === 0 || baseSources.has(strokeSourceD);
-  });
-}
-
-function localOrSavedStrokes(key: string): LetterStrokes | null {
-  const saved = getLetterStrokes(key);
-  // For v:wo, v:yo, v:o-letter etc. that mirror consonants, prefer the consonant's draft
-  // so the user's stroke order set in consonant tab applies everywhere.
-  const consonantKey = VOWEL_TO_CONSONANT[key];
-  const consonantDraft = consonantKey ? loadLocalStrokeDraft(consonantKey) : null;
-  const local = consonantDraft ?? loadLocalStrokeDraft(key);
-  return local && strokeDraftMatchesBase(local, saved) ? local : saved;
-}
-
+// NOTE: 笔画数据完全使用 src/data/strokes.ts 里写死的内容，不读取 localStorage 草稿。
+// 远程/本地 draft 只在 strokes-editor 页面用于编辑，不影响实际书写练习。
 function loadTraceStrokes(key: string): LetterStrokes | null {
   const componentKeys = getVowelStrokeComponentKeys(key);
   if (componentKeys) {
-    return composeLetterStrokes(key, localOrSavedStrokes);
+    return composeLetterStrokes(key);
   }
-  return localOrSavedStrokes(key);
+  return getLetterStrokes(key);
 }
 
 /**
