@@ -7,14 +7,17 @@ import { lockPageScroll, preventElementTouchScroll, unlockPageScroll, type PageS
 
 const DRAFT_KEY = "thai-alphabet:strokes-draft:v1";
 
-function loadLocalStrokeDraft(key: string): { strokes: { d: string }[] } | null {
+function loadLocalStrokeDraft(key: string): { strokes: { d: string }[]; guides?: { d: string }[] } | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
-    const draft = JSON.parse(raw) as Record<string, { strokes?: Array<{ d?: string }> }>;
-    const strokes = draft[key]?.strokes?.filter((stroke): stroke is { d: string } => typeof stroke.d === "string") ?? [];
-    return strokes.length > 0 ? { strokes } : null;
+    const draft = JSON.parse(raw) as Record<string, { v?: number; strokes?: Array<{ d?: string }>; guides?: Array<{ d?: string }> }>;
+    const item = draft[key];
+    if (!item || (item.v ?? 0) < 5) return null;
+    const strokes = item.strokes?.filter((stroke): stroke is { d: string } => typeof stroke.d === "string") ?? [];
+    const guides = item.guides?.filter((stroke): stroke is { d: string } => typeof stroke.d === "string");
+    return strokes.length > 0 ? { strokes, guides } : null;
   } catch {
     return null;
   }
@@ -41,8 +44,10 @@ export default function TraceSvg({
   const lookupKey = strokeKey ?? letter;
   const [outline, setOutline] = useState<{ d: string; transform?: string; offX?: number; offY?: number; scale?: number } | null>(null);
   const [skeletonPaths, setSkeletonPaths] = useState<string[]>([]);
+  const [guidePaths, setGuidePaths] = useState<string[]>([]);
   const [vb, setVb] = useState({ x: 0, y: 0, w: 100, h: 100 });
   const [error, setError] = useState<string | null>(null);
+  const [constrainToOutline, setConstrainToOutline] = useState(true);
 
   // 当前正在描的 sub-path 序号
   const [activeIdx, setActiveIdx] = useState(0);
@@ -74,15 +79,20 @@ export default function TraceSvg({
     let cancelled = false;
     setOutline(null);
     setSkeletonPaths([]);
+    setGuidePaths([]);
     setError(null);
+    setConstrainToOutline(true);
     setActiveIdx(0);
     setProgress(0);
     lastProgress.current = 0;
     setDone(false);
 
     const localDraft = loadLocalStrokeDraft(lookupKey);
+    const saved = getLetterStrokes(lookupKey);
     // 优先尝试用录制草稿，其次用手工录入的笔画数据（src/data/strokes.ts）
-    const manual = localDraft ?? getLetterStrokes(lookupKey);
+    const manual = localDraft
+      ? { ...localDraft, guides: localDraft.guides ?? saved?.guides }
+      : saved;
     if (manual && manual.strokes.length > 0) {
       // 手工数据用 viewBox 0..100，把字体 outline 映射进同一个 viewBox 作背景
       letterPath(letter, 240)
@@ -106,6 +116,8 @@ export default function TraceSvg({
           }
           setVb({ x: 0, y: 0, w: 100, h: 100 });
           setSkeletonPaths(manual.strokes.map((s) => s.d));
+          setGuidePaths(manual.guides?.map((s) => s.d) ?? []);
+          setConstrainToOutline(false);
         })
         .catch((e) => {
           if (cancelled) return;
@@ -175,6 +187,7 @@ export default function TraceSvg({
   }
 
   function isInsideGlyph(p: { x: number; y: number }): boolean {
+    if (!constrainToOutline) return true;
     const path = outlinePathRef.current;
     const svg = svgRef.current;
     if (!path || !svg) return true;
@@ -343,6 +356,20 @@ export default function TraceSvg({
           ) : (
             <path d={outline.d} fill="rgba(0,0,0,0.07)" stroke="rgba(0,0,0,0.13)" strokeWidth={vb.w * 0.005} />
           )}
+
+          {guidePaths.map((d, i) => (
+            <path
+              key={`guide-${i}`}
+              d={d}
+              fill="none"
+              stroke="rgba(0,0,0,0.22)"
+              strokeWidth={vb.w * 0.012}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray={`${vb.w * 0.01} ${vb.w * 0.015}`}
+              pointerEvents="none"
+            />
+          ))}
 
           {/* 骨架路径（每条单独一个 path，用于追踪与可视化） */}
           {skeletonPaths.map((d, i) => (
