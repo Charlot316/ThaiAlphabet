@@ -46,20 +46,25 @@ function ensureBuffered(queue: StudyItem[], pool: StudyItem[]): StudyItem[] {
   return [...queue, ...shuffleStrong(pool)];
 }
 
-// 当前 active 槽中"已在另一侧出现"的字母数 = 立刻可配对的对数
+// 配对按罗马音判定（同音不同字母可互配，例如 ข/ฃ/ค/ฅ/ฆ 都是 "kh"）
+function matchesByRoman(a: StudyItem, b: StudyItem): boolean {
+  return a.roman === b.roman;
+}
+
+// 当前 active 槽中"罗马音已在另一侧出现"的字母数 = 立刻可配对的对数
 function matchableCount(thisSlots: (StudyItem | null)[], otherSlots: (StudyItem | null)[]): number {
-  const otherIds = new Set(otherSlots.filter(Boolean).map((s) => (s as StudyItem).id));
+  const otherRomans = new Set(otherSlots.filter(Boolean).map((s) => (s as StudyItem).roman));
   let count = 0;
   for (const s of thisSlots) {
-    if (s && otherIds.has(s.id)) count++;
+    if (s && otherRomans.has(s.roman)) count++;
   }
   return count;
 }
 
 // 从 queue 里挑一个补到本侧空槽。
-//   - 当前 matchable < MIN_MATCHABLE 时，强制挑一个其 id 已在 otherSlots 出现、
-//     且不在 thisSlots 出现的项，补上去立马就有得配；
-//   - 否则尽量挑"本侧没出现过的字母"（避免左侧两个一样），按队头顺序。
+//   - 当前 matchable < MIN_MATCHABLE 时，强制挑一个 roman 已在 otherSlots 出现、
+//     且 roman 不在 thisSlots 出现的项；
+//   - 否则尽量避开本侧已有的 roman（避免两个 "kh" 同时在一边）。
 // 返回挑出的项 + 处理后的 queue。
 function pickReplenishment(
   queue: StudyItem[],
@@ -67,23 +72,20 @@ function pickReplenishment(
   otherSlots: (StudyItem | null)[]
 ): { item: StudyItem | null; queue: StudyItem[] } {
   if (queue.length === 0) return { item: null, queue };
-  const otherIds = new Set(otherSlots.filter(Boolean).map((s) => (s as StudyItem).id));
-  const thisIds = new Set(thisSlots.filter(Boolean).map((s) => (s as StudyItem).id));
+  const otherRomans = new Set(otherSlots.filter(Boolean).map((s) => (s as StudyItem).roman));
+  const thisRomans = new Set(thisSlots.filter(Boolean).map((s) => (s as StudyItem).roman));
   const matchable = matchableCount(thisSlots, otherSlots);
 
-  // 候选 1：能立刻配对（在另一侧、不在本侧）
-  const idxMatchable = queue.findIndex((it) => otherIds.has(it.id) && !thisIds.has(it.id));
-  // 候选 2：本侧没出现过（避免重复）
-  const idxFresh = queue.findIndex((it) => !thisIds.has(it.id));
+  const idxMatchable = queue.findIndex((it) => otherRomans.has(it.roman) && !thisRomans.has(it.roman));
+  const idxFresh = queue.findIndex((it) => !thisRomans.has(it.roman));
 
   let pickedIdx: number;
   if (matchable < MIN_MATCHABLE && idxMatchable >= 0) {
-    // 卡牌池过少 → 强制可配
     pickedIdx = idxMatchable;
   } else if (idxFresh >= 0) {
     pickedIdx = idxFresh;
   } else {
-    pickedIdx = 0; // 兜底
+    pickedIdx = 0;
   }
 
   const item = queue[pickedIdx];
@@ -142,7 +144,7 @@ export default function EndlessMatchPage() {
     const rightItem = board.rightSlots[rightIdx];
     if (!leftItem || !rightItem) return;
 
-    if (leftItem.id === rightItem.id) {
+    if (matchesByRoman(leftItem, rightItem)) {
       const newStreak = streak + 1;
       setStreak(newStreak);
       setTotalMatched((v) => v + 1);

@@ -672,7 +672,10 @@ function MatchCard({
   const items = question.choices;
   const [leftOrder] = useState(() => shuffleStrong(items));
   const [rightOrder] = useState(() => shuffleStrong(items));
-  const [matched, setMatched] = useState<Set<string>>(new Set());
+  // 左右各自跟踪已用过的 button id；按罗马音判定配对（同音不同字母可互配），
+  // 所以左[X] 配对后右[X] 仍可被用来配 left[Y]（同 roman）。
+  const [matchedLeft, setMatchedLeft] = useState<Set<string>>(new Set());
+  const [matchedRight, setMatchedRight] = useState<Set<string>>(new Set());
   const [pickedLeft, setPickedLeft] = useState<string | null>(null);
   const [pickedRight, setPickedRight] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
@@ -681,12 +684,12 @@ function MatchCard({
 
   const tryMatch = (leftId: string | null, rightId: string | null) => {
     if (!leftId || !rightId) return;
-    if (leftId === rightId) {
-      setMatched((s) => {
-        const next = new Set(s);
-        next.add(leftId);
-        return next;
-      });
+    const leftItem = items.find((i) => i.id === leftId);
+    const rightItem = items.find((i) => i.id === rightId);
+    if (!leftItem || !rightItem) return;
+    if (leftItem.roman === rightItem.roman) {
+      setMatchedLeft((s) => new Set(s).add(leftId));
+      setMatchedRight((s) => new Set(s).add(rightId));
       const newStreak = streak + 1;
       setStreak(newStreak);
       setFlash("ok");
@@ -704,7 +707,7 @@ function MatchCard({
   };
 
   const onLeft = (id: string) => {
-    if (submitted || matched.has(id)) return;
+    if (submitted || matchedLeft.has(id)) return;
     feedbackTap();
     if (pickedRight) {
       tryMatch(id, pickedRight);
@@ -713,7 +716,7 @@ function MatchCard({
     }
   };
   const onRight = (id: string) => {
-    if (submitted || matched.has(id)) return;
+    if (submitted || matchedRight.has(id)) return;
     feedbackTap();
     if (pickedLeft) {
       tryMatch(pickedLeft, id);
@@ -723,18 +726,18 @@ function MatchCard({
   };
 
   useEffect(() => {
-    if (matched.size === items.length && !completedRef.current) {
+    if (matchedLeft.size === items.length && !completedRef.current) {
       completedRef.current = true;
       onComplete();
     }
-  }, [matched, items.length, onComplete]);
+  }, [matchedLeft, items.length, onComplete]);
 
   return (
     <section className={`space-y-4 ${flash === "bad" ? "animate-shake" : ""}`}>
       <div className="card-soft p-5 text-center">
         <div className="chip chip-yellow">配对 · 把字母和读音连起来</div>
         <div className="mt-3 flex items-center justify-center gap-3 text-sm">
-          <span className="opacity-70">已配对 {matched.size} / {items.length}</span>
+          <span className="opacity-70">已配对 {matchedLeft.size} / {items.length}</span>
           {streak >= 2 && (
             <span className="font-extrabold animate-pop" style={{ color: "var(--duo-orange)" }}>
               连击 ×{streak} 🔥
@@ -745,7 +748,7 @@ function MatchCard({
       <div className="grid grid-cols-2 gap-3">
         <ul className="space-y-2">
           {leftOrder.map((it) => {
-            const ok = matched.has(it.id);
+            const ok = matchedLeft.has(it.id);
             const isPicked = pickedLeft === it.id;
             const cls = ok ? "opt opt-correct" : isPicked ? "opt opt-selected" : "opt";
             return (
@@ -759,7 +762,7 @@ function MatchCard({
         </ul>
         <ul className="space-y-2">
           {rightOrder.map((it) => {
-            const ok = matched.has(it.id);
+            const ok = matchedRight.has(it.id);
             const isPicked = pickedRight === it.id;
             const cls = ok ? "opt opt-correct" : isPicked ? "opt opt-selected" : "opt";
             return (
