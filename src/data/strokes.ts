@@ -6564,21 +6564,36 @@ function transformPath(d: string, bounds: Bounds, target: TargetBox): string {
   );
 }
 
-function transformStroke(stroke: Stroke, target: TargetBox): Stroke {
+function transformStroke(stroke: Stroke, bounds: Bounds, target: TargetBox): Stroke {
   const sourceD = stroke.sourceD ?? stroke.d;
-  const bounds = pathBounds(sourceD);
-  if (!bounds) return cloneStroke(stroke);
-  const transformedSourceD = transformPath(sourceD, bounds, target);
   return {
     ...stroke,
     d: transformPath(stroke.d, bounds, target),
-    sourceD: transformedSourceD,
+    sourceD: transformPath(sourceD, bounds, target),
     points: stroke.points?.map((point) => ({
       id: point.id,
       ...transformPoint({ x: point.x, y: point.y }, bounds, target),
     })),
     sequence: stroke.sequence ? [...stroke.sequence] : undefined,
   };
+}
+
+/** Compute the union of all stroke bounds for a component so multi-stroke
+ *  marks (e.g. ◌ ึ = ellipse + small circle in the corner) keep their
+ *  relative sizes/positions when scaled into a slot. */
+function componentBounds(strokes: Stroke[]): Bounds | null {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let any = false;
+  for (const stroke of strokes) {
+    const b = pathBounds(stroke.sourceD ?? stroke.d);
+    if (!b) continue;
+    any = true;
+    if (b.minX < minX) minX = b.minX;
+    if (b.minY < minY) minY = b.minY;
+    if (b.maxX > maxX) maxX = b.maxX;
+    if (b.maxY > maxY) maxY = b.maxY;
+  }
+  return any ? { minX, minY, maxX, maxY } : null;
 }
 
 function placeComponent(componentKey: string, component: LetterStrokes, target: TargetBox | null): LetterStrokes {
@@ -6590,10 +6605,24 @@ function placeComponent(componentKey: string, component: LetterStrokes, target: 
       guides: shouldKeepGuides ? component.guides?.map(cloneStroke) : undefined,
     };
   }
+  // Use the union of all strokes (and guides for placeholder) so every stroke
+  // shares the same scale/offset; otherwise small marks like the corner dot of
+  // ◌ ึ get rescaled to fill the slot and look like a second ellipse.
+  const allForBounds = shouldKeepGuides
+    ? [...component.strokes, ...(component.guides ?? [])]
+    : component.strokes;
+  const bounds = componentBounds(allForBounds);
+  if (!bounds) {
+    return {
+      ...component,
+      strokes: component.strokes.map(cloneStroke),
+      guides: shouldKeepGuides ? component.guides?.map(cloneStroke) : undefined,
+    };
+  }
   return {
     ...component,
-    strokes: component.strokes.map((stroke) => transformStroke(stroke, target)),
-    guides: shouldKeepGuides ? component.guides?.map((stroke) => transformStroke(stroke, target)) : undefined,
+    strokes: component.strokes.map((stroke) => transformStroke(stroke, bounds, target)),
+    guides: shouldKeepGuides ? component.guides?.map((stroke) => transformStroke(stroke, bounds, target)) : undefined,
   };
 }
 
