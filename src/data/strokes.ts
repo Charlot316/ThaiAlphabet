@@ -1000,26 +1000,41 @@ function cloneStroke(stroke: Stroke): Stroke {
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 type TargetBox = { x: number; y: number; w: number; h: number };
 
-const RIGHT_SIDE_COMPONENTS = new Set(["v:a-short", "v:a-long", "v:o-letter", "v:yo", "v:wo", "v:mai-kham"]);
-
-const RIGHT_COMPONENT_BOX: Record<string, Omit<TargetBox, "x">> = {
-  "v:a-short": { y: 39, w: 15, h: 24 },
-  "v:a-long": { y: 40, w: 16, h: 26 },
-  "v:o-letter": { y: 38, w: 22, h: 30 },
-  "v:yo": { y: 39, w: 18, h: 26 },
-  "v:wo": { y: 42, w: 16, h: 18 },
-  "v:mai-kham": { y: 38, w: 15, h: 30 },
+const SLOT_COMPONENT_BOX: Record<string, Omit<TargetBox, "x" | "w"> & { wScale: number }> = {
+  "v:e-long": { y: 31, h: 36, wScale: 0.58 },
+  "v:ae-long": { y: 34, h: 30, wScale: 0.9 },
+  "v:o-long": { y: 35, h: 30, wScale: 0.72 },
+  "v:ai-maimuan": { y: 34, h: 31, wScale: 0.78 },
+  "v:ai-maimalai": { y: 34, h: 31, wScale: 0.78 },
+  "v:i-short": { y: 24, h: 15, wScale: 0.72 },
+  "v:i-long": { y: 22, h: 18, wScale: 0.72 },
+  "v:ue-short": { y: 22, h: 18, wScale: 0.72 },
+  "v:ue-long": { y: 22, h: 18, wScale: 0.72 },
+  "v:mai-han-akat": { y: 24, h: 16, wScale: 0.65 },
+  "v:mai-kham-mark": { y: 5, h: 18, wScale: 0.62 },
+  "v:u-short": { y: 64, h: 13, wScale: 0.52 },
+  "v:u-long": { y: 64, h: 14, wScale: 0.62 },
+  "v:a-short": { y: 39, h: 24, wScale: 0.58 },
+  "v:a-long": { y: 40, h: 26, wScale: 0.6 },
+  "v:o-letter": { y: 38, h: 30, wScale: 0.76 },
+  "v:yo": { y: 39, h: 26, wScale: 0.66 },
+  "v:wo": { y: 42, h: 18, wScale: 0.62 },
+  "v:mai-kham": { y: 38, h: 30, wScale: 0.56 },
+  "v:rue": { y: 8, h: 82, wScale: 0.8 },
+  "v:lue": { y: 8, h: 82, wScale: 0.8 },
 };
 
-function rightComponentTarget(componentKey: string, rightIndex: number, rightCount: number): TargetBox | null {
-  const box = RIGHT_COMPONENT_BOX[componentKey];
-  if (!box) return null;
-  const centersByCount =
-    rightCount <= 1 ? [80] :
-    rightCount === 2 ? [70, 86] :
-    [64, 78, 91];
-  const center = centersByCount[Math.min(rightIndex, centersByCount.length - 1)];
-  return { ...box, x: center - box.w / 2 };
+function componentSlotTarget(componentKey: string, index: number, count: number): TargetBox {
+  const slotW = 100 / count;
+  const slotX = slotW * index;
+  const box = SLOT_COMPONENT_BOX[componentKey] ?? { y: 32, h: 36, wScale: 0.75 };
+  const w = Math.max(6, slotW * box.wScale);
+  return {
+    x: slotX + (slotW - w) / 2,
+    y: box.y,
+    w,
+    h: box.h,
+  };
 }
 
 function pathBounds(d: string): Bounds | null {
@@ -1124,14 +1139,9 @@ export function composeLetterStrokes(
 
   const components = componentKeys.map(resolve);
   if (components.some((component) => !component)) return null;
-  const rightKeys = componentKeys.filter((componentKey) => RIGHT_SIDE_COMPONENTS.has(componentKey));
-  let rightIndex = 0;
   const resolvedComponents = (components as LetterStrokes[]).map((component, index) => {
     const componentKey = componentKeys[index];
-    const target = RIGHT_SIDE_COMPONENTS.has(componentKey)
-      ? rightComponentTarget(componentKey, rightIndex++, rightKeys.length)
-      : null;
-    return placeComponent(componentKey, component, target);
+    return placeComponent(componentKey, component, componentSlotTarget(componentKey, index, componentKeys.length));
   });
 
   const strokes = resolvedComponents.flatMap((component) => component.strokes.map(cloneStroke));

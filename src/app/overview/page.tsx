@@ -44,13 +44,21 @@ function vowelLengthTag(length: Vowel["length"]) {
 }
 
 function Consonants() {
-  const [filter, setFilter] = useState<"all" | "mid" | "high" | "low">("all");
+  const [filter, setFilter] = useState<"all" | "mid" | "high" | "low" | "sound">("all");
   const [selected, setSelected] = useState<Consonant | null>(null);
   const mastery = useMastery();
   const list = useMemo(
-    () => CONSONANTS.filter((c) => filter === "all" || c.class === filter),
+    () => CONSONANTS.filter((c) => filter === "all" || filter === "sound" || c.class === filter),
     [filter]
   );
+  const soundGroups = useMemo(() => {
+    const map = new Map<string, Consonant[]>();
+    for (const c of CONSONANTS) {
+      const key = displayRoman(c.romanInitial);
+      map.set(key, [...(map.get(key) ?? []), c]);
+    }
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, []);
 
   function clearAll() {
     if (confirm("清空所有辅音的熟练度？")) {
@@ -62,13 +70,13 @@ function Consonants() {
     <>
       <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        {(["all", "mid", "high", "low"] as const).map((f) => (
+        {(["all", "mid", "high", "low", "sound"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
             className={filter === f ? "btn-primary px-3" : "btn-ghost px-3"}
           >
-            {f === "all" ? "全部" : f === "mid" ? "中辅音" : f === "high" ? "高辅音" : "低辅音"}
+            {f === "all" ? "全部" : f === "mid" ? "中辅音" : f === "high" ? "高辅音" : f === "low" ? "低辅音" : "按读音"}
           </button>
         ))}
         <button
@@ -79,58 +87,26 @@ function Consonants() {
           🗑️ 清空
         </button>
       </div>
+      {filter === "sound" ? (
+        <div className="space-y-3">
+          {soundGroups.map(([sound, consonants]) => (
+            <section key={sound} className="space-y-2">
+              <h3 className="font-mono text-sm font-extrabold opacity-75">{sound}</h3>
+              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {consonants.map((c) => (
+                  <ConsonantCard key={c.id} consonant={c} masteryValue={mastery[`c:${c.id}`] || 0} onSelect={setSelected} />
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      ) : (
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {list.map((c) => (
-          <li key={c.id} className="card p-3 cursor-pointer transition-transform hover:scale-105" onClick={() => setSelected(c)}>
-            {(() => {
-              const value = mastery[`c:${c.id}`] || 0;
-              const pct = Math.round((value / MASTERY_TARGET) * 100);
-              return (
-                <div className="mb-2">
-                  <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
-                    <span>熟练度</span>
-                    <div className="flex items-center gap-1">
-                      <span>{value}/{MASTERY_TARGET}</span>
-                      {value > 0 && (
-                        <button
-                          onClick={() => clearMastery(`c:${c.id}`)}
-                          className="text-[11px] leading-none opacity-50 hover:opacity-100"
-                          title="清空此字母的熟练度"
-                          aria-label="清空熟练度"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="progress-track" style={{ height: "6px" }}>
-                    <div className="progress-fill" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })()}
-            <div className="flex items-start justify-between">
-              <div className="thai-big text-3xl leading-none">{c.letter}</div>
-              <div className="flex items-center gap-1">
-                {classTag(c.class)}
-                <PronounceButton text={consonantSpeak(c)} />
-              </div>
-            </div>
-            <div className="mt-2 text-xs">
-              <div className="thai-big">{c.name}</div>
-              <div className="opacity-70 mt-0.5">{c.meaning}</div>
-              <div className="mt-1">
-                初: <b>{displayRoman(c.romanInitial)}</b> · 尾: <b>{c.finalSound === "none" ? "无" : c.finalSound}</b>
-                {c.obsolete && <span className="ml-1 opacity-60">已废</span>}
-              </div>
-              <div className="mt-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
-                🔊 应念: {consonantPhonetic(c)}
-              </div>
-              <FontSamples letter={c.letter} />
-            </div>
-          </li>
+          <ConsonantCard key={c.id} consonant={c} masteryValue={mastery[`c:${c.id}`] || 0} onSelect={setSelected} />
         ))}
       </ul>
+      )}
 
       <section className="card-soft mt-4 p-4 text-xs leading-relaxed opacity-80">
         <h3 className="mb-1 text-sm font-extrabold opacity-100">📣 关于发音</h3>
@@ -204,6 +180,65 @@ function Consonants() {
   );
 }
 
+function ConsonantCard({
+  consonant: c,
+  masteryValue: value,
+  onSelect,
+}: {
+  consonant: Consonant;
+  masteryValue: number;
+  onSelect: (c: Consonant) => void;
+}) {
+  const pct = Math.round((value / MASTERY_TARGET) * 100);
+  return (
+    <li className="card p-3 cursor-pointer transition-transform hover:scale-105" onClick={() => onSelect(c)}>
+      <div className="mb-2">
+        <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
+          <span>熟练度</span>
+          <div className="flex items-center gap-1">
+            <span>{value}/{MASTERY_TARGET}</span>
+            {value > 0 && (
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  clearMastery(`c:${c.id}`);
+                }}
+                className="text-[11px] leading-none opacity-50 hover:opacity-100"
+                title="清空此字母的熟练度"
+                aria-label="清空熟练度"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="progress-track" style={{ height: "6px" }}>
+          <div className="progress-fill" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+      <div className="flex items-start justify-between">
+        <div className="thai-big text-3xl leading-none">{c.letter}</div>
+        <div className="flex items-center gap-1">
+          {classTag(c.class)}
+          <PronounceButton text={consonantSpeak(c)} />
+        </div>
+      </div>
+      <div className="mt-2 text-xs">
+        <div className="thai-big">{c.name}</div>
+        <div className="opacity-70 mt-0.5">{c.meaning}</div>
+        <div className="mt-1">
+          初: <b>{displayRoman(c.romanInitial)}</b> · 尾: <b>{c.finalSound === "none" ? "无" : c.finalSound}</b>
+          {c.obsolete && <span className="ml-1 opacity-60">已废</span>}
+        </div>
+        <div className="mt-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
+          🔊 应念: {consonantPhonetic(c)}
+        </div>
+        <FontSamples letter={c.letter} />
+      </div>
+    </li>
+  );
+}
+
 function FontSamples({ letter }: { letter: string }) {
   const fonts = [
     { label: "Droid", className: "thai-font-droid" },
@@ -227,7 +262,7 @@ function FontSamples({ letter }: { letter: string }) {
 }
 
 function Vowels() {
-  const [filter, setFilter] = useState<"all" | "long" | "short">("all");
+  const [filter, setFilter] = useState<"all" | "long" | "short" | "sound">("all");
   const [selected, setSelected] = useState<Vowel | null>(null);
   const mastery = useMastery();
   const orderedVowels = useMemo(() => {
@@ -252,8 +287,15 @@ function Vowels() {
     const orderMap = new Map(order.map((id, index) => [id, index]));
     return [...VOWELS]
       .sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999))
-      .filter((v) => filter === "all" || v.length === filter);
+      .filter((v) => filter === "all" || filter === "sound" || v.length === filter);
   }, [filter]);
+  const soundGroups = useMemo(() => {
+    const map = new Map<string, Vowel[]>();
+    for (const v of orderedVowels) {
+      map.set(v.roman, [...(map.get(v.roman) ?? []), v]);
+    }
+    return [...map.entries()];
+  }, [orderedVowels]);
 
   function clearAll() {
     if (confirm("清空所有元音的熟练度？")) {
@@ -265,13 +307,13 @@ function Vowels() {
     <>
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        {(["all", "long", "short"] as const).map((f) => (
+        {(["all", "long", "short", "sound"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
             className={filter === f ? "btn-primary px-3" : "btn-ghost px-3"}
           >
-            {f === "all" ? "全部" : f === "long" ? "长元音" : "短元音"}
+            {f === "all" ? "全部" : f === "long" ? "长元音" : f === "short" ? "短元音" : "按读音"}
           </button>
         ))}
         <button
@@ -283,57 +325,26 @@ function Vowels() {
         </button>
       </div>
 
-      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {orderedVowels.map((v) => (
-          <li key={v.id} className="card p-3 cursor-pointer transition-transform hover:scale-105" onClick={() => setSelected(v)}>
-            {(() => {
-              const value = mastery[`v:${v.id}`] || 0;
-              const pct = Math.round((value / MASTERY_TARGET) * 100);
-              return (
-                <div className="mb-2">
-                  <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
-                    <span>熟练度</span>
-                    <div className="flex items-center gap-1">
-                      <span>{value}/{MASTERY_TARGET}</span>
-                      {value > 0 && (
-                        <button
-                          onClick={() => clearMastery(`v:${v.id}`)}
-                          className="text-[11px] leading-none opacity-50 hover:opacity-100"
-                          title="清空此元音的熟练度"
-                          aria-label="清空熟练度"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="progress-track" style={{ height: "6px" }}>
-                    <div className="progress-fill" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })()}
-            <div className="flex items-center justify-between">
-              <div className="thai-big text-2xl">{v.display}</div>
-              <div className="flex items-center gap-1">
-                {vowelLengthTag(v.length)}
-                <PronounceButton text={vowelSpeak(v)} />
-              </div>
-            </div>
-            <div className="mt-1 text-xs">
-              <div>罗马音: <b>{v.roman}</b></div>
-              <div className="opacity-70">
-                {v.category === "diphthong" ? "复合元音" : v.category === "special" ? "特殊元音" : "单元音"}
-                {v.notes ? ` · ${v.notes}` : ""}
-              </div>
-              <div className="mt-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
-                🔊 应念: {vowelPhonetic(v)}
-              </div>
-              <FontSamples letter={v.display} />
-            </div>
-          </li>
-        ))}
-      </ul>
+      {filter === "sound" ? (
+        <div className="space-y-3">
+          {soundGroups.map(([sound, vowels]) => (
+            <section key={sound} className="space-y-2">
+              <h3 className="font-mono text-sm font-extrabold opacity-75">{sound}</h3>
+              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {vowels.map((v) => (
+                  <VowelCard key={v.id} vowel={v} masteryValue={mastery[`v:${v.id}`] || 0} onSelect={setSelected} />
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {orderedVowels.map((v) => (
+            <VowelCard key={v.id} vowel={v} masteryValue={mastery[`v:${v.id}`] || 0} onSelect={setSelected} />
+          ))}
+        </ul>
+      )}
     </div>
 
     {selected && (
@@ -354,6 +365,64 @@ function Vowels() {
       </div>
     )}
     </>
+  );
+}
+
+function VowelCard({
+  vowel: v,
+  masteryValue: value,
+  onSelect,
+}: {
+  vowel: Vowel;
+  masteryValue: number;
+  onSelect: (v: Vowel) => void;
+}) {
+  const pct = Math.round((value / MASTERY_TARGET) * 100);
+  return (
+    <li className="card p-3 cursor-pointer transition-transform hover:scale-105" onClick={() => onSelect(v)}>
+      <div className="mb-2">
+        <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
+          <span>熟练度</span>
+          <div className="flex items-center gap-1">
+            <span>{value}/{MASTERY_TARGET}</span>
+            {value > 0 && (
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  clearMastery(`v:${v.id}`);
+                }}
+                className="text-[11px] leading-none opacity-50 hover:opacity-100"
+                title="清空此元音的熟练度"
+                aria-label="清空熟练度"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="progress-track" style={{ height: "6px" }}>
+          <div className="progress-fill" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="thai-big text-2xl">{v.display}</div>
+        <div className="flex items-center gap-1">
+          {vowelLengthTag(v.length)}
+          <PronounceButton text={vowelSpeak(v)} />
+        </div>
+      </div>
+      <div className="mt-1 text-xs">
+        <div>罗马音: <b>{v.roman}</b></div>
+        <div className="opacity-70">
+          {v.category === "diphthong" ? "复合元音" : v.category === "special" ? "特殊元音" : "单元音"}
+          {v.notes ? ` · ${v.notes}` : ""}
+        </div>
+        <div className="mt-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
+          🔊 应念: {vowelPhonetic(v)}
+        </div>
+        <FontSamples letter={v.display} />
+      </div>
+    </li>
   );
 }
 

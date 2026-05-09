@@ -53,7 +53,7 @@ function pickLessonItems(items: StudyItem[], progress: MasteryProgress): StudyIt
 function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Question[] {
   const questions = lessonItems.flatMap((item) => {
     const soundChoices = uniqueChoices(item, allItems, 4, (option) => option.roman);
-    const letterChoices = uniqueChoices(item, allItems, 4, (option) => option.id);
+    const letterChoices = uniqueChoices(item, allItems, 4, (option) => option.roman);
     return [
       { id: `${item.id}:look`, kind: "look" as const, item, choices: [item] },
       { id: `${item.id}:write`, kind: "write" as const, item, choices: [item] },
@@ -69,6 +69,14 @@ const PRAISE = ["太棒了！", "做得好！", "完美！", "继续保持！", 
 export default function CoursePage() {
   const [pool, setPool] = useState<"consonant" | "vowel">("consonant");
   const allItems = useMemo(() => buildStudyItems().filter((item) => item.pool === pool), [pool]);
+  const romanGroups = useMemo(() => {
+    const groups: Record<string, StudyItem[]> = {};
+    for (const item of allItems) {
+      const roman = displayRoman(item.roman);
+      groups[roman] = [...(groups[roman] ?? []), item];
+    }
+    return groups;
+  }, [allItems]);
   const [progress, setProgress] = useState<MasteryProgress>({});
   const [lessonItems, setLessonItems] = useState<StudyItem[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -289,6 +297,7 @@ export default function CoursePage() {
             onNext={next}
             onLooked={markLooked}
             onWrote={markWrote}
+            romanGroups={romanGroups}
           />
         ) : (
           <section className="card-soft p-6 text-center text-sm opacity-70">正在生成课程...</section>
@@ -311,6 +320,7 @@ function QuestionCard({
   onNext,
   onLooked,
   onWrote,
+  romanGroups,
 }: {
   question: Question;
   picked: string | null;
@@ -324,6 +334,7 @@ function QuestionCard({
   onNext: () => void;
   onLooked: () => void;
   onWrote: () => void;
+  romanGroups: Record<string, StudyItem[]>;
 }) {
   const mastery = progress[question.item.id] || 0;
 
@@ -366,6 +377,12 @@ function QuestionCard({
           {question.item.name && (
             <div className="thai-big mt-2 text-base opacity-80">{question.item.name}</div>
           )}
+          <div className="mt-2 text-xl font-extrabold" style={{ color: "var(--duo-blue)" }}>
+            {displayRoman(question.item.roman)}
+          </div>
+          <div className="mt-1 font-mono text-xs" style={{ color: "var(--duo-blue)" }}>
+            🔊 应念: {question.item.phonetic}
+          </div>
           <div className="mt-2 text-xs opacity-60">
             描红：拖小球沿轮廓走 · 熟练度 {mastery} / {MASTERY_TARGET}
           </div>
@@ -432,9 +449,21 @@ function QuestionCard({
                 className={`${cls} min-h-[72px]`}
               >
                 {question.kind === "sound" ? (
-                  <span className="font-mono text-xl">{displayRoman(choice.roman)}</span>
+                  <span className="flex flex-col items-center gap-1">
+                    <span className="font-mono text-xl">{displayRoman(choice.roman)}</span>
+                    {submitted && (
+                      <span className="thai-big text-xs opacity-70">
+                        {(romanGroups[displayRoman(choice.roman)] ?? [choice]).map((item) => item.front).join(" ")}
+                      </span>
+                    )}
+                  </span>
                 ) : (
-                  <span className="thai-big text-4xl leading-none">{choice.front}</span>
+                  <span className="flex flex-col items-center gap-1">
+                    <span className="thai-big text-4xl leading-none">{choice.front}</span>
+                    {submitted && (
+                      <span className="font-mono text-xs opacity-70">{displayRoman(choice.roman)}</span>
+                    )}
+                  </span>
                 )}
               </button>
             </li>
