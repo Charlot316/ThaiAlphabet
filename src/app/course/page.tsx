@@ -67,8 +67,7 @@ function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Questi
 const PRAISE = ["太棒了！", "做得好！", "完美！", "继续保持！", "答对了！", "厉害👏"];
 
 export default function CoursePage() {
-  const [pool, setPool] = useState<"consonant" | "vowel">("consonant");
-  const allItems = useMemo(() => buildStudyItems().filter((item) => item.pool === pool), [pool]);
+  const allItems = useMemo(() => buildStudyItems(), []);
   const romanGroups = useMemo(() => {
     const groups: Record<string, StudyItem[]> = {};
     for (const item of allItems) {
@@ -218,22 +217,6 @@ export default function CoursePage() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      {/* 顶部：选择池 */}
-      <div className="shrink-0 flex gap-2">
-        <button
-          onClick={() => setPool("consonant")}
-          className={pool === "consonant" ? "btn-primary text-xs py-1.5 px-3" : "btn-ghost text-xs py-1.5 px-3"}
-        >
-          辅音
-        </button>
-        <button
-          onClick={() => setPool("vowel")}
-          className={pool === "vowel" ? "btn-primary text-xs py-1.5 px-3" : "btn-ghost text-xs py-1.5 px-3"}
-        >
-          元音
-        </button>
-      </div>
-
       {/* 进度条 + 重置 */}
       <div className="shrink-0">
         <div className="flex items-center gap-3">
