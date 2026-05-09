@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CONSONANTS } from "@/data/consonants";
 import { getLetterStrokes, type LetterStrokes, type Stroke } from "@/data/strokes";
 import { TONE_MARKS } from "@/data/tones";
-import { VOWELS } from "@/data/vowels";
 import {
   buildPathFromPointSequence,
   fmtPathNumber,
@@ -31,10 +30,31 @@ interface EditorItem {
 
 const DRAFT_KEY = "thai-alphabet:strokes-draft:v1";
 const VB = 100;
+const VOWEL_ELEMENT_ITEMS: Omit<EditorItem, "kind">[] = [
+  { key: "v:a-short", display: "◌ะ", label: "a", meaning: "ะ" },
+  { key: "v:a-long", display: "◌า", label: "aa", meaning: "า" },
+  { key: "v:mai-han-akat", display: "◌ั", label: "mai han-akat", meaning: "ั" },
+  { key: "v:i-short", display: "◌ิ", label: "i", meaning: "ิ" },
+  { key: "v:i-long", display: "◌ี", label: "ii", meaning: "ี" },
+  { key: "v:ue-short", display: "◌ึ", label: "ue", meaning: "ึ" },
+  { key: "v:ue-long", display: "◌ื", label: "uue", meaning: "ื" },
+  { key: "v:u-short", display: "◌ุ", label: "u", meaning: "ุ" },
+  { key: "v:u-long", display: "◌ู", label: "uu", meaning: "ู" },
+  { key: "v:e-long", display: "เ◌", label: "ee", meaning: "เ" },
+  { key: "v:ae-long", display: "แ◌", label: "aae", meaning: "แ" },
+  { key: "v:o-long", display: "โ◌", label: "oo", meaning: "โ" },
+  { key: "v:ai-maimuan", display: "ใ◌", label: "ai", meaning: "ใ" },
+  { key: "v:ai-maimalai", display: "ไ◌", label: "ai", meaning: "ไ" },
+  { key: "v:am", display: "◌ำ", label: "am", meaning: "ำ" },
+  { key: "v:rue", display: "ฤ", label: "rue", meaning: "ฤ" },
+  { key: "v:rue-long", display: "ฤๅ", label: "ruee", meaning: "ฤๅ" },
+  { key: "v:lue", display: "ฦ", label: "lue", meaning: "ฦ" },
+  { key: "v:lue-long", display: "ฦๅ", label: "luee", meaning: "ฦๅ" },
+];
 const EDITABLE_TONE_IDS = new Set(["ek", "tho", "tri", "chattawa"]);
 const EDITABLE_STROKE_KEYS = new Set([
   ...CONSONANTS.map((c) => c.letter),
-  ...VOWELS.map((v) => `v:${v.id}`),
+  ...VOWEL_ELEMENT_ITEMS.map((v) => v.key),
   ...TONE_MARKS.filter((m) => EDITABLE_TONE_IDS.has(m.id)).map((m) => `mark:${m.id}`),
 ]);
 
@@ -46,13 +66,7 @@ function buildItems(): EditorItem[] {
     meaning: c.meaning,
     kind: "consonant",
   }));
-  const vowels: EditorItem[] = VOWELS.map((v) => ({
-    key: `v:${v.id}`,
-    display: v.display,
-    label: v.roman + (v.length === "long" ? " (长)" : v.length === "short" ? " (短)" : ""),
-    meaning: v.notes ?? "",
-    kind: "vowel",
-  }));
+  const vowels: EditorItem[] = VOWEL_ELEMENT_ITEMS.map((v) => ({ ...v, kind: "vowel" }));
   const toneMarks: EditorItem[] = TONE_MARKS.filter((m) => m.symbol && EDITABLE_TONE_IDS.has(m.id)).map((m) => ({
     key: `mark:${m.id}`,
     display: m.symbol,
@@ -249,6 +263,18 @@ export default function StrokesEditorPage() {
     setSelected(Math.max(0, Math.min(next.length - 1, nextSelected)));
   }
 
+  function emptyStrokeFromReference(stroke: Stroke, sequence: number[] = []): Stroke {
+    const sourceD = stroke.sourceD ?? stroke.d;
+    const model = pointModelFromStroke({ ...stroke, d: sourceD, sourceD });
+    return {
+      ...stroke,
+      d: "",
+      sourceD,
+      points: model.nodes.map((node) => ({ id: node.id, x: node.point.x, y: node.point.y })),
+      sequence,
+    };
+  }
+
   function moveSelected(delta: number) {
     if (selected < 0 || selected >= strokes.length) return;
     const target = selected + delta;
@@ -274,6 +300,17 @@ export default function StrokesEditorPage() {
     commitSequenceDraft(sequenceDraft, true);
   }
 
+  function clearSelectedSequence(nextSequence: number[] = []) {
+    const stroke = strokes[selected];
+    if (!stroke) return null;
+    const nextStroke = emptyStrokeFromReference(stroke, nextSequence);
+    const next = strokes.map((item, index) => (index === selected ? nextStroke : item));
+    setSequenceError(null);
+    updateStrokes(next);
+    setSequenceDraft(nextSequence);
+    return next;
+  }
+
   function buildStrokeFromSequence(stroke: Stroke, sequence: number[], showErrors = false): Stroke | null {
     const model = pointModelFromStroke(stroke);
     const validIds = new Set(model.nodes.map((node) => node.id));
@@ -294,6 +331,10 @@ export default function StrokesEditorPage() {
   function commitSequenceDraft(sequence: number[], showErrors = false): Stroke[] | null {
     const stroke = strokes[selected];
     if (!stroke) return null;
+    if (sequence.length < 2) {
+      if (showErrors) setSequenceError("顺序至少需要两个点。");
+      return clearSelectedSequence(sequence);
+    }
     const nextStroke = buildStrokeFromSequence(stroke, sequence, showErrors);
     if (!nextStroke) return null;
     const next = strokes.map((item, index) => (index === selected ? nextStroke : item));
@@ -305,7 +346,13 @@ export default function StrokesEditorPage() {
 
   function currentStrokesForSave(): Stroke[] {
     const stroke = strokes[selected];
-    if (!stroke || sequenceDraft.length < 2) return strokes;
+    if (!stroke) return strokes;
+    if (sequenceDraft.length < 2) {
+      const nextStroke = emptyStrokeFromReference(stroke, sequenceDraft);
+      const next = strokes.map((item, index) => (index === selected ? nextStroke : item));
+      setStrokes(next);
+      return next;
+    }
     const nextStroke = buildStrokeFromSequence(stroke, sequenceDraft);
     if (!nextStroke) return strokes;
     const next = strokes.map((item, index) => (index === selected ? nextStroke : item));
@@ -323,7 +370,7 @@ export default function StrokesEditorPage() {
   function appendPointId(id: number) {
     const next = [...sequenceDraft, id];
     setSequenceDraft(next);
-    commitSequenceDraft(next);
+    if (next.length >= 2) commitSequenceDraft(next, true);
     setSequenceError(null);
   }
 
@@ -338,6 +385,24 @@ export default function StrokesEditorPage() {
     const next = sequenceDraft.slice(0, -1);
     setSequenceDraft(next);
     commitSequenceDraft(next);
+    setSequenceError(null);
+  }
+
+  function addStrokeAfterSelected() {
+    const reference = selectedStroke ?? base?.strokes[0];
+    if (!reference) return;
+    const sourceD = reference.sourceD ?? reference.d;
+    const model = pointModelFromStroke({ ...reference, d: sourceD, sourceD });
+    const nextStroke: Stroke = {
+      d: "",
+      sourceD,
+      points: model.nodes.map((node) => ({ id: node.id, x: node.point.x, y: node.point.y })),
+      sequence: [],
+    };
+    const insertAt = Math.min(strokes.length, selected + 1);
+    const next = [...strokes.slice(0, insertAt), nextStroke, ...strokes.slice(insertAt)];
+    updateStrokes(next, insertAt);
+    setSequenceDraft([]);
     setSequenceError(null);
   }
 
@@ -436,7 +501,7 @@ export default function StrokesEditorPage() {
           辅音 {tab === "consonant" ? `(${totalDoneTab}/${items.length})` : "(44)"}
         </button>
         <button onClick={() => setTab("vowel")} className={tab === "vowel" ? "btn-primary px-4 text-sm" : "btn-ghost px-4 text-sm"}>
-          元音/声调 {tab === "vowel" ? `(${totalDoneTab}/${items.length})` : "(36)"}
+          元音元素/声调 {tab === "vowel" ? `(${totalDoneTab}/${items.length})` : `(${VOWEL_ELEMENT_ITEMS.length + EDITABLE_TONE_IDS.size})`}
         </button>
       </div>
 
@@ -480,7 +545,7 @@ export default function StrokesEditorPage() {
               strokeDasharray="1.2 1.8"
             />
           ))}
-          {strokes.map((stroke, index) => {
+          {(strokes.length > 0 ? strokes : base?.strokes ?? []).map((stroke, index) => {
             const referenceD = stroke.sourceD ?? base?.strokes[index]?.d ?? stroke.d;
             return (
               <path
@@ -498,28 +563,33 @@ export default function StrokesEditorPage() {
           })}
           {strokes.map((stroke, index) => {
             const active = index === selected;
+            const hasPath = stroke.d.trim().length > 0;
             const { start } = endpointsFromPath(stroke.d);
             return (
               <g key={`${item.key}-${index}`}>
-                <path
-                  d={stroke.d}
-                  fill="none"
-                  stroke={active ? "var(--duo-orange)" : "var(--duo-blue)"}
-                  strokeWidth={active ? 4.4 : 3.4}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={active ? 0.95 : 0.72}
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    setSelected(index);
-                    setSequenceError(null);
-                  }}
-                  style={{ cursor: "pointer" }}
-                />
-                <circle cx={start.x} cy={start.y} r={active ? 2.5 : 1.8} fill={active ? "var(--duo-orange)" : "white"} stroke="var(--duo-blue)" strokeWidth={0.8} />
-                <text x={start.x + 2.5} y={start.y - 2.5} fontSize={4.2} fill={active ? "var(--duo-orange-d)" : "var(--duo-blue)"} fontWeight={900}>
-                  {index + 1}
-                </text>
+                {hasPath && (
+                  <>
+                    <path
+                      d={stroke.d}
+                      fill="none"
+                      stroke={active ? "var(--duo-orange)" : "var(--duo-blue)"}
+                      strokeWidth={active ? 4.4 : 3.4}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      opacity={active ? 0.95 : 0.72}
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        setSelected(index);
+                        setSequenceError(null);
+                      }}
+                      style={{ cursor: "pointer" }}
+                    />
+                    <circle cx={start.x} cy={start.y} r={active ? 2.5 : 1.8} fill={active ? "var(--duo-orange)" : "white"} stroke="var(--duo-blue)" strokeWidth={0.8} />
+                    <text x={start.x + 2.5} y={start.y - 2.5} fontSize={4.2} fill={active ? "var(--duo-orange-d)" : "var(--duo-blue)"} fontWeight={900}>
+                      {index + 1}
+                    </text>
+                  </>
+                )}
               </g>
             );
           })}
@@ -558,9 +628,10 @@ export default function StrokesEditorPage() {
         </svg>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-5 gap-2">
         <button onClick={() => moveSelected(-1)} className="btn-ghost text-xs" disabled={selected <= 0}>上移</button>
         <button onClick={() => moveSelected(1)} className="btn-ghost text-xs" disabled={selected >= strokes.length - 1}>下移</button>
+        <button onClick={addStrokeAfterSelected} className="btn-primary text-xs" disabled={!selectedStroke && !base}>+ 一笔</button>
         <button onClick={reverseSelected} className="btn-blue text-xs" disabled={!strokes[selected]}>反转</button>
         <button onClick={deleteSelected} className="btn-red text-xs" disabled={!strokes[selected]}>删除</button>
       </div>

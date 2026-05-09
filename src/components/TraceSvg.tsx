@@ -25,7 +25,8 @@ function loadLocalStrokeDraft(key: string): { strokes: LocalStroke[]; guides?: {
     if (!item || (item.v ?? 0) < 5) return null;
     const strokes = item.strokes
       ?.filter((stroke): stroke is LocalStroke => typeof stroke.d === "string")
-      .map((stroke) => resolveStrokeSequence(stroke)) ?? [];
+      .map((stroke) => resolveStrokeSequence(stroke))
+      .filter((stroke) => stroke.d.trim().length > 0) ?? [];
     const guides = item.guides?.filter((stroke): stroke is { d: string } => typeof stroke.d === "string");
     return strokes.length > 0 ? { strokes, guides } : null;
   } catch {
@@ -104,7 +105,15 @@ export default function TraceSvg({
       ? { ...localDraft, guides: localDraft.guides ?? saved?.guides }
       : saved;
     if (manual && manual.strokes.length > 0) {
-      const resolvedStrokes = manual.strokes.map((stroke) => resolveStrokeSequence(stroke));
+      const resolvedStrokes = manual.strokes
+        .map((stroke) => resolveStrokeSequence(stroke))
+        .filter((stroke) => stroke.d.trim().length > 0);
+      if (resolvedStrokes.length === 0) {
+        setError("还没有可描红的笔画");
+        return () => {
+          cancelled = true;
+        };
+      }
       // 手工 SVG 数据本身就是描红底纹；不要再叠字体 outline，避免轻微错位。
       setOutline({ d: "" });
       setVb({ x: 0, y: 0, w: 100, h: 100 });

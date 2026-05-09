@@ -232,7 +232,7 @@ export function pointModelFromStroke(stroke: StrokeLike): StrokePointModel {
   });
 
   const sequence =
-    Array.isArray(stroke.sequence) && stroke.sequence.length > 0
+    Array.isArray(stroke.sequence)
       ? stroke.sequence.filter((id) => nodes.some((node) => node.id === id))
       : edges.reduce<number[]>((acc, edge, index) => {
           const previous = edges[index - 1];
