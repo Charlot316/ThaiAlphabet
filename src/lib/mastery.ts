@@ -120,20 +120,19 @@ export function recordOutcome(
   record.attempts += 1;
   record.lastSeenAt = now;
 
-  // 最近表现 EMA：新结果只占 15%，大约要 8-10 次同向才稳定
+  // 最近表现 EMA：新结果只占 5%，大约要 30 次同向才稳定到 0.8
   const value = outcome === "correct" ? 1 : outcome === "hard" ? 0.5 : 0;
-  record.recent = record.recent * 0.85 + value * 0.15;
+  record.recent = record.recent * 0.95 + value * 0.05;
 
   if (outcome === "correct") {
     record.correct += 1;
     record.reps += 1;
     record.ease = Math.min(3.0, record.ease + 0.05);
-    // SRS 间隔起步缓：前几次都是分钟/小时级，要答对 5-6 次才进入"天"级
+    // SRS 间隔起步缓：要答对 6-8 次才进入"天"级，再多次后才走 ease 乘法
     if (record.interval < 1) record.interval = 5 * MIN;
-    else if (record.reps <= 2) record.interval = 30 * MIN;
-    else if (record.reps <= 3) record.interval = 2 * HOUR;
-    else if (record.reps <= 4) record.interval = 12 * HOUR;
-    else if (record.reps <= 5) record.interval = 1 * DAY;
+    else if (record.reps <= 3) record.interval = 30 * MIN;
+    else if (record.reps <= 5) record.interval = 4 * HOUR;
+    else if (record.reps <= 8) record.interval = 1 * DAY;
     else record.interval = record.interval * record.ease;
     record.due = now + record.interval * 60 * 1000;
   } else if (outcome === "hard") {
@@ -160,36 +159,34 @@ export function recordOutcome(
 
 // 0-100 综合熟练度 — 给 UI 显示
 //
-// 设计目标：循序渐进，前几次答对涨幅小，第 6-7 次开始出节奏，
-// 大约 10-12 次稳定全对才能接近 100，全对 12-13 次摸到 100。
-// 错答会回退但不会跳水。
+// 设计目标：100 次才能到 100。前几次几乎不动，30 次稳进，70 次出门槛。
+// 一次课程一个字母可能答 8 次，一次课不应该让分数飙起来。
 //
-// 大致曲线（连续答对、随时复习）：
-//   1: ~3   3: ~15   5: ~34   7: ~57   9: ~84   12: ~95   13+: 100
+// 大致曲线（每次都对、随时复习）：
+//   1: 0   8: ~2   16: ~7   30: ~18   50: ~39   70: ~62   85: ~85   100: 100
 export function deriveScore(r: MasteryRecord | null | undefined): number {
   if (!r || r.attempts === 0) return 0;
 
-  // 0-25：累计曝光，log 缓增（边际递减）。attempts=30 才接近 25
-  const exposure = Math.min(25, Math.log10(r.attempts + 1) * 16.5);
-  // 0-30：最近正确率 EMA。因为 alpha=0.15，要连续 8-10 次对才接近满分
+  // 0-50：累计曝光。100 次答题刚好到 50（log10(101)*25 = 50.1）
+  const exposure = Math.min(50, Math.log10(r.attempts + 1) * 25);
+  // 0-30：最近正确率 EMA（alpha=0.05，约 30 次连对才稳到 0.8）
   const recentScore = r.recent * 30;
-  // 0-30：SRS 间隔深度。每多答对一次 interval 涨一档，反应"长期记得住"
-  const srsDepth = Math.min(30, Math.log10(r.interval / HOUR + 1) * 9.5);
-  // 0-15：累计正确率。错答会马上拉低这一项
+  // 0-15：SRS 间隔深度（log）
+  const srsDepth = Math.min(15, Math.log10(r.interval / HOUR + 1) * 4.4);
+  // 0-5：累计正确率
   const ratio = r.correct / Math.max(1, r.attempts);
-  const ratioBonus = ratio * 15;
-  // 0-10：刚答过的"鲜热度"，14 天衰减到 ≈0
+  const ratioBonus = ratio * 5;
+  // 0-5：刚答过的鲜热度，14 天衰减到 ≈0
   const daysSince = (Date.now() - r.lastSeenAt) / (1000 * 60 * 60 * 24);
-  const recencyBonus = 10 * Math.exp(-daysSince / 14);
-  // 翻车扣分：每次 -3，最多扣 20
-  const lapsesPenalty = Math.min(20, r.lapses * 3);
+  const recencyBonus = 5 * Math.exp(-daysSince / 14);
+  // 翻车扣分：每次 -2，最多扣 15
+  const lapsesPenalty = Math.min(15, r.lapses * 2);
 
   const raw =
     exposure + recentScore + srsDepth + ratioBonus + recencyBonus - lapsesPenalty;
 
-  // 总曝光 ramp-up：前 10 次每次 attempts 解锁 1/10 的最高分，
-  // 防止刚见过 1-2 次就冲到 50。第 10 次起完全开放上限。
-  const warmup = Math.min(1, r.attempts / 10);
+  // Ramp-up：前 100 次都在压上限，曲线 (att/100)^1.3 让前期超慢、后期才上来。
+  const warmup = Math.min(1, Math.pow(r.attempts / 100, 1.3));
   return Math.max(0, Math.min(100, Math.round(raw * warmup)));
 }
 
