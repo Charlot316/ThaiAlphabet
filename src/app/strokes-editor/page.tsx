@@ -118,11 +118,14 @@ function normalizeDraft(raw: unknown): StrokeDraft | null {
 function draftMatchesBase(draft: StrokeDraft, base: LetterStrokes | null): boolean {
   if (!base) return true;
   // Allow draft to have more strokes than base (user may have added new ones)
-  // Just verify that existing strokes match base
+  // Accept any modifications to stroke d values (generated from sequence editing)
+  // Just verify sourceD matches to ensure strokes are based on correct original paths
   return draft.strokes.slice(0, base.strokes.length).every((stroke, index) => {
     const baseStroke = base.strokes[index];
     if (!baseStroke) return false;
-    return (stroke.sourceD ?? stroke.d) === baseStroke.d;
+    const strokeSourceD = stroke.sourceD ?? stroke.d;
+    const baseSourceD = baseStroke.sourceD ?? baseStroke.d;
+    return strokeSourceD === baseSourceD;
   });
 }
 
@@ -268,9 +271,18 @@ export default function StrokesEditorPage() {
     if (!item || !dirty.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
+      // Finalize current stroke's sequence before auto-saving
+      const stroke = strokes[selected];
+      let strokesToSave = strokes;
+      if (stroke && sequenceDraft.length >= 2) {
+        const nextStroke = buildStrokeFromSequence(stroke, sequenceDraft);
+        if (nextStroke) {
+          strokesToSave = strokes.map((s, index) => (index === selected ? nextStroke : s));
+        }
+      }
       const data: StrokeDraft = {
         v: 5,
-        strokes,
+        strokes: strokesToSave,
         guides,
         updated_at: Date.now(),
       };
@@ -286,7 +298,7 @@ export default function StrokesEditorPage() {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [item, strokes, guides]);
+  }, [item, strokes, guides, selected, sequenceDraft]);
 
   useEffect(() => {
     const stroke = strokes[selected];
@@ -473,6 +485,7 @@ export default function StrokesEditorPage() {
   }
 
   function commitToDraft() {
+    // Finalize the selected stroke's sequence before saving all strokes
     const strokesToSave = currentStrokesForSave();
     const data: StrokeDraft = {
       v: 5,
