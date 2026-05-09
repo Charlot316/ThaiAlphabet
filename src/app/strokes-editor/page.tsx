@@ -525,24 +525,6 @@ export default function StrokesEditorPage() {
             <div className="font-mono opacity-60">已套用 {currentSequence.length}</div>
           </div>
 
-          <div className="mt-3 flex min-h-12 flex-wrap gap-1.5 rounded-xl border border-black/10 bg-white p-2">
-            {sequenceDraft.length === 0 ? (
-              <span className="px-1 py-1 text-xs opacity-45">点画布上的点，或点下面的 ID 按钮</span>
-            ) : (
-              sequenceDraft.map((id, index) => (
-                <button
-                  key={`${id}-${index}`}
-                  onClick={() => removeSequenceAt(index)}
-                  className="rounded-lg bg-green-100 px-2.5 py-1.5 font-mono text-sm font-extrabold text-green-800"
-                  title="点一下移除这个顺序点"
-                >
-                  {id}
-                </button>
-              ))
-            )}
-          </div>
-
-          {sequenceError && <div className="mt-2 font-bold text-red-600">{sequenceError}</div>}
           <div className="mt-3 grid grid-cols-4 gap-2">
             <button onClick={applySequence} className="btn-primary text-xs" disabled={!selectedStroke}>
               套用顺序
@@ -577,6 +559,27 @@ export default function StrokesEditorPage() {
               </button>
             ))}
           </div>
+
+          <div className="mt-3 h-24 overflow-y-auto rounded-xl border border-black/10 bg-white p-2">
+            {sequenceDraft.length === 0 ? (
+              <span className="px-1 py-1 text-xs opacity-45">点画布上的点，或点上面的 ID 按钮</span>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {sequenceDraft.map((id, index) => (
+                  <button
+                    key={`${id}-${index}`}
+                    onClick={() => removeSequenceAt(index)}
+                    className="rounded-lg bg-green-100 px-2.5 py-1.5 font-mono text-sm font-extrabold text-green-800"
+                    title="点一下移除这个顺序点"
+                  >
+                    {id}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {sequenceError && <div className="mt-2 font-bold text-red-600">{sequenceError}</div>}
         </div>
       )}
 
