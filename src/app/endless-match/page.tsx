@@ -15,6 +15,9 @@ import { recordOutcome } from "@/lib/mastery";
 const SLOT_COUNT = 5; // 同时显示几对（左右各 SLOT_COUNT 张）
 const REFILL_THRESHOLD = SLOT_COUNT + 2;
 const MIN_MATCHABLE = 4; // 任何时候至少保证 N 对可配（不能让用户卡死等）
+// 开局必须 SLOT_COUNT 对全配；连续非全配最多允许 MAX_NOT_FULL 次，
+// 之后下一次补充必须强制回到全配，避免某个槽长期"晾"在那
+const MAX_NOT_FULL = 2;
 const BEST_KEY = "thai-alphabet:endless-match:best";
 
 interface BoardState {
@@ -49,6 +52,57 @@ function ensureBuffered(queue: StudyItem[], pool: StudyItem[]): StudyItem[] {
 // 配对按罗马音判定（同音不同字母可互配，例如 ข/ฃ/ค/ฅ/ฆ 都是 "kh"）
 function matchesByRoman(a: StudyItem, b: StudyItem): boolean {
   return a.roman === b.roman;
+}
+
+// 强制让"补这两个槽以后整个 5/5 全配"。返回 null 时调用方应回退到普通补充。
+//
+// 关键观察：双方各 4 个 distinct roman，所以 |lonelyL| == |lonelyR|（设为 k）。
+// k=0 时 4/4 已全配，左右各补一个相同 roman 的字母即可让 5/5 全配；
+// k>=1 时让 left 补的 roman ∈ lonelyR、right 补的 roman ∈ lonelyL，
+// 一次能各消除 1 个 lonely。多 lonely 时余下的 lonely 由后续补充继续推平。
+function pickFullyMatchablePair(
+  leftQueue: StudyItem[],
+  rightQueue: StudyItem[],
+  leftAfterClear: (StudyItem | null)[],
+  rightAfterClear: (StudyItem | null)[]
+): {
+  leftItem: StudyItem;
+  rightItem: StudyItem;
+  leftQueue: StudyItem[];
+  rightQueue: StudyItem[];
+} | null {
+  const LR = new Set(leftAfterClear.filter(Boolean).map((s) => (s as StudyItem).roman));
+  const RR = new Set(rightAfterClear.filter(Boolean).map((s) => (s as StudyItem).roman));
+  const lonelyL = [...LR].filter((r) => !RR.has(r));
+  const lonelyR = [...RR].filter((r) => !LR.has(r));
+
+  if (lonelyL.length === 0 && lonelyR.length === 0) {
+    // 4/4 全配。左右各补一个相同 roman 的 fresh 字母 → 5/5 全配。
+    const lIdx = leftQueue.findIndex((it) => !LR.has(it.roman));
+    if (lIdx < 0) return null;
+    const targetRoman = leftQueue[lIdx].roman;
+    const rIdx = rightQueue.findIndex((it) => it.roman === targetRoman);
+    if (rIdx < 0) return null;
+    return {
+      leftItem: leftQueue[lIdx],
+      rightItem: rightQueue[rIdx],
+      leftQueue: [...leftQueue.slice(0, lIdx), ...leftQueue.slice(lIdx + 1)],
+      rightQueue: [...rightQueue.slice(0, rIdx), ...rightQueue.slice(rIdx + 1)],
+    };
+  }
+
+  // k>=1：消除 1 个 lonely 各自侧
+  const targetForLeft = lonelyR[0]; // left 补这个 roman → 与 right 那个孤独项配
+  const targetForRight = lonelyL[0]; // right 补这个 roman → 与 left 那个孤独项配
+  const lIdx = leftQueue.findIndex((it) => it.roman === targetForLeft);
+  const rIdx = rightQueue.findIndex((it) => it.roman === targetForRight);
+  if (lIdx < 0 || rIdx < 0) return null;
+  return {
+    leftItem: leftQueue[lIdx],
+    rightItem: rightQueue[rIdx],
+    leftQueue: [...leftQueue.slice(0, lIdx), ...leftQueue.slice(lIdx + 1)],
+    rightQueue: [...rightQueue.slice(0, rIdx), ...rightQueue.slice(rIdx + 1)],
+  };
 }
 
 // 当前 active 槽中"罗马音已在另一侧出现"的字母数 = 立刻可配对的对数
@@ -117,32 +171,38 @@ export default function EndlessMatchPage() {
   // 已配对、正在淡出的槽（一秒后才被替换为新字母）
   const [fadingSlots, setFadingSlots] = useState<{ left: number; right: number } | null>(null);
   const initialized = useRef(false);
+  // 已经连续多少次补充后没有恢复 5/5 全配（≥ MAX_NOT_FULL 时下次必须强制全配）
+  const notFullStreakRef = useRef(0);
 
   useEffect(() => {
     warmupVoices();
     setBestStreak(loadBest());
   }, []);
 
-  // 初始化：左右各取一份独立 shuffle 的队列。注意：要让初始 5 对至少有 MIN_MATCHABLE
-  // 对能配对，否则刚进来就盯着等。
+  // 初始化：5 对必须全部可配。做法：选 SLOT_COUNT 个 distinct-roman 的字母作为
+  // 起始 items，左右两侧用 same items 但不同 shuffle 顺序，所以 5/5 全配。
+  // 之后两个 queue 各自独立 shuffle 全池补进。
   useEffect(() => {
     if (initialized.current || allItems.length === 0) return;
     initialized.current = true;
-    let lq = shuffleStrong(allItems);
-    let rq = shuffleStrong(allItems);
-    const leftSlots: (StudyItem | null)[] = [];
-    const rightSlots: (StudyItem | null)[] = [];
-    for (let i = 0; i < SLOT_COUNT; i++) {
-      // 左槽：按队头来
-      const lpick = pickReplenishment(lq, leftSlots, rightSlots);
-      leftSlots.push(lpick.item);
-      lq = lpick.queue;
-      // 右槽：用智能挑选保证能配上
-      const rpick = pickReplenishment(rq, rightSlots, leftSlots);
-      rightSlots.push(rpick.item);
-      rq = rpick.queue;
+    const pool = shuffleStrong(allItems);
+    const initialItems: StudyItem[] = [];
+    const seenRoman = new Set<string>();
+    for (const it of pool) {
+      if (seenRoman.has(it.roman)) continue;
+      seenRoman.add(it.roman);
+      initialItems.push(it);
+      if (initialItems.length >= SLOT_COUNT) break;
     }
-    setBoard({ leftSlots, rightSlots, leftQueue: lq, rightQueue: rq });
+    const initialIds = new Set(initialItems.map((it) => it.id));
+    const restPool = allItems.filter((it) => !initialIds.has(it.id));
+    setBoard({
+      leftSlots: shuffleStrong(initialItems),
+      rightSlots: shuffleStrong(initialItems),
+      leftQueue: ensureBuffered(shuffleStrong(restPool), allItems),
+      rightQueue: ensureBuffered(shuffleStrong(restPool), allItems),
+    });
+    notFullStreakRef.current = 0;
   }, [allItems]);
 
   function tryMatch(leftIdx: number, rightIdx: number) {
@@ -181,15 +241,42 @@ export default function EndlessMatchPage() {
           const rightAfterClear = [...b.rightSlots];
           rightAfterClear[rightIdx] = null;
 
-          const lPick = pickReplenishment(b.leftQueue, leftAfterClear, rightAfterClear);
+          // 已连续 MAX_NOT_FULL 次没回到 5/5 → 这次必须强制让 board 回到全配
+          const mustForceFull = notFullStreakRef.current >= MAX_NOT_FULL;
           const newLeftSlots = [...leftAfterClear];
-          newLeftSlots[leftIdx] = lPick.item;
-          const newLeftQueue = ensureBuffered(lPick.queue, allItems);
-
-          const rPick = pickReplenishment(b.rightQueue, rightAfterClear, newLeftSlots);
           const newRightSlots = [...rightAfterClear];
-          newRightSlots[rightIdx] = rPick.item;
-          const newRightQueue = ensureBuffered(rPick.queue, allItems);
+          let newLeftQueue = b.leftQueue;
+          let newRightQueue = b.rightQueue;
+
+          let placed = false;
+          if (mustForceFull) {
+            const fully = pickFullyMatchablePair(
+              b.leftQueue,
+              b.rightQueue,
+              leftAfterClear,
+              rightAfterClear
+            );
+            if (fully) {
+              newLeftSlots[leftIdx] = fully.leftItem;
+              newRightSlots[rightIdx] = fully.rightItem;
+              newLeftQueue = ensureBuffered(fully.leftQueue, allItems);
+              newRightQueue = ensureBuffered(fully.rightQueue, allItems);
+              placed = true;
+            }
+          }
+          if (!placed) {
+            const lPick = pickReplenishment(b.leftQueue, leftAfterClear, rightAfterClear);
+            newLeftSlots[leftIdx] = lPick.item;
+            newLeftQueue = ensureBuffered(lPick.queue, allItems);
+
+            const rPick = pickReplenishment(b.rightQueue, rightAfterClear, newLeftSlots);
+            newRightSlots[rightIdx] = rPick.item;
+            newRightQueue = ensureBuffered(rPick.queue, allItems);
+          }
+
+          // 补完后若仍非全配 → notFullStreak++; 否则归零
+          const fullyMatchable = matchableCount(newLeftSlots, newRightSlots) === SLOT_COUNT;
+          notFullStreakRef.current = fullyMatchable ? 0 : notFullStreakRef.current + 1;
 
           return {
             leftSlots: newLeftSlots,
