@@ -207,6 +207,7 @@ export default function StrokesEditorPage() {
 
   const handleTouchStart = (e: React.TouchEvent<SVGSVGElement>) => {
     if (e.touches.length !== 2) return;
+    e.preventDefault();
     const p1 = e.touches[0];
     const p2 = e.touches[1];
     const dx = p2.clientX - p1.clientX;
@@ -585,6 +586,7 @@ export default function StrokesEditorPage() {
               transform: `scale(${zoom})`,
               transformOrigin: "center",
               transition: "transform 0.1s ease-out",
+              touchAction: "none",
             }}
             onWheel={handleWheel}
             onTouchStart={handleTouchStart}
