@@ -18,7 +18,8 @@ import { useEffect, useState } from "react";
 
 export const MASTERY_TARGET = 100;
 export const MASTERY_KEY = "thai-alphabet:mastery:v2";
-const LEGACY_KEY = "thai-alphabet:course-progress:v1";
+// 旧 v1 数据格式不再兼容，加载时直接删掉。
+const LEGACY_KEYS = ["thai-alphabet:course-progress:v1", "thai-alphabet:srs:v1"];
 
 export type Outcome = "correct" | "hard" | "wrong";
 
@@ -72,42 +73,22 @@ function readRaw(): unknown {
   }
 }
 
-function migrateLegacy(): MasteryStore | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(LEGACY_KEY);
-    if (!raw) return null;
-    const old = JSON.parse(raw) as Record<string, number>;
-    const store: MasteryStore = {};
-    const now = Date.now();
-    for (const [id, score] of Object.entries(old)) {
-      if (typeof score !== "number" || score <= 0) continue;
-      const r = emptyRecord();
-      // 把旧的 0-100 当作累计学习量
-      r.attempts = score;
-      r.correct = score;
-      r.recent = Math.min(1, score / 100);
-      r.ease = 2.5;
-      // 旧 score 越高 → SRS 间隔越长。score=100 → 约 7 天
-      r.interval = score >= 80 ? 3 * DAY : score >= 40 ? 1 * DAY : score * MIN * 6;
-      r.due = now;
-      r.lastSeenAt = now;
-      store[id] = r;
+function purgeLegacy() {
+  if (typeof window === "undefined") return;
+  for (const key of LEGACY_KEYS) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      /* ignore */
     }
-    return store;
-  } catch {
-    return null;
   }
 }
 
 export function loadStore(): MasteryStore {
+  // 顺手清掉旧版 key，不再迁移
+  purgeLegacy();
   const direct = readRaw();
   if (direct && typeof direct === "object") return direct as MasteryStore;
-  const migrated = migrateLegacy();
-  if (migrated) {
-    saveStore(migrated);
-    return migrated;
-  }
   return {};
 }
 
