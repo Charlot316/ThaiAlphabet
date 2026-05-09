@@ -34,6 +34,7 @@ const VOWEL_ELEMENT_ITEMS: Omit<EditorItem, "kind">[] = [
   { key: "v:a-short", display: "◌ะ", label: "a", meaning: "ะ" },
   { key: "v:a-long", display: "◌า", label: "aa", meaning: "า" },
   { key: "v:mai-han-akat", display: "◌ั", label: "mai han-akat", meaning: "ั" },
+  { key: "v:mai-kham-mark", display: "◌ํ", label: "mai kham", meaning: "ํ" },
   { key: "v:i-short", display: "◌ิ", label: "i", meaning: "ิ" },
   { key: "v:i-long", display: "◌ี", label: "ii", meaning: "ี" },
   { key: "v:ue-short", display: "◌ึ", label: "ue", meaning: "ึ" },
