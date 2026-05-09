@@ -182,6 +182,19 @@ export default function CoursePage() {
     setProgress(recordMastery(itemId, amount));
   }
 
+  // 答错后把同题型的 replay 题压到队列后面（重新抽选项）。
+  function queueReplay(question: Question) {
+    const fresh: Question = {
+      ...question,
+      id: `${question.id}:retry:${Date.now()}`,
+      choices:
+        question.kind === "sound" || question.kind === "letter"
+          ? uniqueChoices(question.item, allItems, 4, (option) => option.roman)
+          : question.choices,
+    };
+    setQuestions((qs) => [...qs, fresh]);
+  }
+
   // 模式 sound：4 个读音中选正确读音 — 单击即提交
   function answerSound(id: string) {
     if (!current || submitted) return;
@@ -200,6 +213,7 @@ export default function CoursePage() {
       setProgress(applyWrongAnswer(current.item.id, id));
       setFeedback("bad");
       feedbackWrong();
+      queueReplay(current);
     }
   }
 
@@ -230,6 +244,7 @@ export default function CoursePage() {
       setProgress(applyWrongAnswer(current.item.id, picked));
       setFeedback("bad");
       feedbackWrong();
+      queueReplay(current);
     }
   }
 
