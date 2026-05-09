@@ -948,7 +948,7 @@ export function vowelStrokeKey(vowelId: string): string {
   return `v:${vowelId}`;
 }
 
-const VOWEL_TO_CONSONANT: Record<string, string> = {
+export const VOWEL_TO_CONSONANT: Record<string, string> = {
   "v:o-letter": "อ",
   "v:yo": "ย",
   "v:wo": "ว",

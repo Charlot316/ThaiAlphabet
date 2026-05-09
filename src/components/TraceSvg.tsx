@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { letterSkeleton } from "@/lib/thaiFont";
 import { feedbackComplete, feedbackTap } from "@/lib/feedback";
-import { composeLetterStrokes, getLetterStrokes, getVowelStrokeComponentKeys, type LetterStrokes } from "@/data/strokes";
+import { composeLetterStrokes, getLetterStrokes, getVowelStrokeComponentKeys, VOWEL_TO_CONSONANT, type LetterStrokes } from "@/data/strokes";
 import { lockPageScroll, preventElementTouchScroll, unlockPageScroll, type PageScrollLock } from "@/lib/scrollLock";
 import { resolveStrokeSequence } from "@/lib/pathOrder";
 
@@ -45,7 +45,7 @@ function strokeDraftMatchesBase(draft: LetterStrokes, base: LetterStrokes | null
 
 function localOrSavedStrokes(key: string): LetterStrokes | null {
   const saved = getLetterStrokes(key);
-  const local = loadLocalStrokeDraft(key);
+  const local = loadLocalStrokeDraft(key) ?? loadLocalStrokeDraft(VOWEL_TO_CONSONANT[key] ?? key);
   return local && strokeDraftMatchesBase(local, saved) ? local : saved;
 }
 
