@@ -322,8 +322,8 @@ export default function TraceSvg({
   }
 
   const ballR = vb.w * 0.045;
-  const skeletonStrokeW = vb.w * (constrainToOutline ? 0.027 : 0.036);
-  const trailStrokeW = vb.w * (constrainToOutline ? 0.042 : 0.055);
+  const skeletonStrokeW = vb.w * (constrainToOutline ? 0.027 : 0.018);
+  const trailStrokeW = vb.w * (constrainToOutline ? 0.042 : 0.0275);
 
   return (
     <div className="space-y-3">

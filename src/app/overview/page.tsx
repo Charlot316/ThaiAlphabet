@@ -5,7 +5,7 @@ import { VOWELS } from "@/data/vowels";
 import { Vowel } from "@/data/types";
 import { TONE_MARKS, TONE_NAMES } from "@/data/tones";
 import PronounceButton from "@/components/PronounceButton";
-import { MASTERY_TARGET, clearMastery, useMastery } from "@/lib/mastery";
+import { MASTERY_TARGET, clearMastery, resetMastery, useMastery } from "@/lib/mastery";
 import { consonantPhonetic, consonantSpeak, displayRoman, vowelPhonetic, vowelSpeak } from "@/lib/study";
 
 type Tab = "consonant" | "vowel" | "tone";
@@ -45,6 +45,13 @@ function Consonants() {
     () => CONSONANTS.filter((c) => filter === "all" || c.class === filter),
     [filter]
   );
+
+  function clearAll() {
+    if (confirm("清空所有辅音的熟练度？")) {
+      resetMastery();
+    }
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
@@ -57,6 +64,13 @@ function Consonants() {
             {f === "all" ? "全部" : f === "mid" ? "中辅音" : f === "high" ? "高辅音" : "低辅音"}
           </button>
         ))}
+        <button
+          onClick={clearAll}
+          className="btn-ghost px-3 text-red-600 hover:text-red-700"
+          title="清空所有辅音的熟练度"
+        >
+          🗑️ 清空
+        </button>
       </div>
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {list.map((c) => (
@@ -192,8 +206,24 @@ function Vowels() {
     { key: "diphthong-short", title: "短复合元音", filter: (v: Vowel) => v.category === "diphthong" && v.length === "short" },
     { key: "special", title: "特殊元音", filter: (v: Vowel) => v.category === "special" },
   ];
+
+  function clearAll() {
+    if (confirm("清空所有元音的熟练度？")) {
+      resetMastery();
+    }
+  }
+
   return (
     <div className="space-y-4">
+      <div className="flex gap-2">
+        <button
+          onClick={clearAll}
+          className="btn-ghost px-3 text-red-600 hover:text-red-700 text-sm"
+          title="清空所有元音的熟练度"
+        >
+          🗑️ 清空所有
+        </button>
+      </div>
       {groups.map((g) => (
         <section key={g.key} className="space-y-2">
           <h3 className="font-semibold text-sm opacity-80">{g.title}</h3>

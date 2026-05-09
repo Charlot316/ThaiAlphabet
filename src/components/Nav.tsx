@@ -8,9 +8,7 @@ const TABS = [
   { href: "/overview", icon: "📚", label: "总览" },
   { href: "/course", icon: "🎯", label: "课程" },
   { href: "/flashcards", icon: "⚡", label: "速看" },
-  { href: "/quiz", icon: "❓", label: "选择" },
   { href: "/srs", icon: "🧠", label: "记忆" },
-  { href: "/write", icon: "✍️", label: "书写" },
   { href: "/spell", icon: "🔤", label: "拼读" },
 ];
 

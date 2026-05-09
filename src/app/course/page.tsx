@@ -67,7 +67,8 @@ function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Questi
 const PRAISE = ["太棒了！", "做得好！", "完美！", "继续保持！", "答对了！", "厉害👏"];
 
 export default function CoursePage() {
-  const allConsonants = useMemo(() => buildStudyItems().filter((item) => item.pool === "consonant"), []);
+  const [pool, setPool] = useState<"consonant" | "vowel">("consonant");
+  const allItems = useMemo(() => buildStudyItems().filter((item) => item.pool === pool), [pool]);
   const [progress, setProgress] = useState<MasteryProgress>({});
   const [lessonItems, setLessonItems] = useState<StudyItem[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -98,13 +99,13 @@ export default function CoursePage() {
     }
   }, [current]);
 
-  const mastered = allConsonants.filter((item) => (progress[item.id] || 0) >= MASTERY_TARGET).length;
+  const mastered = allItems.filter((item) => (progress[item.id] || 0) >= MASTERY_TARGET).length;
   const lessonProgress = questions.length === 0 ? 0 : Math.min(100, (index / questions.length) * 100);
 
   function startLesson(nextProgress = progress) {
-    const pickedItems = pickLessonItems(allConsonants, nextProgress);
+    const pickedItems = pickLessonItems(allItems, nextProgress);
     setLessonItems(pickedItems);
-    setQuestions(buildQuestions(pickedItems, allConsonants));
+    setQuestions(buildQuestions(pickedItems, allItems));
     setIndex(0);
     setPicked(null);
     setSubmitted(false);
@@ -209,7 +210,23 @@ export default function CoursePage() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      {/* 顶部：进度条 + 重置 */}
+      {/* 顶部：选择池 */}
+      <div className="shrink-0 flex gap-2">
+        <button
+          onClick={() => setPool("consonant")}
+          className={pool === "consonant" ? "btn-primary text-xs py-1.5 px-3" : "btn-ghost text-xs py-1.5 px-3"}
+        >
+          辅音
+        </button>
+        <button
+          onClick={() => setPool("vowel")}
+          className={pool === "vowel" ? "btn-primary text-xs py-1.5 px-3" : "btn-ghost text-xs py-1.5 px-3"}
+        >
+          元音
+        </button>
+      </div>
+
+      {/* 进度条 + 重置 */}
       <div className="shrink-0">
         <div className="flex items-center gap-3">
           <button
@@ -229,12 +246,12 @@ export default function CoursePage() {
         <div className="card-soft mt-4 p-3 text-xs">
           <div className="flex items-center justify-between">
             <span className="opacity-70">总熟练度</span>
-            <span className="font-extrabold">{mastered} / {allConsonants.length}</span>
+            <span className="font-extrabold">{mastered} / {allItems.length}</span>
           </div>
           <div className="progress-track mt-2" style={{ height: "8px" }}>
             <div
               className="progress-fill"
-              style={{ width: `${(mastered / allConsonants.length) * 100}%`, background: "linear-gradient(180deg, #ffe066, var(--duo-yellow))" }}
+              style={{ width: `${(mastered / allItems.length) * 100}%`, background: "linear-gradient(180deg, #ffe066, var(--duo-yellow))" }}
             />
           </div>
           <div className="mt-2 thai-big opacity-80">
