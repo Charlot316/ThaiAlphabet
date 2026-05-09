@@ -18,10 +18,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh">
-      <body className="antialiased">
+      <body className="antialiased flex flex-col">
         <AuthGuard>
           <Nav />
-          <main className="mx-auto w-full max-w-2xl px-4 pb-28 pt-4">{children}</main>
+          <main className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-4 py-4">{children}</main>
         </AuthGuard>
       </body>
     </html>

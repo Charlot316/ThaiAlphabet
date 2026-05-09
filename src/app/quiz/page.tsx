@@ -46,16 +46,20 @@ export default function QuizPage() {
     warmupVoices();
   }, []);
   return (
-    <div className="space-y-4">
-      <div className="flex gap-2">
-        <button onClick={() => setMode("A")} className={mode === "A" ? "btn-primary text-sm py-2 px-3" : "btn-ghost text-sm py-2 px-3"}>模式 A 字→音</button>
-        <button onClick={() => setMode("B")} className={mode === "B" ? "btn-primary text-sm py-2 px-3" : "btn-ghost text-sm py-2 px-3"}>模式 B 音→字</button>
+    <div className="flex h-full flex-col gap-4">
+      <div className="shrink-0 space-y-2">
+        <div className="flex gap-2">
+          <button onClick={() => setMode("A")} className={mode === "A" ? "btn-primary text-sm py-2 px-3" : "btn-ghost text-sm py-2 px-3"}>模式 A 字→音</button>
+          <button onClick={() => setMode("B")} className={mode === "B" ? "btn-primary text-sm py-2 px-3" : "btn-ghost text-sm py-2 px-3"}>模式 B 音→字</button>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setPool("consonant")} className={pool === "consonant" ? "btn-primary text-xs py-1.5 px-3" : "btn-ghost text-xs py-1.5 px-3"}>辅音</button>
+          <button onClick={() => setPool("vowel")} className={pool === "vowel" ? "btn-primary text-xs py-1.5 px-3" : "btn-ghost text-xs py-1.5 px-3"}>元音</button>
+        </div>
       </div>
-      <div className="flex gap-2">
-        <button onClick={() => setPool("consonant")} className={pool === "consonant" ? "btn-primary text-xs py-1.5 px-3" : "btn-ghost text-xs py-1.5 px-3"}>辅音</button>
-        <button onClick={() => setPool("vowel")} className={pool === "vowel" ? "btn-primary text-xs py-1.5 px-3" : "btn-ghost text-xs py-1.5 px-3"}>元音</button>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {mode === "A" ? <ModeA pool={pool} /> : <ModeB pool={pool} />}
       </div>
-      {mode === "A" ? <ModeA pool={pool} /> : <ModeB pool={pool} />}
     </div>
   );
 }
@@ -117,54 +121,58 @@ function ModeA({ pool }: { pool: Pool }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="card-soft p-7 flex flex-col items-center">
-        <div className="text-xs opacity-60 mb-2">这是哪个读音？</div>
-        <div className="thai-big text-7xl leading-none">
-          {"letter" in q.target ? q.target.letter : (q.target as Vowel).display}
-        </div>
-        <div className="mt-3">
-          <PronounceButton
-            text={"letter" in q.target ? consonantSpeak(q.target as Consonant) : vowelSpeak(q.target as Vowel)}
-            label="🔊 听一下"
-          />
+    <div className="flex flex-col gap-4 h-full">
+      <div className="shrink-0">
+        <div className="card-soft p-7 flex flex-col items-center">
+          <div className="text-xs opacity-60 mb-2">这是哪个读音？</div>
+          <div className="thai-big text-7xl leading-none">
+            {"letter" in q.target ? q.target.letter : (q.target as Vowel).display}
+          </div>
+          <div className="mt-3">
+            <PronounceButton
+              text={"letter" in q.target ? consonantSpeak(q.target as Consonant) : vowelSpeak(q.target as Vowel)}
+              label="🔊 听一下"
+            />
+          </div>
         </div>
       </div>
-      <ul className="grid grid-cols-2 gap-2">
-        {q.choices.map((c) => {
-          const id = c.id;
-          const text = "romanInitial" in c ? c.romanInitial : (c as Vowel).roman;
-          const label = displayRoman(text);
-          const isPicked = picked === id;
-          const isCorrectRoman = text === correctRoman;
-          const state = !picked
-            ? "opt"
-            : isCorrectRoman
-            ? "opt opt-correct"
-            : isPicked
-            ? "opt opt-wrong"
-            : "opt opt-disabled";
-          return (
-            <li key={id}>
-              <button onClick={() => pick(id)} className={`${state} w-full font-mono text-base`}>
-                {label}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      <div className="flex items-center justify-between text-sm">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <ul className="grid grid-cols-2 gap-2">
+          {q.choices.map((c) => {
+            const id = c.id;
+            const text = "romanInitial" in c ? c.romanInitial : (c as Vowel).roman;
+            const label = displayRoman(text);
+            const isPicked = picked === id;
+            const isCorrectRoman = text === correctRoman;
+            const state = !picked
+              ? "opt"
+              : isCorrectRoman
+              ? "opt opt-correct"
+              : isPicked
+              ? "opt opt-wrong"
+              : "opt opt-disabled";
+            return (
+              <li key={id}>
+                <button onClick={() => pick(id)} className={`${state} w-full font-mono text-base`}>
+                  {label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {picked && (
+          <div className={`feedback ${isCorrect ? "feedback-ok" : "feedback-bad"} animate-pop mt-4`}>
+            {isCorrect ? "✅ 正确！" : "❌ 答案"}：<b>{displayRoman(correctRoman)}</b>
+            {"name" in q.target && (
+              <span className="thai-big ml-2 opacity-80">{(q.target as Consonant).name}</span>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="shrink-0 flex items-center justify-between text-sm">
         <span className="opacity-70">{streak.ok} / {streak.total}</span>
         <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
       </div>
-      {picked && (
-        <div className={`feedback ${isCorrect ? "feedback-ok" : "feedback-bad"} animate-pop`}>
-          {isCorrect ? "✅ 正确！" : "❌ 答案"}：<b>{displayRoman(correctRoman)}</b>
-          {"name" in q.target && (
-            <span className="thai-big ml-2 opacity-80">{(q.target as Consonant).name}</span>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -223,59 +231,65 @@ function ModeBConsonant() {
   const correctChosen = submitted && picked === q.target.id;
 
   return (
-    <div className="space-y-4">
-      <div className="card-soft p-5 flex items-center justify-between">
-        <div>
-          <div className="text-xs opacity-60">哪个辅音读:</div>
-          <div className="text-3xl font-mono mt-1">{displayRoman(q.target.romanInitial)}</div>
-          <div className="text-xs opacity-60 mt-1">点击字母听读音 · 确认后提交</div>
+    <div className="flex flex-col gap-4 h-full">
+      <div className="shrink-0">
+        <div className="card-soft p-5 flex items-center justify-between">
+          <div>
+            <div className="text-xs opacity-60">哪个辅音读:</div>
+            <div className="text-3xl font-mono mt-1">{displayRoman(q.target.romanInitial)}</div>
+            <div className="text-xs opacity-60 mt-1">点击字母听读音 · 确认后提交</div>
+          </div>
+          <div className="text-sm opacity-70">{streak.ok} / {streak.total}</div>
         </div>
-        <div className="text-sm opacity-70">{streak.ok} / {streak.total}</div>
       </div>
-      <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-        {q.choices.map((c) => {
-          const isPicked = picked === c.id;
-          const isCorrect = c.id === q.target.id;
-          let cls = "opt";
-          if (submitted) {
-            if (isCorrect) cls = "opt opt-correct";
-            else if (isPicked) cls = "opt opt-wrong";
-            else cls = "opt opt-disabled";
-          } else if (isPicked) {
-            cls = "opt opt-selected";
-          }
-          return (
-            <li key={c.id}>
-              <button
-                onClick={() => preview(c.id)}
-                disabled={submitted}
-                className={`${cls} w-full thai-big text-2xl py-3`}
-              >
-                {c.letter}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      {!submitted ? (
-        <button
-          onClick={confirm}
-          disabled={!picked}
-          className="btn-primary w-full"
-        >
-          确认
-        </button>
-      ) : (
-        <div className="flex justify-end">
-          <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
-        </div>
-      )}
-      {submitted && (
-        <div className={`feedback ${correctChosen ? "feedback-ok" : "feedback-bad"} animate-pop`}>
-          {correctChosen ? "✅ 正确" : "❌ 答案"}：<span className="thai-big text-2xl">{q.target.letter}</span>
-          <span className="ml-2 opacity-80">{q.target.name} · {q.target.meaning}</span>
-        </div>
-      )}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          {q.choices.map((c) => {
+            const isPicked = picked === c.id;
+            const isCorrect = c.id === q.target.id;
+            let cls = "opt";
+            if (submitted) {
+              if (isCorrect) cls = "opt opt-correct";
+              else if (isPicked) cls = "opt opt-wrong";
+              else cls = "opt opt-disabled";
+            } else if (isPicked) {
+              cls = "opt opt-selected";
+            }
+            return (
+              <li key={c.id}>
+                <button
+                  onClick={() => preview(c.id)}
+                  disabled={submitted}
+                  className={`${cls} w-full thai-big text-2xl py-3`}
+                >
+                  {c.letter}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {submitted && (
+          <div className={`feedback ${correctChosen ? "feedback-ok" : "feedback-bad"} animate-pop mt-4`}>
+            {correctChosen ? "✅ 正确" : "❌ 答案"}：<span className="thai-big text-2xl">{q.target.letter}</span>
+            <span className="ml-2 opacity-80">{q.target.name} · {q.target.meaning}</span>
+          </div>
+        )}
+      </div>
+      <div className="shrink-0">
+        {!submitted ? (
+          <button
+            onClick={confirm}
+            disabled={!picked}
+            className="btn-primary w-full"
+          >
+            确认
+          </button>
+        ) : (
+          <div className="flex justify-end">
+            <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -329,56 +343,62 @@ function ModeBVowel() {
   const correctChosen = submitted && !!picked && q.correctIds.has(picked);
 
   return (
-    <div className="space-y-4">
-      <div className="card-soft p-7 flex flex-col items-center">
-        <div className="text-xs opacity-60 mb-2">哪个元音读:</div>
-        <div className="text-4xl font-mono">{q.target.roman}</div>
-        <div className="text-xs opacity-60 mt-2">点击元音听读音 · 确认后提交</div>
+    <div className="flex flex-col gap-4 h-full">
+      <div className="shrink-0">
+        <div className="card-soft p-7 flex flex-col items-center">
+          <div className="text-xs opacity-60 mb-2">哪个元音读:</div>
+          <div className="text-4xl font-mono">{q.target.roman}</div>
+          <div className="text-xs opacity-60 mt-2">点击元音听读音 · 确认后提交</div>
+        </div>
       </div>
-      <ul className="grid grid-cols-2 gap-2">
-        {q.choices.map((c) => {
-          const isPicked = picked === c.id;
-          const isCorrect = q.correctIds.has(c.id);
-          let cls = "opt";
-          if (submitted) {
-            if (isCorrect) cls = "opt opt-correct";
-            else if (isPicked) cls = "opt opt-wrong";
-            else cls = "opt opt-disabled";
-          } else if (isPicked) {
-            cls = "opt opt-selected";
-          }
-          return (
-            <li key={c.id}>
-              <button
-                onClick={() => preview(c.id)}
-                disabled={submitted}
-                className={`${cls} w-full thai-big text-2xl`}
-              >
-                {c.display}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      {!submitted ? (
-        <button
-          onClick={confirm}
-          disabled={!picked}
-          className="btn-primary w-full"
-        >
-          确认
-        </button>
-      ) : (
-        <div className="flex items-center justify-between text-sm">
-          <span className="opacity-70">{streak.ok} / {streak.total}</span>
-          <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
-        </div>
-      )}
-      {submitted && (
-        <div className={`feedback ${correctChosen ? "feedback-ok" : "feedback-bad"} animate-pop`}>
-          {correctChosen ? "✅ 正确" : "❌ 答案"}：<span className="thai-big text-2xl">{q.target.display}</span>
-        </div>
-      )}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <ul className="grid grid-cols-2 gap-2">
+          {q.choices.map((c) => {
+            const isPicked = picked === c.id;
+            const isCorrect = q.correctIds.has(c.id);
+            let cls = "opt";
+            if (submitted) {
+              if (isCorrect) cls = "opt opt-correct";
+              else if (isPicked) cls = "opt opt-wrong";
+              else cls = "opt opt-disabled";
+            } else if (isPicked) {
+              cls = "opt opt-selected";
+            }
+            return (
+              <li key={c.id}>
+                <button
+                  onClick={() => preview(c.id)}
+                  disabled={submitted}
+                  className={`${cls} w-full thai-big text-2xl`}
+                >
+                  {c.display}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {submitted && (
+          <div className={`feedback ${correctChosen ? "feedback-ok" : "feedback-bad"} animate-pop mt-4`}>
+            {correctChosen ? "✅ 正确" : "❌ 答案"}：<span className="thai-big text-2xl">{q.target.display}</span>
+          </div>
+        )}
+      </div>
+      <div className="shrink-0">
+        {!submitted ? (
+          <button
+            onClick={confirm}
+            disabled={!picked}
+            className="btn-primary w-full"
+          >
+            确认
+          </button>
+        ) : (
+          <div className="flex items-center justify-between text-sm">
+            <span className="opacity-70">{streak.ok} / {streak.total}</span>
+            <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

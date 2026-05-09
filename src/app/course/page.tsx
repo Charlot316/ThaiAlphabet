@@ -208,71 +208,75 @@ export default function CoursePage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full flex-col gap-4">
       {/* 顶部：进度条 + 重置 */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={resetProgress}
-          className="text-xl opacity-50 hover:opacity-100"
-          aria-label="重置进度"
-          title="重置熟练度"
-        >
-          ✕
-        </button>
-        <div className="progress-track flex-1">
-          <div className="progress-fill" style={{ width: `${lessonProgress}%` }} />
-        </div>
-      </div>
-
-      {/* 总进度 chip */}
-      <div className="card-soft p-3 text-xs">
-        <div className="flex items-center justify-between">
-          <span className="opacity-70">总熟练度</span>
-          <span className="font-extrabold">{mastered} / {allConsonants.length}</span>
-        </div>
-        <div className="progress-track mt-2" style={{ height: "8px" }}>
-          <div
-            className="progress-fill"
-            style={{ width: `${(mastered / allConsonants.length) * 100}%`, background: "linear-gradient(180deg, #ffe066, var(--duo-yellow))" }}
-          />
-        </div>
-        <div className="mt-2 thai-big opacity-80">
-          本轮: {lessonItems.map((item) => item.front).join(" ")}
-        </div>
-      </div>
-
-      {/* 主题 */}
-      {complete ? (
-        <section className="card-soft p-7 text-center animate-pop">
-          <div className="text-6xl">🎉</div>
-          <div className="mt-3 text-xl font-extrabold" style={{ color: "var(--duo-green)" }}>
-            本轮完成！
-          </div>
-          <div className="mt-1 text-sm opacity-70">
-            答对 {correctCount} / {questions.length}
-          </div>
-          <button onClick={() => startLesson()} className="btn-primary mt-5 px-6">
-            再来一轮
+      <div className="shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={resetProgress}
+            className="text-xl opacity-50 hover:opacity-100"
+            aria-label="重置进度"
+            title="重置熟练度"
+          >
+            ✕
           </button>
-        </section>
-      ) : current ? (
-        <QuestionCard
-          question={current}
-          picked={picked}
-          submitted={submitted}
-          progress={progress}
-          feedback={feedback}
-          praise={praise}
-          onAnswerSound={answerSound}
-          onPreviewLetter={previewLetter}
-          onConfirmLetter={confirmLetter}
-          onNext={next}
-          onLooked={markLooked}
-          onWrote={markWrote}
-        />
-      ) : (
-        <section className="card-soft p-6 text-center text-sm opacity-70">正在生成课程...</section>
-      )}
+          <div className="progress-track flex-1">
+            <div className="progress-fill" style={{ width: `${lessonProgress}%` }} />
+          </div>
+        </div>
+
+        {/* 总进度 chip */}
+        <div className="card-soft mt-4 p-3 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="opacity-70">总熟练度</span>
+            <span className="font-extrabold">{mastered} / {allConsonants.length}</span>
+          </div>
+          <div className="progress-track mt-2" style={{ height: "8px" }}>
+            <div
+              className="progress-fill"
+              style={{ width: `${(mastered / allConsonants.length) * 100}%`, background: "linear-gradient(180deg, #ffe066, var(--duo-yellow))" }}
+            />
+          </div>
+          <div className="mt-2 thai-big opacity-80">
+            本轮: {lessonItems.map((item) => item.front).join(" ")}
+          </div>
+        </div>
+      </div>
+
+      {/* 中间：主要内容 */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {complete ? (
+          <section className="card-soft p-7 text-center animate-pop">
+            <div className="text-6xl">🎉</div>
+            <div className="mt-3 text-xl font-extrabold" style={{ color: "var(--duo-green)" }}>
+              本轮完成！
+            </div>
+            <div className="mt-1 text-sm opacity-70">
+              答对 {correctCount} / {questions.length}
+            </div>
+            <button onClick={() => startLesson()} className="btn-primary mt-5 px-6">
+              再来一轮
+            </button>
+          </section>
+        ) : current ? (
+          <QuestionCard
+            question={current}
+            picked={picked}
+            submitted={submitted}
+            progress={progress}
+            feedback={feedback}
+            praise={praise}
+            onAnswerSound={answerSound}
+            onPreviewLetter={previewLetter}
+            onConfirmLetter={confirmLetter}
+            onNext={next}
+            onLooked={markLooked}
+            onWrote={markWrote}
+          />
+        ) : (
+          <section className="card-soft p-6 text-center text-sm opacity-70">正在生成课程...</section>
+        )}
+      </div>
     </div>
   );
 }
