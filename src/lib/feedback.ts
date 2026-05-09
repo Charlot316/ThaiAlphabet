@@ -132,3 +132,48 @@ export function feedbackTap() {
   ]);
   vibrate(8);
 }
+
+/** 配对成功：明亮的双音叮咚 */
+export function feedbackMatch() {
+  playSequence([
+    { freq: 880, duration: 80, startAt: 0, type: "triangle", gain: 0.16 },
+    { freq: 1318, duration: 140, startAt: 0.06, type: "triangle", gain: 0.18 },
+  ]);
+  vibrate([10, 10, 10]);
+}
+
+/** 配对失败：低沉短促 */
+export function feedbackMismatch() {
+  playSequence([
+    { freq: 196, duration: 90, startAt: 0, type: "square", gain: 0.13 },
+    { freq: 147, duration: 140, startAt: 0.05, type: "square", gain: 0.12 },
+  ]);
+  vibrate([25, 25]);
+}
+
+/** 连击：随等级越高音越亮，可叠出 fanfare 感 */
+export function feedbackCombo(level: number) {
+  const base = 523; // C5
+  const step = Math.min(level, 12);
+  const tones: Tone[] = [];
+  for (let i = 0; i <= Math.min(step, 4); i++) {
+    tones.push({
+      freq: base * Math.pow(2, (step + i) / 12),
+      duration: 80 + i * 20,
+      startAt: i * 0.05,
+      type: "triangle",
+      gain: 0.14 + Math.min(0.06, level * 0.005),
+    });
+  }
+  playSequence(tones);
+  vibrate(12 + Math.min(28, level * 2));
+}
+
+/** 翻面/选择 — 中性的悬念音 */
+export function feedbackReveal() {
+  playSequence([
+    { freq: 392, duration: 70, startAt: 0, type: "sine", gain: 0.12 },
+    { freq: 523, duration: 110, startAt: 0.05, type: "sine", gain: 0.13 },
+  ]);
+  vibrate(10);
+}

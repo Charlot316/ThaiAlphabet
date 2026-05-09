@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PronounceButton from "@/components/PronounceButton";
 import TraceSvg from "@/components/TraceSvg";
 import {
@@ -13,12 +13,29 @@ import {
 import { StudyItem, buildStudyItems, displayRoman, shuffleStrong, uniqueChoices } from "@/lib/study";
 import { markActive } from "@/lib/stats";
 import { speak, warmupVoices } from "@/lib/tts";
-import { feedbackComplete, feedbackCorrect, feedbackTap, feedbackWrong } from "@/lib/feedback";
+import {
+  feedbackCombo,
+  feedbackComplete,
+  feedbackCorrect,
+  feedbackMatch,
+  feedbackMismatch,
+  feedbackReveal,
+  feedbackTap,
+  feedbackWrong,
+} from "@/lib/feedback";
 
 const LAST_LESSON_KEY = "thai-alphabet:last-lesson:v1";
 const LESSON_SIZE = 6;
 
-type QuestionKind = "sound" | "letter" | "look" | "write";
+type QuestionKind =
+  | "sound"
+  | "letter"
+  | "sound-blind"
+  | "letter-blind"
+  | "look"
+  | "write"
+  | "match"
+  | "memory";
 
 interface Question {
   id: string;
@@ -51,9 +68,9 @@ function pickLessonItems(items: StudyItem[], progress: MasteryProgress): StudyIt
 }
 
 function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Question[] {
-  // 每个音 7 题：1 look + 2 sound + 2 letter + 2 write。
-  // 'look' 总是放在该音的第一题（介绍），剩余 6 题随机排列；
-  // 然后用 round-robin 把不同音的题穿插，避免同一个音的题连续出现。
+  // 每个音 8 题：1 look (介绍) + 1 sound + 1 letter + 1 sound-blind +
+  // 1 letter-blind + 2 write + 1 memory。看一眼放在最前作为介绍，剩下用
+  // round-robin 跨音穿插。最后再加 1 道 match 大题覆盖本轮所有字母。
   const perItem = lessonItems.map((item) => {
     const introduction: Question = {
       id: `${item.id}:look`,
@@ -63,31 +80,32 @@ function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Questi
     };
     const drills: Question[] = shuffleStrong([
       {
-        id: `${item.id}:sound:1`,
+        id: `${item.id}:sound`,
         kind: "sound",
         item,
         choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
       },
       {
-        id: `${item.id}:sound:2`,
-        kind: "sound",
-        item,
-        choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
-      },
-      {
-        id: `${item.id}:letter:1`,
+        id: `${item.id}:letter`,
         kind: "letter",
         item,
         choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
       },
       {
-        id: `${item.id}:letter:2`,
-        kind: "letter",
+        id: `${item.id}:sound-blind`,
+        kind: "sound-blind",
+        item,
+        choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
+      },
+      {
+        id: `${item.id}:letter-blind`,
+        kind: "letter-blind",
         item,
         choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
       },
       { id: `${item.id}:write:1`, kind: "write", item, choices: [item] },
       { id: `${item.id}:write:2`, kind: "write", item, choices: [item] },
+      { id: `${item.id}:memory`, kind: "memory", item, choices: [item] },
     ]);
     return { introduction, drills };
   });
@@ -110,6 +128,14 @@ function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Questi
     }
     result.push(...shuffled);
   }
+
+  // 末尾追加 1 道配对题，把本轮所有字母放在一起练习
+  result.push({
+    id: `match:${Date.now()}`,
+    kind: "match",
+    item: lessonItems[0],
+    choices: lessonItems,
+  });
 
   return result;
 }
@@ -252,6 +278,64 @@ export default function CoursePage() {
     setIndex((v) => v + 1);
   }
 
+  // sound-blind / letter-blind：点选项即结算（不预览、不提示）
+  function answerBlind(id: string) {
+    if (!current || submitted) return;
+    setPicked(id);
+    setSubmitted(true);
+    const ok = id === current.item.id;
+    if (ok) {
+      gainMastery(current.item.id, 1);
+      setCorrectCount((v) => v + 1);
+      setFeedback("ok");
+      setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+      markActive();
+      feedbackCorrect();
+      speak(current.item.speak);
+    } else {
+      setProgress(applyWrongAnswer(current.item.id, id));
+      setFeedback("bad");
+      feedbackWrong();
+      queueReplay(current);
+    }
+  }
+
+  // memory: 选 不认识 / 模糊 / 认识。中途点 "听音" 算偷看 → 结果只能算"模糊"或更差。
+  // grade: 1=不认识, 2=模糊, 3=认识
+  function answerMemory(grade: number, peeked: boolean) {
+    if (!current || submitted) return;
+    setSubmitted(true);
+    const effective = peeked ? Math.min(grade, 2) : grade;
+    if (effective >= 3) {
+      gainMastery(current.item.id, 1);
+      setCorrectCount((v) => v + 1);
+      setFeedback("ok");
+      setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+      markActive();
+      feedbackCorrect();
+    } else if (effective === 2) {
+      setFeedback("bad");
+      feedbackTap();
+      queueReplay(current);
+    } else {
+      setProgress(applyWrongAnswer(current.item.id, current.item.id));
+      setFeedback("bad");
+      feedbackWrong();
+      queueReplay(current);
+    }
+  }
+
+  function completeMatch() {
+    if (!current || submitted) return;
+    setSubmitted(true);
+    setCorrectCount((v) => v + 1);
+    for (const item of current.choices) gainMastery(item.id, 1);
+    setFeedback("ok");
+    setPraise("全部配对成功！");
+    markActive();
+    feedbackComplete();
+  }
+
   function markLooked() {
     if (!current) return;
     gainMastery(current.item.id, 1);
@@ -322,6 +406,9 @@ export default function CoursePage() {
             onAnswerSound={answerSound}
             onPreviewLetter={previewLetter}
             onConfirmLetter={confirmLetter}
+            onAnswerBlind={answerBlind}
+            onAnswerMemory={answerMemory}
+            onCompleteMatch={completeMatch}
             onNext={next}
             onLooked={markLooked}
             onWrote={markWrote}
@@ -345,6 +432,9 @@ function QuestionCard({
   onAnswerSound,
   onPreviewLetter,
   onConfirmLetter,
+  onAnswerBlind,
+  onAnswerMemory,
+  onCompleteMatch,
   onNext,
   onLooked,
   onWrote,
@@ -359,6 +449,9 @@ function QuestionCard({
   onAnswerSound: (id: string) => void;
   onPreviewLetter: (id: string) => void;
   onConfirmLetter: () => void;
+  onAnswerBlind: (id: string) => void;
+  onAnswerMemory: (grade: number, peeked: boolean) => void;
+  onCompleteMatch: () => void;
   onNext: () => void;
   onLooked: () => void;
   onWrote: () => void;
@@ -431,27 +524,63 @@ function QuestionCard({
     );
   }
 
+  if (question.kind === "match") {
+    return <MatchCard question={question} submitted={submitted} onComplete={onCompleteMatch} onNext={onNext} />;
+  }
+
+  if (question.kind === "memory") {
+    return (
+      <MemoryCard
+        question={question}
+        submitted={submitted}
+        feedback={feedback}
+        praise={praise}
+        onGrade={onAnswerMemory}
+        onNext={onNext}
+      />
+    );
+  }
+
   const roman = displayRoman(question.item.roman);
-  const prompt = question.kind === "sound" ? "这个字母读什么？" : `哪个字母读 ${roman}？`;
+  const isBlind = question.kind === "sound-blind" || question.kind === "letter-blind";
+  const isSoundLike = question.kind === "sound" || question.kind === "sound-blind";
+  const prompt = isSoundLike
+    ? question.kind === "sound-blind"
+      ? "这个字母读什么？(无提示)"
+      : "这个字母读什么？"
+    : question.kind === "letter-blind"
+    ? `哪个字母读 ${roman}？(无提示)`
+    : `哪个字母读 ${roman}？`;
   const correctAnswered = submitted && picked === question.item.id;
-  const isLetterKind = question.kind === "letter";
+  const isLetterKind = question.kind === "letter"; // 只有非 blind 版才用 preview/confirm 流程
+
+  const onPick = (choiceId: string) => {
+    if (isBlind) onAnswerBlind(choiceId);
+    else if (isLetterKind) onPreviewLetter(choiceId);
+    else onAnswerSound(choiceId);
+  };
 
   return (
     <section className="space-y-4">
       <div className={`card-soft p-6 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
         <div className="chip chip-blue">{prompt}</div>
-        {question.kind === "sound" ? (
+        {isSoundLike ? (
           <div className="thai-big mt-5 text-8xl leading-none">{question.item.front}</div>
         ) : (
           <div className="mt-5 text-5xl font-mono font-extrabold" style={{ color: "var(--duo-blue)" }}>
             {roman}
           </div>
         )}
-        <div className="mt-4">
-          <PronounceButton text={question.item.speak} label="🔊 听" />
-        </div>
+        {(!isBlind || submitted) && (
+          <div className="mt-4">
+            <PronounceButton text={question.item.speak} label="🔊 听" />
+          </div>
+        )}
         {isLetterKind && !submitted && (
           <div className="mt-3 text-[11px] opacity-60">点击字母可听读音，确认后提交</div>
+        )}
+        {isBlind && !submitted && (
+          <div className="mt-3 text-[11px] opacity-60">无提示模式 · 点击选项即结算</div>
         )}
       </div>
 
@@ -470,19 +599,20 @@ function QuestionCard({
           return (
             <li key={choice.id}>
               <button
-                onClick={() =>
-                  isLetterKind ? onPreviewLetter(choice.id) : onAnswerSound(choice.id)
-                }
+                onClick={() => onPick(choice.id)}
                 disabled={submitted}
                 className={`${cls} min-h-[72px]`}
               >
-                {question.kind === "sound" ? (
+                {isSoundLike ? (
                   <span className="flex flex-col items-center gap-1">
                     <span className="font-mono text-xl">{displayRoman(choice.roman)}</span>
-                    {submitted && (
+                    {submitted && !isBlind && (
                       <span className="thai-big text-xs opacity-70">
                         {(romanGroups[displayRoman(choice.roman)] ?? [choice]).map((item) => item.front).join(" ")}
                       </span>
+                    )}
+                    {submitted && isBlind && (
+                      <span className="thai-big text-xs opacity-70">{choice.front}</span>
                     )}
                   </span>
                 ) : (
@@ -529,6 +659,197 @@ function QuestionCard({
             >
               继续
             </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// 配对题：左列 thai 字母 / 右列 罗马音，点一边再点另一边尝试配对
+function MatchCard({
+  question,
+  submitted,
+  onComplete,
+  onNext,
+}: {
+  question: Question;
+  submitted: boolean;
+  onComplete: () => void;
+  onNext: () => void;
+}) {
+  const items = question.choices;
+  const [leftOrder] = useState(() => shuffleStrong(items));
+  const [rightOrder] = useState(() => shuffleStrong(items));
+  const [matched, setMatched] = useState<Set<string>>(new Set());
+  const [pickedLeft, setPickedLeft] = useState<string | null>(null);
+  const [pickedRight, setPickedRight] = useState<string | null>(null);
+  const [streak, setStreak] = useState(0);
+  const [flash, setFlash] = useState<"ok" | "bad" | null>(null);
+  const completedRef = useRef(false);
+
+  const tryMatch = (leftId: string | null, rightId: string | null) => {
+    if (!leftId || !rightId) return;
+    if (leftId === rightId) {
+      setMatched((s) => {
+        const next = new Set(s);
+        next.add(leftId);
+        return next;
+      });
+      const newStreak = streak + 1;
+      setStreak(newStreak);
+      setFlash("ok");
+      if (newStreak >= 2) feedbackCombo(newStreak);
+      else feedbackMatch();
+      setTimeout(() => setFlash(null), 250);
+    } else {
+      setStreak(0);
+      setFlash("bad");
+      feedbackMismatch();
+      setTimeout(() => setFlash(null), 350);
+    }
+    setPickedLeft(null);
+    setPickedRight(null);
+  };
+
+  const onLeft = (id: string) => {
+    if (submitted || matched.has(id)) return;
+    feedbackTap();
+    if (pickedRight) {
+      tryMatch(id, pickedRight);
+    } else {
+      setPickedLeft(pickedLeft === id ? null : id);
+    }
+  };
+  const onRight = (id: string) => {
+    if (submitted || matched.has(id)) return;
+    feedbackTap();
+    if (pickedLeft) {
+      tryMatch(pickedLeft, id);
+    } else {
+      setPickedRight(pickedRight === id ? null : id);
+    }
+  };
+
+  useEffect(() => {
+    if (matched.size === items.length && !completedRef.current) {
+      completedRef.current = true;
+      onComplete();
+    }
+  }, [matched, items.length, onComplete]);
+
+  return (
+    <section className={`space-y-4 ${flash === "bad" ? "animate-shake" : ""}`}>
+      <div className="card-soft p-5 text-center">
+        <div className="chip chip-yellow">配对 · 把字母和读音连起来</div>
+        <div className="mt-3 flex items-center justify-center gap-3 text-sm">
+          <span className="opacity-70">已配对 {matched.size} / {items.length}</span>
+          {streak >= 2 && (
+            <span className="font-extrabold animate-pop" style={{ color: "var(--duo-orange)" }}>
+              连击 ×{streak} 🔥
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <ul className="space-y-2">
+          {leftOrder.map((it) => {
+            const ok = matched.has(it.id);
+            const isPicked = pickedLeft === it.id;
+            const cls = ok ? "opt opt-correct" : isPicked ? "opt opt-selected" : "opt";
+            return (
+              <li key={`L-${it.id}`}>
+                <button onClick={() => onLeft(it.id)} disabled={ok} className={`${cls} thai-big text-3xl min-h-[64px]`}>
+                  {it.front}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <ul className="space-y-2">
+          {rightOrder.map((it) => {
+            const ok = matched.has(it.id);
+            const isPicked = pickedRight === it.id;
+            const cls = ok ? "opt opt-correct" : isPicked ? "opt opt-selected" : "opt";
+            return (
+              <li key={`R-${it.id}`}>
+                <button onClick={() => onRight(it.id)} disabled={ok} className={`${cls} font-mono text-base min-h-[64px]`}>
+                  {displayRoman(it.roman)}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      {submitted && (
+        <div className="feedback feedback-ok animate-pop">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-base">🎉 全部配对成功！</div>
+            <button onClick={onNext} className="btn-primary px-5">继续</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// 记忆模式：题干（front）只显示字符，必须按 不认识/模糊/认识 才出答案。
+// 提前点击 🔊 偷听音 → 算"模糊"为上限。
+function MemoryCard({
+  question,
+  submitted,
+  feedback,
+  praise,
+  onGrade,
+  onNext,
+}: {
+  question: Question;
+  submitted: boolean;
+  feedback: "ok" | "bad" | null;
+  praise: string;
+  onGrade: (grade: number, peeked: boolean) => void;
+  onNext: () => void;
+}) {
+  const [peeked, setPeeked] = useState(false);
+  return (
+    <section className="space-y-4">
+      <div className={`card-soft p-7 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
+        <div className="chip chip-low">记忆 · 不偷看答案</div>
+        <div className="thai-big mt-5 text-8xl leading-none">{question.item.front}</div>
+        {!submitted && (
+          <button
+            onClick={() => {
+              setPeeked(true);
+              feedbackReveal();
+              speak(question.item.speak);
+            }}
+            className="btn-ghost mt-5 px-5 text-xs"
+          >
+            🔊 偷听一下（会按&ldquo;模糊&rdquo;封顶）
+          </button>
+        )}
+        {submitted && (
+          <div className="mt-5 space-y-1">
+            <div className="text-2xl font-extrabold" style={{ color: "var(--duo-blue)" }}>
+              {displayRoman(question.item.roman)}
+            </div>
+            {question.item.name && <div className="thai-big text-base opacity-80">{question.item.name}</div>}
+            <div className="font-mono text-xs opacity-70">🔊 应念: {question.item.phonetic}</div>
+            <div className="mt-2"><PronounceButton text={question.item.speak} label="🔊 听" /></div>
+          </div>
+        )}
+      </div>
+      {!submitted ? (
+        <div className="grid grid-cols-3 gap-2">
+          <button onClick={() => onGrade(1, peeked)} className="btn-red text-sm">不认识</button>
+          <button onClick={() => onGrade(2, peeked)} className="btn-orange text-sm">模糊</button>
+          <button onClick={() => onGrade(3, peeked)} className="btn-primary text-sm">认识 ✓</button>
+        </div>
+      ) : (
+        <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-base">{feedback === "ok" ? `${praise || "答对了！"}` : "再试试看！"}</div>
+            <button onClick={onNext} className={feedback === "ok" ? "btn-primary px-5" : "btn-red px-5"}>继续</button>
           </div>
         </div>
       )}

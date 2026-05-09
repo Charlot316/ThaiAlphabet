@@ -6,7 +6,8 @@ import PronounceButton from "@/components/PronounceButton";
 import { Grade, SrsCard, dueCards, loadDeck, newCard, review, saveDeck } from "@/lib/srs";
 import { addMastery } from "@/lib/mastery";
 import { consonantPhonetic, consonantSpeak, displayRoman, vowelPhonetic, vowelSpeak } from "@/lib/study";
-import { feedbackCorrect, feedbackTap, feedbackWrong } from "@/lib/feedback";
+import { feedbackCorrect, feedbackReveal, feedbackTap, feedbackWrong } from "@/lib/feedback";
+import { speak } from "@/lib/tts";
 
 const DECK_KEY = "thai-alphabet:srs:v1";
 
@@ -37,7 +38,7 @@ export default function SrsPage() {
   const itemById = useMemo(() => Object.fromEntries(items.map((i) => [i.id, i])), [items]);
   const [pool, setPool] = useState<Pool>("consonant");
   const [deck, setDeck] = useState<SrsCard[]>([]);
-  const [show, setShow] = useState(false);
+  const [peeked, setPeeked] = useState(false);
 
   useEffect(() => {
     const stored = loadDeck(DECK_KEY);
@@ -65,18 +66,20 @@ export default function SrsPage() {
 
   function grade(g: Grade) {
     if (!current) return;
-    const updated = review(current, g);
-    if (g === "good") {
+    // 偷听过 → 即便选"认识"也按"模糊"降级
+    const effective: Grade = peeked && g === "good" ? "hard" : g;
+    const updated = review(current, effective);
+    if (effective === "good") {
       addMastery(current.id, 1);
       feedbackCorrect();
-    } else if (g === "again") {
+    } else if (effective === "again") {
       addMastery(current.id, -1);
       feedbackWrong();
     } else {
       feedbackTap();
     }
     setDeck((d) => d.map((c) => (c.id === current.id ? updated : c)));
-    setShow(false);
+    setPeeked(false);
   }
 
   return (
@@ -114,28 +117,42 @@ export default function SrsPage() {
       ) : (
         <>
           <div className="card-soft animate-pop flex flex-col items-center p-8">
-            <div className="chip chip-blue">复习</div>
+            <div className="chip chip-low">记忆 · 不偷看答案</div>
             <div className="thai-big mt-4 text-8xl leading-none">{item.front}</div>
-            <div className="mt-3 font-mono text-xs" style={{ color: "var(--duo-blue)" }}>
-              🔊 应念: {item.phonetic}
-            </div>
-            <div className="mt-3"><PronounceButton text={item.speak} label="🔊 听一下" /></div>
-            <button className="btn-ghost mt-5 px-5" onClick={() => setShow((s) => !s)}>
-              {show ? "隐藏答案" : "显示答案"}
-            </button>
-            {show && (
-              <div className="mt-4 rounded-2xl px-4 py-2 text-center text-sm font-bold animate-pop"
-                   style={{ background: "rgba(28,176,246,0.1)", color: "var(--duo-blue)" }}>
-                {item.back}
+            {!peeked ? (
+              <button
+                className="btn-ghost mt-5 px-5 text-xs"
+                onClick={() => {
+                  setPeeked(true);
+                  feedbackReveal();
+                  speak(item.speak);
+                }}
+              >
+                🔊 偷听一下（&ldquo;认识&rdquo; 会被降为 &ldquo;模糊&rdquo;）
+              </button>
+            ) : (
+              <div className="mt-5 space-y-1 text-center">
+                <div className="font-mono text-sm" style={{ color: "var(--duo-blue)" }}>
+                  🔊 应念: {item.phonetic}
+                </div>
+                <div><PronounceButton text={item.speak} label="🔊 再听" /></div>
               </div>
             )}
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <button onClick={() => grade("again")} className="btn-red">不知道</button>
+            <button onClick={() => grade("again")} className="btn-red">不认识</button>
             <button onClick={() => grade("hard")} className="btn-orange">模糊</button>
-            <button onClick={() => grade("good")} className="btn-primary">知道 ✓</button>
+            <button onClick={() => grade("good")} className="btn-primary" disabled={peeked}>
+              {peeked ? "认识 (已封顶)" : "认识 ✓"}
+            </button>
           </div>
+          {peeked && (
+            <div className="mt-3 rounded-2xl px-4 py-2 text-center text-sm font-bold animate-pop"
+                 style={{ background: "rgba(28,176,246,0.1)", color: "var(--duo-blue)" }}>
+              {item.back}
+            </div>
+          )}
         </>
       )}
     </div>

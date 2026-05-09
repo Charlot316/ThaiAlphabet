@@ -7,8 +7,9 @@ const TABS = [
   { href: "/", icon: "🏠", label: "首页" },
   { href: "/overview", icon: "📚", label: "总览" },
   { href: "/course", icon: "🎯", label: "课程" },
-  { href: "/flashcards", icon: "⚡", label: "速看" },
+  { href: "/endless-match", icon: "🎮", label: "配对" },
   { href: "/srs", icon: "🧠", label: "记忆" },
+  { href: "/flashcards", icon: "⚡", label: "速看" },
   { href: "/spell", icon: "🔤", label: "拼读" },
 ];
 
@@ -55,7 +56,7 @@ export default function Nav() {
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
-        <ul className="mx-auto grid max-w-2xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl grid-cols-6">
+        <ul className="mx-auto grid max-w-2xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl grid-cols-7">
           {TABS.map((t) => {
             const active = pathname === t.href || (t.href !== "/" && pathname?.startsWith(t.href));
             return (

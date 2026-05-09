@@ -11,10 +11,11 @@ interface ModeCard {
 }
 
 const MODES: ModeCard[] = [
-  { href: "/course", emoji: "🎯", title: "小课程", desc: "辅音 / 元音混合题型", color: "green", preview: "ก ข ค ง" },
+  { href: "/course", emoji: "🎯", title: "小课程", desc: "看 / 听 / 写 / 配对 混合", color: "green", preview: "ก ข ค ง" },
+  { href: "/endless-match", emoji: "🎮", title: "无尽配对", desc: "字母 ↔ 罗马音 连击", color: "orange", preview: "🔥 streak" },
+  { href: "/srs", emoji: "🧠", title: "记忆模式", desc: "不偷看 · 认识 / 模糊 / 不认识", color: "yellow", preview: "1 → 5 → 25 m" },
   { href: "/flashcards", emoji: "⚡", title: "Flashcard 速看", desc: "随机洗牌，直接看答案", color: "blue", preview: "ABC" },
   { href: "/overview", emoji: "📚", title: "字母总览", desc: "44 辅音 / 元音 / 声调", color: "purple", preview: "ก…ฮ" },
-  { href: "/srs", emoji: "🧠", title: "Anki 记忆", desc: "知道 / 模糊 / 不知道", color: "yellow", preview: "1 → 5 → 25 m" },
   { href: "/spell", emoji: "🔤", title: "拼读输入", desc: "音节解析 + 声调推导", color: "green", preview: "กา → kaa" },
 ];
 
