@@ -13,8 +13,16 @@ import { markActive } from "@/lib/stats";
 import { recordOutcome } from "@/lib/mastery";
 
 const SLOT_COUNT = 5; // 同时显示几对（左右各 SLOT_COUNT 张）
-const REFILL_THRESHOLD = SLOT_COUNT + 2; // 队列剩多少时再洗一池补进来
+const REFILL_THRESHOLD = SLOT_COUNT + 2;
+const MIN_MATCHABLE = 2; // 任何时候至少保证 N 对可配（不能让用户卡死等）
 const BEST_KEY = "thai-alphabet:endless-match:best";
+
+interface BoardState {
+  leftSlots: (StudyItem | null)[];
+  rightSlots: (StudyItem | null)[];
+  leftQueue: StudyItem[];
+  rightQueue: StudyItem[];
+}
 
 function loadBest(): number {
   if (typeof window === "undefined") return 0;
@@ -33,23 +41,64 @@ function saveBest(v: number) {
   }
 }
 
-// 把 queue 排到只剩 SLOT_COUNT 之内的去重池里。
-// 注意左右两边各自有一份独立 shuffled 队列，所以一个字母在左和右
-// 出现的时机会错开 — 可能新进左的 X 暂时在右边还没对应项，得再等几对。
 function ensureBuffered(queue: StudyItem[], pool: StudyItem[]): StudyItem[] {
   if (queue.length >= REFILL_THRESHOLD) return queue;
-  // 把整池再洗一次塞到末尾，避免立刻重复同个字母
-  const next = shuffleStrong(pool);
-  return [...queue, ...next];
+  return [...queue, ...shuffleStrong(pool)];
+}
+
+// 当前 active 槽中"已在另一侧出现"的字母数 = 立刻可配对的对数
+function matchableCount(thisSlots: (StudyItem | null)[], otherSlots: (StudyItem | null)[]): number {
+  const otherIds = new Set(otherSlots.filter(Boolean).map((s) => (s as StudyItem).id));
+  let count = 0;
+  for (const s of thisSlots) {
+    if (s && otherIds.has(s.id)) count++;
+  }
+  return count;
+}
+
+// 从 queue 里挑一个补到本侧空槽。
+//   - 当前 matchable < MIN_MATCHABLE 时，强制挑一个其 id 已在 otherSlots 出现、
+//     且不在 thisSlots 出现的项，补上去立马就有得配；
+//   - 否则尽量挑"本侧没出现过的字母"（避免左侧两个一样），按队头顺序。
+// 返回挑出的项 + 处理后的 queue。
+function pickReplenishment(
+  queue: StudyItem[],
+  thisSlots: (StudyItem | null)[],
+  otherSlots: (StudyItem | null)[]
+): { item: StudyItem | null; queue: StudyItem[] } {
+  if (queue.length === 0) return { item: null, queue };
+  const otherIds = new Set(otherSlots.filter(Boolean).map((s) => (s as StudyItem).id));
+  const thisIds = new Set(thisSlots.filter(Boolean).map((s) => (s as StudyItem).id));
+  const matchable = matchableCount(thisSlots, otherSlots);
+
+  // 候选 1：能立刻配对（在另一侧、不在本侧）
+  const idxMatchable = queue.findIndex((it) => otherIds.has(it.id) && !thisIds.has(it.id));
+  // 候选 2：本侧没出现过（避免重复）
+  const idxFresh = queue.findIndex((it) => !thisIds.has(it.id));
+
+  let pickedIdx: number;
+  if (matchable < MIN_MATCHABLE && idxMatchable >= 0) {
+    // 卡牌池过少 → 强制可配
+    pickedIdx = idxMatchable;
+  } else if (idxFresh >= 0) {
+    pickedIdx = idxFresh;
+  } else {
+    pickedIdx = 0; // 兜底
+  }
+
+  const item = queue[pickedIdx];
+  return { item, queue: [...queue.slice(0, pickedIdx), ...queue.slice(pickedIdx + 1)] };
 }
 
 export default function EndlessMatchPage() {
   const allItems = useMemo(() => buildStudyItems(), []);
 
-  const [leftSlots, setLeftSlots] = useState<(StudyItem | null)[]>([]);
-  const [rightSlots, setRightSlots] = useState<(StudyItem | null)[]>([]);
-  const [leftQueue, setLeftQueue] = useState<StudyItem[]>([]);
-  const [rightQueue, setRightQueue] = useState<StudyItem[]>([]);
+  const [board, setBoard] = useState<BoardState>({
+    leftSlots: [],
+    rightSlots: [],
+    leftQueue: [],
+    rightQueue: [],
+  });
 
   const [pickedLeft, setPickedLeft] = useState<string | null>(null);
   const [pickedRight, setPickedRight] = useState<string | null>(null);
@@ -66,25 +115,34 @@ export default function EndlessMatchPage() {
     setBestStreak(loadBest());
   }, []);
 
-  // 初始化两个独立 shuffled 队列 + 各取 SLOT_COUNT 项填到槽里
+  // 初始化：左右各取一份独立 shuffle 的队列。注意：要让初始 5 对至少有 MIN_MATCHABLE
+  // 对能配对，否则刚进来就盯着等。
   useEffect(() => {
     if (initialized.current || allItems.length === 0) return;
     initialized.current = true;
-    const lq = shuffleStrong(allItems);
-    const rq = shuffleStrong(allItems);
-    setLeftSlots(lq.slice(0, SLOT_COUNT));
-    setRightSlots(rq.slice(0, SLOT_COUNT));
-    setLeftQueue(lq.slice(SLOT_COUNT));
-    setRightQueue(rq.slice(SLOT_COUNT));
+    let lq = shuffleStrong(allItems);
+    let rq = shuffleStrong(allItems);
+    const leftSlots: (StudyItem | null)[] = [];
+    const rightSlots: (StudyItem | null)[] = [];
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      // 左槽：按队头来
+      const lpick = pickReplenishment(lq, leftSlots, rightSlots);
+      leftSlots.push(lpick.item);
+      lq = lpick.queue;
+      // 右槽：用智能挑选保证能配上
+      const rpick = pickReplenishment(rq, rightSlots, leftSlots);
+      rightSlots.push(rpick.item);
+      rq = rpick.queue;
+    }
+    setBoard({ leftSlots, rightSlots, leftQueue: lq, rightQueue: rq });
   }, [allItems]);
 
   function tryMatch(leftIdx: number, rightIdx: number) {
-    const leftItem = leftSlots[leftIdx];
-    const rightItem = rightSlots[rightIdx];
+    const leftItem = board.leftSlots[leftIdx];
+    const rightItem = board.rightSlots[rightIdx];
     if (!leftItem || !rightItem) return;
 
     if (leftItem.id === rightItem.id) {
-      // 配对成功
       const newStreak = streak + 1;
       setStreak(newStreak);
       setTotalMatched((v) => v + 1);
@@ -100,19 +158,33 @@ export default function EndlessMatchPage() {
       markActive();
       recordOutcome(leftItem.id, "correct", { streak: newStreak });
 
-      // 把这对槽空出来，再各从队列补一个新字母进去（左右独立 → 时机错开）
-      setLeftSlots((slots) => {
-        const next = [...slots];
-        next[leftIdx] = leftQueue[0] ?? null;
-        return next;
+      // 同步重排：先 null 出空位 → 用 pickReplenishment 各补一个新字母 →
+      // ensureBuffered 保证队列不空。一次 setState 完成。
+      setBoard((b) => {
+        const leftAfterClear = [...b.leftSlots];
+        leftAfterClear[leftIdx] = null;
+        const rightAfterClear = [...b.rightSlots];
+        rightAfterClear[rightIdx] = null;
+
+        // 先补左槽（参考 right 现状）
+        const lPick = pickReplenishment(b.leftQueue, leftAfterClear, rightAfterClear);
+        const newLeftSlots = [...leftAfterClear];
+        newLeftSlots[leftIdx] = lPick.item;
+        const newLeftQueue = ensureBuffered(lPick.queue, allItems);
+
+        // 再补右槽（参考新 left 状态）
+        const rPick = pickReplenishment(b.rightQueue, rightAfterClear, newLeftSlots);
+        const newRightSlots = [...rightAfterClear];
+        newRightSlots[rightIdx] = rPick.item;
+        const newRightQueue = ensureBuffered(rPick.queue, allItems);
+
+        return {
+          leftSlots: newLeftSlots,
+          rightSlots: newRightSlots,
+          leftQueue: newLeftQueue,
+          rightQueue: newRightQueue,
+        };
       });
-      setRightSlots((slots) => {
-        const next = [...slots];
-        next[rightIdx] = rightQueue[0] ?? null;
-        return next;
-      });
-      setLeftQueue((q) => ensureBuffered(q.slice(1), allItems));
-      setRightQueue((q) => ensureBuffered(q.slice(1), allItems));
 
       setTimeout(() => {
         setFlash(null);
@@ -136,22 +208,23 @@ export default function EndlessMatchPage() {
   }
 
   function onLeft(idx: number) {
-    const item = leftSlots[idx];
+    const item = board.leftSlots[idx];
     if (!item) return;
     feedbackTap();
     if (pickedRight !== null) {
-      const rightIdx = rightSlots.findIndex((s) => s?.id === pickedRight);
+      const rightIdx = board.rightSlots.findIndex((s) => s?.id === pickedRight);
       if (rightIdx >= 0) tryMatch(idx, rightIdx);
     } else {
       setPickedLeft((p) => (p === item.id ? null : item.id));
     }
   }
+
   function onRight(idx: number) {
-    const item = rightSlots[idx];
+    const item = board.rightSlots[idx];
     if (!item) return;
     feedbackTap();
     if (pickedLeft !== null) {
-      const leftIdx = leftSlots.findIndex((s) => s?.id === pickedLeft);
+      const leftIdx = board.leftSlots.findIndex((s) => s?.id === pickedLeft);
       if (leftIdx >= 0) tryMatch(leftIdx, idx);
     } else {
       setPickedRight((p) => (p === item.id ? null : item.id));
@@ -199,12 +272,12 @@ export default function EndlessMatchPage() {
       </div>
 
       <div className="card-soft p-3 text-center text-xs opacity-70">
-        无尽配对 · 配对一对换一对 · 左右独立洗牌，新出来的可能要等几对才会有对应
+        无尽配对 · 配对一对换一对 · 总会有 ≥ {MIN_MATCHABLE} 对能立即配上
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <ul className="space-y-2">
-          {leftSlots.map((it, idx) => {
+          {board.leftSlots.map((it, idx) => {
             let state: "idle" | "picked" | "ok" | "bad" | "empty" = "idle";
             if (!it) state = "empty";
             else if (flashSlot?.left === idx && flash === "ok") state = "ok";
@@ -224,7 +297,7 @@ export default function EndlessMatchPage() {
           })}
         </ul>
         <ul className="space-y-2">
-          {rightSlots.map((it, idx) => {
+          {board.rightSlots.map((it, idx) => {
             let state: "idle" | "picked" | "ok" | "bad" | "empty" = "idle";
             if (!it) state = "empty";
             else if (flashSlot?.right === idx && flash === "ok") state = "ok";
