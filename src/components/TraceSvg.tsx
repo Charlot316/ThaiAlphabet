@@ -300,13 +300,13 @@ export default function TraceSvg({
     );
   }
 
-  const ballR = vb.w * 0.045;
-  const skeletonStrokeW = vb.w * (constrainToOutline ? 0.027 : 0.018);
-  const trailStrokeW = vb.w * (constrainToOutline ? 0.042 : 0.0275);
+  const ballR = vb.w * 0.028;
+  const skeletonStrokeW = vb.w * (constrainToOutline ? 0.018 : 0.012);
+  const trailStrokeW = vb.w * (constrainToOutline ? 0.025 : 0.018);
 
   return (
-    <div className="space-y-3">
-      <div className="card-soft overflow-hidden p-3">
+    <div className="space-y-2">
+      <div className="card-soft mx-auto max-w-[18rem] overflow-hidden p-2 sm:max-w-[20rem]">
         <svg
           ref={svgRef}
           viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}

@@ -491,25 +491,16 @@ function QuestionCard({
 
   if (question.kind === "write") {
     return (
-      <section className="space-y-3">
-        <div className="card-soft p-5 flex flex-col items-center">
-          <div className="chip chip-blue">书写</div>
-          <div className="thai-big mt-3 text-5xl leading-none">{question.item.front}</div>
-          {question.item.name && (
-            <div className="thai-big mt-2 text-base opacity-80">{question.item.name}</div>
-          )}
-          <div className="mt-2 text-xl font-extrabold" style={{ color: "var(--duo-blue)" }}>
-            {displayRoman(question.item.roman)}
+      <section className="space-y-2">
+        <div className="card-soft flex items-center justify-between gap-3 px-3 py-2">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span className="chip chip-blue">书写</span>
+            <span className="thai-big text-2xl leading-none">{question.item.front}</span>
+            <span className="font-mono text-base font-extrabold" style={{ color: "var(--duo-blue)" }}>
+              {displayRoman(question.item.roman)}
+            </span>
           </div>
-          <div className="mt-1 font-mono text-xs" style={{ color: "var(--duo-blue)" }}>
-            🔊 应念: {question.item.phonetic}
-          </div>
-          <div className="mt-2 text-xs opacity-60">
-            描红：拖小球沿轮廓走 · 熟练度 {mastery} / {MASTERY_TARGET}
-          </div>
-          <div className="mt-2">
-            <PronounceButton text={question.item.speak} label="🔊 听一下" />
-          </div>
+          <PronounceButton text={question.item.speak} label="🔊" />
         </div>
         <TraceSvg
           key={question.id}
@@ -517,9 +508,7 @@ function QuestionCard({
           strokeKey={question.item.id.startsWith("v:") ? question.item.id : undefined}
           onComplete={onWrote}
         />
-        <button onClick={onWrote} className="btn-ghost w-full text-xs">
-          跳过 →
-        </button>
+        <button onClick={onWrote} className="btn-ghost w-full text-xs">跳过 →</button>
       </section>
     );
   }
