@@ -6474,29 +6474,41 @@ function cloneStroke(stroke: Stroke): Stroke {
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 type TargetBox = { x: number; y: number; w: number; h: number };
 
+// Layout reference (vertical bands in the 100x100 slot):
+//   y= 0..20  → marks above (◌ิ ◌ี ◌ึ ◌ื ◌ั ◌ํ)
+//   y=20..80  → consonant body / placeholder, side-by-side vowels
+//   y=80..100 → marks below (◌ุ ◌ู)
+// Marks must end before y=20 / start after y=80 so they don't overlap
+// the placeholder ring.
 const SLOT_COMPONENT_BOX: Record<string, Omit<TargetBox, "x" | "w"> & { wScale: number }> = {
-  "v:placeholder": { y: 31, h: 38, wScale: 0.82 },
-  "v:e-long": { y: 31, h: 36, wScale: 0.58 },
-  "v:ae-long": { y: 34, h: 30, wScale: 0.9 },
-  "v:o-long": { y: 35, h: 30, wScale: 0.72 },
-  "v:ai-maimuan": { y: 34, h: 31, wScale: 0.78 },
-  "v:ai-maimalai": { y: 34, h: 31, wScale: 0.78 },
-  "v:i-short": { y: 24, h: 15, wScale: 0.72 },
-  "v:i-long": { y: 22, h: 18, wScale: 0.72 },
-  "v:ue-short": { y: 22, h: 18, wScale: 0.72 },
-  "v:ue-long": { y: 22, h: 18, wScale: 0.72 },
-  "v:mai-han-akat": { y: 24, h: 16, wScale: 0.65 },
-  "v:mai-kham-mark": { y: 5, h: 18, wScale: 0.62 },
-  "v:u-short": { y: 64, h: 13, wScale: 0.52 },
-  "v:u-long": { y: 64, h: 14, wScale: 0.62 },
-  "v:a-short": { y: 39, h: 24, wScale: 0.58 },
-  "v:a-long": { y: 40, h: 26, wScale: 0.6 },
-  "v:o-letter": { y: 38, h: 30, wScale: 0.76 },
-  "v:yo": { y: 39, h: 26, wScale: 0.66 },
-  "v:wo": { y: 42, h: 18, wScale: 0.62 },
-  "v:mai-kham": { y: 18, h: 62, wScale: 0.7 },
-  "v:rue": { y: 8, h: 82, wScale: 0.8 },
-  "v:lue": { y: 8, h: 82, wScale: 0.8 },
+  "v:placeholder": { y: 22, h: 56, wScale: 0.72 },
+
+  // Side-by-side full-height characters
+  "v:e-long": { y: 22, h: 56, wScale: 0.5 },
+  "v:ae-long": { y: 22, h: 56, wScale: 0.85 },
+  "v:o-long": { y: 22, h: 56, wScale: 0.66 },
+  "v:ai-maimuan": { y: 22, h: 56, wScale: 0.7 },
+  "v:ai-maimalai": { y: 22, h: 56, wScale: 0.7 },
+  "v:o-letter": { y: 22, h: 56, wScale: 0.72 },
+  "v:yo": { y: 22, h: 56, wScale: 0.66 },
+  "v:wo": { y: 30, h: 40, wScale: 0.55 },
+  "v:mai-kham": { y: 22, h: 56, wScale: 0.5 },
+  "v:rue": { y: 8, h: 82, wScale: 0.7 },
+  "v:lue": { y: 8, h: 82, wScale: 0.7 },
+  "v:a-short": { y: 30, h: 40, wScale: 0.5 },
+  "v:a-long": { y: 22, h: 50, wScale: 0.5 },
+
+  // Marks above (must end at y<=20)
+  "v:i-short": { y: 4, h: 14, wScale: 0.32 },
+  "v:i-long": { y: 2, h: 16, wScale: 0.32 },
+  "v:ue-short": { y: 2, h: 16, wScale: 0.36 },
+  "v:ue-long": { y: 2, h: 16, wScale: 0.36 },
+  "v:mai-han-akat": { y: 4, h: 14, wScale: 0.28 },
+  "v:mai-kham-mark": { y: 2, h: 14, wScale: 0.18 },
+
+  // Marks below (must start at y>=80)
+  "v:u-short": { y: 84, h: 12, wScale: 0.26 },
+  "v:u-long": { y: 82, h: 14, wScale: 0.32 },
 };
 
 function componentSlotTarget(componentKey: string, index: number, count: number): TargetBox {
