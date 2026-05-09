@@ -902,6 +902,22 @@ export const LETTER_STROKES: Record<string, LetterStrokes> = {
       }
     ]
   },
+  "v:rue-mark": {
+    "v": 5,
+    "strokes": [
+      {
+        "d": "M 50 55 V 42 C 50 38 46 37 43 39"
+      }
+    ]
+  },
+  "v:lue-mark": {
+    "v": 5,
+    "strokes": [
+      {
+        "d": "M 50 55 V 42 C 50 38 46 37 43 39"
+      }
+    ]
+  },
   "mark:chattawa": {
     "v": 5,
     "strokes": [

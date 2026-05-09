@@ -46,9 +46,9 @@ const VOWEL_ELEMENT_ITEMS: Omit<EditorItem, "kind">[] = [
   { key: "v:ai-maimuan", display: "ใ◌", label: "ai", meaning: "ใ" },
   { key: "v:ai-maimalai", display: "ไ◌", label: "ai", meaning: "ไ" },
   { key: "v:rue", display: "ฤ", label: "rue", meaning: "ฤ" },
-  { key: "v:rue-long", display: "ฤๅ", label: "ruee", meaning: "ฤๅ" },
+  { key: "v:rue-mark", display: "ๅ", label: "rue mark", meaning: "ๅ" },
   { key: "v:lue", display: "ฦ", label: "lue", meaning: "ฦ" },
-  { key: "v:lue-long", display: "ฦๅ", label: "luee", meaning: "ฦๅ" },
+  { key: "v:lue-mark", display: "ๅ", label: "lue mark", meaning: "ๅ" },
 ];
 const EDITABLE_TONE_IDS = new Set(["ek", "tho", "tri", "chattawa"]);
 const EDITABLE_STROKE_KEYS = new Set([
