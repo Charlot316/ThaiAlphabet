@@ -2,9 +2,10 @@
 import { useMemo, useState } from "react";
 import { CONSONANTS, FINAL_GROUPS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
-import { Vowel } from "@/data/types";
+import { Consonant, Vowel } from "@/data/types";
 import { TONE_MARKS, TONE_NAMES } from "@/data/tones";
 import PronounceButton from "@/components/PronounceButton";
+import TraceSvg from "@/components/TraceSvg";
 import { MASTERY_TARGET, clearMastery, resetMastery, useMastery } from "@/lib/mastery";
 import { consonantPhonetic, consonantSpeak, displayRoman, vowelPhonetic, vowelSpeak } from "@/lib/study";
 
@@ -40,6 +41,7 @@ function classTag(cls: string) {
 
 function Consonants() {
   const [filter, setFilter] = useState<"all" | "mid" | "high" | "low">("all");
+  const [selected, setSelected] = useState<Consonant | null>(null);
   const mastery = useMastery();
   const list = useMemo(
     () => CONSONANTS.filter((c) => filter === "all" || c.class === filter),
@@ -53,7 +55,8 @@ function Consonants() {
   }
 
   return (
-    <div className="space-y-3">
+    <>
+      <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
         {(["all", "mid", "high", "low"] as const).map((f) => (
           <button
@@ -74,7 +77,7 @@ function Consonants() {
       </div>
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {list.map((c) => (
-          <li key={c.id} className="card p-3">
+          <li key={c.id} className="card p-3 cursor-pointer transition-transform hover:scale-105" onClick={() => setSelected(c)}>
             {(() => {
               const value = mastery[`c:${c.id}`] || 0;
               const pct = Math.round((value / MASTERY_TARGET) * 100);
@@ -171,7 +174,29 @@ function Consonants() {
           ))}
         </ul>
       </section>
-    </div>
+      </div>
+
+      {selected && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelected(null)}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between p-5 border-b border-black/10 dark:border-white/10">
+              <div className="flex-1">
+                <div className="thai-big text-5xl leading-none mb-2">{selected.letter}</div>
+                <div className="thai-big text-lg opacity-80">{selected.name}</div>
+                <div className="text-sm opacity-60 mt-1">{selected.meaning}</div>
+                <div className="mt-2 text-xs">
+                  初: <b>{displayRoman(selected.romanInitial)}</b> · 尾: <b>{selected.finalSound === "none" ? "无" : selected.finalSound}</b>
+                </div>
+              </div>
+              <button onClick={() => setSelected(null)} className="text-2xl opacity-60 hover:opacity-100">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <TraceSvg key={selected.id} letter={selected.letter} />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -198,6 +223,7 @@ function FontSamples({ letter }: { letter: string }) {
 }
 
 function Vowels() {
+  const [selected, setSelected] = useState<Vowel | null>(null);
   const mastery = useMastery();
   const groups = [
     { key: "monophthong-long", title: "长元音 (单元音)", filter: (v: Vowel) => v.category === "monophthong" && v.length === "long" },
@@ -214,6 +240,7 @@ function Vowels() {
   }
 
   return (
+    <>
     <div className="space-y-4">
       <div className="flex gap-2">
         <button
@@ -229,7 +256,7 @@ function Vowels() {
           <h3 className="font-semibold text-sm opacity-80">{g.title}</h3>
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {VOWELS.filter(g.filter).map((v) => (
-              <li key={v.id} className="card p-3">
+              <li key={v.id} className="card p-3 cursor-pointer transition-transform hover:scale-105" onClick={() => setSelected(v)}>
                 {(() => {
                   const value = mastery[`v:${v.id}`] || 0;
                   const pct = Math.round((value / MASTERY_TARGET) * 100);
@@ -275,6 +302,25 @@ function Vowels() {
         </section>
       ))}
     </div>
+
+    {selected && (
+      <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelected(null)}>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-start justify-between p-5 border-b border-black/10 dark:border-white/10">
+            <div className="flex-1">
+              <div className="thai-big text-5xl leading-none mb-2">{selected.display}</div>
+              <div className="text-sm opacity-60 mt-1">罗马音: <b>{selected.roman}</b></div>
+              <div className="text-sm opacity-60">{selected.length === "long" ? "长" : "短"}{selected.notes ? ` · ${selected.notes}` : ""}</div>
+            </div>
+            <button onClick={() => setSelected(null)} className="text-2xl opacity-60 hover:opacity-100">✕</button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5">
+            <TraceSvg key={selected.id} letter={selected.display} />
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
