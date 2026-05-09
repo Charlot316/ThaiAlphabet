@@ -69,62 +69,77 @@ function pickLessonItems(items: StudyItem[], progress: MasteryProgress): StudyIt
 }
 
 function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Question[] {
-  // 每个音 8 题：1 look (介绍) + 1 sound + 1 letter + 1 sound-blind +
-  // 1 letter-blind + 2 write + 1 memory。看一眼放在最前作为介绍，剩下用
-  // round-robin 跨音穿插。最后再加 1 道 match 大题覆盖本轮所有字母。
-  const perItem = lessonItems.map((item) => {
-    const introduction: Question = {
+  // 课程按"题型轮"组织：每轮是一种题型 × N 个音（轮内打散，相邻题不同音）。
+  // 题型从易到难排列：先看一眼 → 带提示选择 → 书写 → 记忆 → 第二次书写 →
+  // 最后两轮才是无提示选择题（最难，不能放开头让用户冷启动）→ 末尾大配对。
+  const buckets: Record<string, Question[]> = {
+    look: lessonItems.map((item) => ({
       id: `${item.id}:look`,
       kind: "look",
       item,
       choices: [item],
-    };
-    const drills: Question[] = shuffleStrong([
-      {
-        id: `${item.id}:sound`,
-        kind: "sound",
-        item,
-        choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
-      },
-      {
-        id: `${item.id}:letter`,
-        kind: "letter",
-        item,
-        choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
-      },
-      {
-        id: `${item.id}:sound-blind`,
-        kind: "sound-blind",
-        item,
-        choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
-      },
-      {
-        id: `${item.id}:letter-blind`,
-        kind: "letter-blind",
-        item,
-        choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
-      },
-      { id: `${item.id}:write:1`, kind: "write", item, choices: [item] },
-      { id: `${item.id}:write:2`, kind: "write", item, choices: [item] },
-      { id: `${item.id}:memory`, kind: "memory", item, choices: [item] },
-    ]);
-    return { introduction, drills };
-  });
+    })),
+    sound: lessonItems.map((item) => ({
+      id: `${item.id}:sound`,
+      kind: "sound",
+      item,
+      choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
+    })),
+    letter: lessonItems.map((item) => ({
+      id: `${item.id}:letter`,
+      kind: "letter",
+      item,
+      choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
+    })),
+    write1: lessonItems.map((item) => ({
+      id: `${item.id}:write:1`,
+      kind: "write",
+      item,
+      choices: [item],
+    })),
+    memory: lessonItems.map((item) => ({
+      id: `${item.id}:memory`,
+      kind: "memory",
+      item,
+      choices: [item],
+    })),
+    write2: lessonItems.map((item) => ({
+      id: `${item.id}:write:2`,
+      kind: "write",
+      item,
+      choices: [item],
+    })),
+    soundBlind: lessonItems.map((item) => ({
+      id: `${item.id}:sound-blind`,
+      kind: "sound-blind",
+      item,
+      choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
+    })),
+    letterBlind: lessonItems.map((item) => ({
+      id: `${item.id}:letter-blind`,
+      kind: "letter-blind",
+      item,
+      choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
+    })),
+  };
 
-  // Round 0: 把所有音的 look 先放出来（介绍轮，按音顺序但随机化）
-  const introRound = shuffleStrong(perItem.map((p) => p.introduction));
+  const order = [
+    "look",
+    "sound",
+    "letter",
+    "write1",
+    "memory",
+    "write2",
+    "soundBlind",
+    "letterBlind",
+  ];
 
-  // Round-robin：每"轮"从每个音里取一道练习题，本轮内打散；
-  // 轮交界处如果连续两题同一个音，就交换一下避免相邻。
-  const result: Question[] = [...introRound];
-  const drillRounds = Math.max(...perItem.map((p) => p.drills.length));
-  for (let round = 0; round < drillRounds; round++) {
-    const slice = perItem
-      .map((p) => p.drills[round])
-      .filter((q): q is Question => Boolean(q));
-    const shuffled = shuffleStrong(slice);
+  const result: Question[] = [];
+  for (const round of order) {
+    const shuffled = shuffleStrong(buckets[round]);
+    // 轮内已打散；如果新轮的第 1 题和上轮最后 1 题同音，交换一下避免相邻
     const lastId = result[result.length - 1]?.item.id;
-    if (shuffled[0]?.item.id === lastId && shuffled.length > 1) {
+    if (shuffled.length > 1 && shuffled[0]?.item.id === lastId) {
       [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
     }
     result.push(...shuffled);
