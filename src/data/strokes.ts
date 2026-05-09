@@ -6607,6 +6607,22 @@ export function getVowelStrokeComponentKeys(key: string): string[] | null {
   return VOWEL_STROKE_COMPONENTS[key] ?? null;
 }
 
+/**
+ * Components that visually overlay (above/below) the previous main component.
+ * They share the same horizontal slot as the preceding main component instead
+ * of taking their own slot.
+ */
+const OVERLAY_COMPONENTS = new Set([
+  "v:mai-han-akat",
+  "v:mai-kham-mark",
+  "v:i-short",
+  "v:i-long",
+  "v:ue-short",
+  "v:ue-long",
+  "v:u-short",
+  "v:u-long",
+]);
+
 export function composeLetterStrokes(
   key: string,
   resolve: (componentKey: string) => LetterStrokes | null = baseLetterStrokes
@@ -6616,9 +6632,23 @@ export function composeLetterStrokes(
 
   const components = componentKeys.map(resolve);
   if (components.some((component) => !component)) return null;
+
+  // Compute slot index for each component. Overlay components reuse the
+  // previous main component's slot so e.g. ◌ื sits centered above the
+  // placeholder circle instead of being shoved into the next slot.
+  const mainCount = componentKeys.filter((k) => !OVERLAY_COMPONENTS.has(k)).length;
+  const slotCount = Math.max(1, mainCount);
+  let lastMainSlotIndex = 0;
+  let nextMainSlotIndex = 0;
+  const slotIndices = componentKeys.map((k) => {
+    if (OVERLAY_COMPONENTS.has(k)) return lastMainSlotIndex;
+    lastMainSlotIndex = nextMainSlotIndex;
+    return nextMainSlotIndex++;
+  });
+
   const resolvedComponents = (components as LetterStrokes[]).map((component, index) => {
     const componentKey = componentKeys[index];
-    return placeComponent(componentKey, component, componentSlotTarget(componentKey, index, componentKeys.length));
+    return placeComponent(componentKey, component, componentSlotTarget(componentKey, slotIndices[index], slotCount));
   });
 
   const strokes = resolvedComponents.flatMap((component) => component.strokes.map(cloneStroke));
