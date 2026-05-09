@@ -1,21 +1,56 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CONSONANTS } from "@/data/consonants";
 import PronounceButton from "@/components/PronounceButton";
 import TraceSvg from "@/components/TraceSvg";
 import { consonantPhonetic, consonantSpeak } from "@/lib/study";
 import { addMastery } from "@/lib/mastery";
+import { speak, warmupVoices } from "@/lib/tts";
 
 export default function WritePage() {
   const items = useMemo(() => CONSONANTS.filter((c) => !c.obsolete), []);
   const [idx, setIdx] = useState(0);
   const c = items[idx];
+  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    warmupVoices();
+  }, []);
+
+  // 进入新字母时自动播放发音
+  useEffect(() => {
+    if (!c) return;
+    speak(consonantSpeak(c));
+  }, [c]);
+
+  useEffect(() => {
+    return () => {
+      if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    };
+  }, []);
 
   function next() {
+    if (advanceTimer.current) {
+      clearTimeout(advanceTimer.current);
+      advanceTimer.current = null;
+    }
     setIdx((i) => (i + 1) % items.length);
   }
   function prev() {
+    if (advanceTimer.current) {
+      clearTimeout(advanceTimer.current);
+      advanceTimer.current = null;
+    }
     setIdx((i) => (i - 1 + items.length) % items.length);
+  }
+
+  function handleComplete() {
+    addMastery(`c:${c.id}`, 1);
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    advanceTimer.current = setTimeout(() => {
+      advanceTimer.current = null;
+      setIdx((i) => (i + 1) % items.length);
+    }, 900);
   }
 
   return (
@@ -37,7 +72,7 @@ export default function WritePage() {
       <TraceSvg
         key={c.id}
         letter={c.letter}
-        onComplete={() => addMastery(`c:${c.id}`, 1)}
+        onComplete={handleComplete}
       />
 
       <div className="flex justify-between gap-2">

@@ -1,12 +1,13 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CONSONANTS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import { Consonant, Vowel } from "@/data/types";
 import PronounceButton from "@/components/PronounceButton";
-import { addMastery } from "@/lib/mastery";
+import { addMastery, applyWrongAnswer } from "@/lib/mastery";
 import { consonantSpeak, displayRoman, vowelSpeak } from "@/lib/study";
-import { feedbackCorrect, feedbackWrong } from "@/lib/feedback";
+import { feedbackCorrect, feedbackTap, feedbackWrong } from "@/lib/feedback";
+import { speak, warmupVoices } from "@/lib/tts";
 
 type Mode = "A" | "B";
 type Pool = "consonant" | "vowel";
@@ -41,6 +42,9 @@ function studyId(item: Consonant | Vowel): string {
 export default function QuizPage() {
   const [mode, setMode] = useState<Mode>("A");
   const [pool, setPool] = useState<Pool>("consonant");
+  useEffect(() => {
+    warmupVoices();
+  }, []);
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
@@ -82,10 +86,17 @@ function ModeA({ pool }: { pool: Pool }) {
 
   const correctRoman = "romanInitial" in q.target ? q.target.romanInitial : q.target.roman;
 
+  // 进入新题自动朗读目标字母
+  useEffect(() => {
+    const speakText = "letter" in q.target ? consonantSpeak(q.target as Consonant) : vowelSpeak(q.target as Vowel);
+    speak(speakText);
+  }, [q.target]);
+
   function pick(id: string) {
     if (picked) return;
     const chosen = q.choices.find((c) => c.id === id);
-    const chosenRoman = "romanInitial" in chosen! ? chosen!.romanInitial : (chosen as Vowel).roman;
+    if (!chosen) return;
+    const chosenRoman = "romanInitial" in chosen ? chosen.romanInitial : (chosen as Vowel).roman;
     const correct = chosenRoman === correctRoman;
     setPicked(id);
     setIsCorrect(correct);
@@ -93,6 +104,8 @@ function ModeA({ pool }: { pool: Pool }) {
       addMastery(studyId(q.target), 1);
       feedbackCorrect();
     } else {
+      // 答错：目标字母 -1，被选错的那个字母也 -1
+      applyWrongAnswer(studyId(q.target), studyId(chosen));
       feedbackWrong();
     }
     setStreak((s) => ({ ok: s.ok + (correct ? 1 : 0), total: s.total + 1 }));
@@ -156,7 +169,7 @@ function ModeA({ pool }: { pool: Pool }) {
   );
 }
 
-/* ---------------- 模式 B: 给读音，选字母（单选）---------------- */
+/* ---------------- 模式 B: 给读音，选字母（点击预览 + 确认）---------------- */
 function ModeB({ pool }: { pool: Pool }) {
   if (pool === "consonant") return <ModeBConsonant />;
   return <ModeBVowel />;
@@ -166,6 +179,7 @@ function ModeBConsonant() {
   const items = useMemo(() => CONSONANTS.filter((c) => !c.obsolete), []);
   const [round, setRound] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
   const [streak, setStreak] = useState({ ok: 0, total: 0 });
 
   const q = useMemo(() => {
@@ -175,14 +189,26 @@ function ModeBConsonant() {
     return { target, choices };
   }, [items, round]);
 
-  function pick(id: string) {
-    if (picked) return;
-    const ok = id === q.target.id;
+  function preview(id: string) {
+    if (submitted) return;
     setPicked(id);
+    const chosen = q.choices.find((c) => c.id === id);
+    if (chosen) {
+      feedbackTap();
+      speak(consonantSpeak(chosen));
+    }
+  }
+
+  function confirm() {
+    if (submitted || !picked) return;
+    setSubmitted(true);
+    const ok = picked === q.target.id;
     if (ok) {
       addMastery(`c:${q.target.id}`, 1);
       feedbackCorrect();
+      speak(consonantSpeak(q.target));
     } else {
+      applyWrongAnswer(`c:${q.target.id}`, `c:${picked}`);
       feedbackWrong();
     }
     setStreak((s) => ({ ok: s.ok + (ok ? 1 : 0), total: s.total + 1 }));
@@ -190,8 +216,11 @@ function ModeBConsonant() {
 
   function next() {
     setPicked(null);
+    setSubmitted(false);
     setRound((r) => r + 1);
   }
+
+  const correctChosen = submitted && picked === q.target.id;
 
   return (
     <div className="space-y-4">
@@ -199,7 +228,7 @@ function ModeBConsonant() {
         <div>
           <div className="text-xs opacity-60">哪个辅音读:</div>
           <div className="text-3xl font-mono mt-1">{displayRoman(q.target.romanInitial)}</div>
-          <div className="text-xs opacity-60 mt-1">单选一个字母</div>
+          <div className="text-xs opacity-60 mt-1">点击字母听读音 · 确认后提交</div>
         </div>
         <div className="text-sm opacity-70">{streak.ok} / {streak.total}</div>
       </div>
@@ -207,28 +236,43 @@ function ModeBConsonant() {
         {q.choices.map((c) => {
           const isPicked = picked === c.id;
           const isCorrect = c.id === q.target.id;
-          const cls = !picked
-            ? "opt"
-            : isCorrect
-            ? "opt opt-correct"
-            : isPicked
-            ? "opt opt-wrong"
-            : "opt opt-disabled";
+          let cls = "opt";
+          if (submitted) {
+            if (isCorrect) cls = "opt opt-correct";
+            else if (isPicked) cls = "opt opt-wrong";
+            else cls = "opt opt-disabled";
+          } else if (isPicked) {
+            cls = "opt opt-selected";
+          }
           return (
             <li key={c.id}>
-              <button onClick={() => pick(c.id)} className={`${cls} w-full thai-big text-2xl py-3`}>
+              <button
+                onClick={() => preview(c.id)}
+                disabled={submitted}
+                className={`${cls} w-full thai-big text-2xl py-3`}
+              >
                 {c.letter}
               </button>
             </li>
           );
         })}
       </ul>
-      <div className="flex justify-end">
-        <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
-      </div>
-      {picked && (
-        <div className="feedback feedback-ok animate-pop">
-          答案：<span className="thai-big text-2xl">{q.target.letter}</span>
+      {!submitted ? (
+        <button
+          onClick={confirm}
+          disabled={!picked}
+          className="btn-primary w-full"
+        >
+          确认
+        </button>
+      ) : (
+        <div className="flex justify-end">
+          <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
+        </div>
+      )}
+      {submitted && (
+        <div className={`feedback ${correctChosen ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+          {correctChosen ? "✅ 正确" : "❌ 答案"}：<span className="thai-big text-2xl">{q.target.letter}</span>
           <span className="ml-2 opacity-80">{q.target.name} · {q.target.meaning}</span>
         </div>
       )}
@@ -240,61 +284,101 @@ function ModeBVowel() {
   const items = VOWELS;
   const [round, setRound] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
   const [streak, setStreak] = useState({ ok: 0, total: 0 });
 
   const q = useMemo(() => {
     void round;
     const target = items[Math.floor(Math.random() * items.length)];
     const sameRoman = items.filter((v) => v.roman === target.roman);
-    // 元音通常 roman 唯一；这里仍用单选 4 选 1
     const choices = uniqueChoices(target, items, 4, (v) => v.id);
     return { target, choices, correctIds: new Set(sameRoman.map((v) => v.id)) };
   }, [items, round]);
 
-  function pick(id: string) {
-    if (picked) return;
+  function preview(id: string) {
+    if (submitted) return;
     setPicked(id);
-    const ok = q.correctIds.has(id);
+    const chosen = q.choices.find((c) => c.id === id);
+    if (chosen) {
+      feedbackTap();
+      speak(vowelSpeak(chosen));
+    }
+  }
+
+  function confirm() {
+    if (submitted || !picked) return;
+    setSubmitted(true);
+    const ok = q.correctIds.has(picked);
     if (ok) {
       addMastery(`v:${q.target.id}`, 1);
       feedbackCorrect();
+      speak(vowelSpeak(q.target));
     } else {
+      applyWrongAnswer(`v:${q.target.id}`, `v:${picked}`);
       feedbackWrong();
     }
     setStreak((s) => ({ ok: s.ok + (ok ? 1 : 0), total: s.total + 1 }));
   }
-  function next() { setPicked(null); setRound((r) => r + 1); }
+
+  function next() {
+    setPicked(null);
+    setSubmitted(false);
+    setRound((r) => r + 1);
+  }
+
+  const correctChosen = submitted && !!picked && q.correctIds.has(picked);
 
   return (
     <div className="space-y-4">
       <div className="card-soft p-7 flex flex-col items-center">
         <div className="text-xs opacity-60 mb-2">哪个元音读:</div>
         <div className="text-4xl font-mono">{q.target.roman}</div>
+        <div className="text-xs opacity-60 mt-2">点击元音听读音 · 确认后提交</div>
       </div>
       <ul className="grid grid-cols-2 gap-2">
         {q.choices.map((c) => {
           const isPicked = picked === c.id;
           const isCorrect = q.correctIds.has(c.id);
-          const state = !picked
-            ? "opt"
-            : isCorrect
-            ? "opt opt-correct"
-            : isPicked
-            ? "opt opt-wrong"
-            : "opt opt-disabled";
+          let cls = "opt";
+          if (submitted) {
+            if (isCorrect) cls = "opt opt-correct";
+            else if (isPicked) cls = "opt opt-wrong";
+            else cls = "opt opt-disabled";
+          } else if (isPicked) {
+            cls = "opt opt-selected";
+          }
           return (
             <li key={c.id}>
-              <button onClick={() => pick(c.id)} className={`${state} w-full thai-big text-2xl`}>
+              <button
+                onClick={() => preview(c.id)}
+                disabled={submitted}
+                className={`${cls} w-full thai-big text-2xl`}
+              >
                 {c.display}
               </button>
             </li>
           );
         })}
       </ul>
-      <div className="flex items-center justify-between text-sm">
-        <span className="opacity-70">{streak.ok} / {streak.total}</span>
-        <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
-      </div>
+      {!submitted ? (
+        <button
+          onClick={confirm}
+          disabled={!picked}
+          className="btn-primary w-full"
+        >
+          确认
+        </button>
+      ) : (
+        <div className="flex items-center justify-between text-sm">
+          <span className="opacity-70">{streak.ok} / {streak.total}</span>
+          <button onClick={next} className="btn-primary text-sm py-2 px-4">下一题</button>
+        </div>
+      )}
+      {submitted && (
+        <div className={`feedback ${correctChosen ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+          {correctChosen ? "✅ 正确" : "❌ 答案"}：<span className="thai-big text-2xl">{q.target.display}</span>
+        </div>
+      )}
     </div>
   );
 }

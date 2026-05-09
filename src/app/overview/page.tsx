@@ -5,7 +5,7 @@ import { VOWELS } from "@/data/vowels";
 import { Vowel } from "@/data/types";
 import { TONE_MARKS, TONE_NAMES } from "@/data/tones";
 import PronounceButton from "@/components/PronounceButton";
-import { MASTERY_TARGET, useMastery } from "@/lib/mastery";
+import { MASTERY_TARGET, clearMastery, useMastery } from "@/lib/mastery";
 import { consonantPhonetic, consonantSpeak, displayRoman, vowelPhonetic, vowelSpeak } from "@/lib/study";
 
 type Tab = "consonant" | "vowel" | "tone";
@@ -68,7 +68,19 @@ function Consonants() {
                 <div className="mb-2">
                   <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
                     <span>熟练度</span>
-                    <span>{value}/{MASTERY_TARGET}</span>
+                    <div className="flex items-center gap-1">
+                      <span>{value}/{MASTERY_TARGET}</span>
+                      {value > 0 && (
+                        <button
+                          onClick={() => clearMastery(`c:${c.id}`)}
+                          className="text-[11px] leading-none opacity-50 hover:opacity-100"
+                          title="清空此字母的熟练度"
+                          aria-label="清空熟练度"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="progress-track" style={{ height: "6px" }}>
                     <div className="progress-fill" style={{ width: `${pct}%` }} />
@@ -195,7 +207,19 @@ function Vowels() {
                     <div className="mb-2">
                       <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
                         <span>熟练度</span>
-                        <span>{value}/{MASTERY_TARGET}</span>
+                        <div className="flex items-center gap-1">
+                          <span>{value}/{MASTERY_TARGET}</span>
+                          {value > 0 && (
+                            <button
+                              onClick={() => clearMastery(`v:${v.id}`)}
+                              className="text-[11px] leading-none opacity-50 hover:opacity-100"
+                              title="清空此元音的熟练度"
+                              aria-label="清空熟练度"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
                         <div className="h-full bg-black dark:bg-white" style={{ width: `${pct}%` }} />

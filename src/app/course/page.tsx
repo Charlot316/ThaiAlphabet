@@ -1,16 +1,24 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import PronounceButton from "@/components/PronounceButton";
-import { MASTERY_TARGET, MasteryProgress, addMastery as recordMastery, loadMastery, resetMastery } from "@/lib/mastery";
+import TraceSvg from "@/components/TraceSvg";
+import {
+  MASTERY_TARGET,
+  MasteryProgress,
+  addMastery as recordMastery,
+  applyWrongAnswer,
+  loadMastery,
+  resetMastery,
+} from "@/lib/mastery";
 import { StudyItem, buildStudyItems, displayRoman, shuffleStrong, uniqueChoices } from "@/lib/study";
 import { markActive } from "@/lib/stats";
-import { speak } from "@/lib/tts";
-import { feedbackComplete, feedbackCorrect, feedbackWrong } from "@/lib/feedback";
+import { speak, warmupVoices } from "@/lib/tts";
+import { feedbackComplete, feedbackCorrect, feedbackTap, feedbackWrong } from "@/lib/feedback";
 
 const LAST_LESSON_KEY = "thai-alphabet:last-lesson:v1";
 const LESSON_SIZE = 4;
 
-type QuestionKind = "sound" | "letter" | "look";
+type QuestionKind = "sound" | "letter" | "look" | "write";
 
 interface Question {
   id: string;
@@ -48,6 +56,7 @@ function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Questi
     const letterChoices = uniqueChoices(item, allItems, 4, (option) => option.id);
     return [
       { id: `${item.id}:look`, kind: "look" as const, item, choices: [item] },
+      { id: `${item.id}:write`, kind: "write" as const, item, choices: [item] },
       { id: `${item.id}:sound`, kind: "sound" as const, item, choices: soundChoices },
       { id: `${item.id}:letter`, kind: "letter" as const, item, choices: letterChoices },
     ];
@@ -64,6 +73,7 @@ export default function CoursePage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [index, setIndex] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
   const [feedback, setFeedback] = useState<"ok" | "bad" | null>(null);
   const [praise, setPraise] = useState("");
   const [correctCount, setCorrectCount] = useState(0);
@@ -71,10 +81,23 @@ export default function CoursePage() {
   const current = questions[index];
   const complete = questions.length > 0 && index >= questions.length;
 
+  useEffect(() => {
+    warmupVoices();
+  }, []);
+
   // 完成时来一发庆祝音
   useEffect(() => {
     if (complete) feedbackComplete();
   }, [complete]);
+
+  // 自动朗读：look / sound / write 进入题目时自动播放目标字母音
+  useEffect(() => {
+    if (!current) return;
+    if (current.kind === "look" || current.kind === "sound" || current.kind === "write") {
+      speak(current.item.speak);
+    }
+  }, [current]);
+
   const mastered = allConsonants.filter((item) => (progress[item.id] || 0) >= MASTERY_TARGET).length;
   const lessonProgress = questions.length === 0 ? 0 : Math.min(100, (index / questions.length) * 100);
 
@@ -84,6 +107,7 @@ export default function CoursePage() {
     setQuestions(buildQuestions(pickedItems, allConsonants));
     setIndex(0);
     setPicked(null);
+    setSubmitted(false);
     setFeedback(null);
     setPraise("");
     setCorrectCount(0);
@@ -100,9 +124,11 @@ export default function CoursePage() {
     setProgress(recordMastery(itemId, amount));
   }
 
-  function answer(id: string) {
-    if (!current || picked) return;
+  // 模式 sound：4 个读音中选正确读音 — 单击即提交
+  function answerSound(id: string) {
+    if (!current || submitted) return;
     setPicked(id);
+    setSubmitted(true);
     const ok = id === current.item.id;
     if (ok) {
       gainMastery(current.item.id, 1);
@@ -113,6 +139,37 @@ export default function CoursePage() {
       feedbackCorrect();
       speak(current.item.speak);
     } else {
+      setProgress(applyWrongAnswer(current.item.id, id));
+      setFeedback("bad");
+      feedbackWrong();
+    }
+  }
+
+  // 模式 letter：4 个字母中选正确字母 — 单击预览（播音 + 选中），需点确认才提交
+  function previewLetter(id: string) {
+    if (!current || submitted) return;
+    setPicked(id);
+    const choice = current.choices.find((c) => c.id === id);
+    if (choice) {
+      feedbackTap();
+      speak(choice.speak);
+    }
+  }
+
+  function confirmLetter() {
+    if (!current || submitted || !picked) return;
+    setSubmitted(true);
+    const ok = picked === current.item.id;
+    if (ok) {
+      gainMastery(current.item.id, 1);
+      setCorrectCount((v) => v + 1);
+      setFeedback("ok");
+      setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+      markActive();
+      feedbackCorrect();
+      speak(current.item.speak);
+    } else {
+      setProgress(applyWrongAnswer(current.item.id, picked));
       setFeedback("bad");
       feedbackWrong();
     }
@@ -120,6 +177,7 @@ export default function CoursePage() {
 
   function next() {
     setPicked(null);
+    setSubmitted(false);
     setFeedback(null);
     setIndex((v) => v + 1);
   }
@@ -130,6 +188,15 @@ export default function CoursePage() {
     setCorrectCount((v) => v + 1);
     markActive();
     next();
+  }
+
+  function markWrote() {
+    if (!current) return;
+    gainMastery(current.item.id, 1);
+    setCorrectCount((v) => v + 1);
+    markActive();
+    feedbackComplete();
+    setTimeout(() => next(), 800);
   }
 
   function resetProgress() {
@@ -192,12 +259,16 @@ export default function CoursePage() {
         <QuestionCard
           question={current}
           picked={picked}
+          submitted={submitted}
           progress={progress}
           feedback={feedback}
           praise={praise}
-          onAnswer={answer}
+          onAnswerSound={answerSound}
+          onPreviewLetter={previewLetter}
+          onConfirmLetter={confirmLetter}
           onNext={next}
           onLooked={markLooked}
+          onWrote={markWrote}
         />
       ) : (
         <section className="card-soft p-6 text-center text-sm opacity-70">正在生成课程...</section>
@@ -209,21 +280,29 @@ export default function CoursePage() {
 function QuestionCard({
   question,
   picked,
+  submitted,
   progress,
   feedback,
   praise,
-  onAnswer,
+  onAnswerSound,
+  onPreviewLetter,
+  onConfirmLetter,
   onNext,
   onLooked,
+  onWrote,
 }: {
   question: Question;
   picked: string | null;
+  submitted: boolean;
   progress: MasteryProgress;
   feedback: "ok" | "bad" | null;
   praise: string;
-  onAnswer: (id: string) => void;
+  onAnswerSound: (id: string) => void;
+  onPreviewLetter: (id: string) => void;
+  onConfirmLetter: () => void;
   onNext: () => void;
   onLooked: () => void;
+  onWrote: () => void;
 }) {
   const mastery = progress[question.item.id] || 0;
 
@@ -257,9 +336,38 @@ function QuestionCard({
     );
   }
 
+  if (question.kind === "write") {
+    return (
+      <section className="space-y-3">
+        <div className="card-soft p-5 flex flex-col items-center">
+          <div className="chip chip-blue">书写</div>
+          <div className="thai-big mt-3 text-5xl leading-none">{question.item.front}</div>
+          {question.item.name && (
+            <div className="thai-big mt-2 text-base opacity-80">{question.item.name}</div>
+          )}
+          <div className="mt-2 text-xs opacity-60">
+            描红：拖小球沿轮廓走 · 熟练度 {mastery} / {MASTERY_TARGET}
+          </div>
+          <div className="mt-2">
+            <PronounceButton text={question.item.speak} label="🔊 听一下" />
+          </div>
+        </div>
+        <TraceSvg
+          key={question.id}
+          letter={question.item.front}
+          onComplete={onWrote}
+        />
+        <button onClick={onWrote} className="btn-ghost w-full text-xs">
+          跳过 →
+        </button>
+      </section>
+    );
+  }
+
   const roman = displayRoman(question.item.roman);
   const prompt = question.kind === "sound" ? "这个字母读什么？" : `哪个字母读 ${roman}？`;
-  const correctAnswered = picked && picked === question.item.id;
+  const correctAnswered = submitted && picked === question.item.id;
+  const isLetterKind = question.kind === "letter";
 
   return (
     <section className="space-y-4">
@@ -275,6 +383,9 @@ function QuestionCard({
         <div className="mt-4">
           <PronounceButton text={question.item.speak} label="🔊 听" />
         </div>
+        {isLetterKind && !submitted && (
+          <div className="mt-3 text-[11px] opacity-60">点击字母可听读音，确认后提交</div>
+        )}
       </div>
 
       <ul className="grid grid-cols-2 gap-3">
@@ -282,16 +393,20 @@ function QuestionCard({
           const isPicked = picked === choice.id;
           const isCorrect = choice.id === question.item.id;
           let cls = "opt";
-          if (picked) {
+          if (submitted) {
             if (isCorrect) cls = "opt opt-correct";
             else if (isPicked) cls = "opt opt-wrong";
             else cls = "opt opt-disabled";
-          } else if (isPicked) cls = "opt opt-selected";
+          } else if (isPicked) {
+            cls = "opt opt-selected";
+          }
           return (
             <li key={choice.id}>
               <button
-                onClick={() => onAnswer(choice.id)}
-                disabled={!!picked}
+                onClick={() =>
+                  isLetterKind ? onPreviewLetter(choice.id) : onAnswerSound(choice.id)
+                }
+                disabled={submitted}
                 className={`${cls} min-h-[72px]`}
               >
                 {question.kind === "sound" ? (
@@ -305,7 +420,17 @@ function QuestionCard({
         })}
       </ul>
 
-      {picked && (
+      {isLetterKind && !submitted && (
+        <button
+          onClick={onConfirmLetter}
+          disabled={!picked}
+          className="btn-primary w-full"
+        >
+          确认
+        </button>
+      )}
+
+      {submitted && (
         <div className={`feedback ${correctAnswered ? "feedback-ok" : "feedback-bad"} animate-pop`}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
