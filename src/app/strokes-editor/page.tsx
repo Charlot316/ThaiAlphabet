@@ -652,7 +652,7 @@ export default function StrokesEditorPage() {
                       style={{ cursor: "pointer" }}
                     />
                     <circle cx={start.x} cy={start.y} r={active ? 2.5 : 1.8} fill={active ? "var(--duo-orange)" : "white"} stroke="var(--duo-blue)" strokeWidth={0.8} />
-                    <text x={start.x + 2.5} y={start.y - 2.5} fontSize={4.2} fill={active ? "var(--duo-orange-d)" : "var(--duo-blue)"} fontWeight={900}>
+                    <text x={start.x + 2.5} y={start.y - 2.5} fontSize={4.2} fill={active ? "var(--duo-orange-d)" : "var(--duo-blue)"} fontWeight={900} style={{ transform: `scale(${1 / zoom})`, transformOrigin: `${start.x + 2.5}px ${start.y - 2.5}px` }}>
                       {index + 1}
                     </text>
                   </>
@@ -685,7 +685,7 @@ export default function StrokesEditorPage() {
                   fontSize={3.4}
                   fill="var(--duo-green-d)"
                   fontWeight={900}
-                  style={{ pointerEvents: "none" }}
+                  style={{ pointerEvents: "none", transform: `scale(${1 / zoom})`, transformOrigin: `${node.point.x}px ${node.point.y + 1.3}px` }}
                 >
                   {node.id}
                 </text>
