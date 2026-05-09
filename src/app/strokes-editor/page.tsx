@@ -616,10 +616,10 @@ export default function StrokesEditorPage() {
               d={guide.d}
               fill="none"
               stroke="rgba(0,0,0,0.22)"
-              strokeWidth={1.2}
+              strokeWidth={1.2 / zoom}
               strokeLinecap="round"
               strokeLinejoin="round"
-              strokeDasharray="1.2 1.8"
+              strokeDasharray={`${1.2 / zoom} ${1.8 / zoom}`}
             />
           ))}
           {(strokes.length > 0 ? strokes : base?.strokes ?? []).map((stroke, index) => {
@@ -630,10 +630,10 @@ export default function StrokesEditorPage() {
                 d={referenceD}
                 fill="none"
                 stroke="rgba(0,0,0,0.16)"
-                strokeWidth={index === selected ? 3.2 : 2.4}
+                strokeWidth={(index === selected ? 3.2 : 2.4) / zoom}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeDasharray={index === selected ? "0" : "1.5 2.2"}
+                strokeDasharray={index === selected ? "0" : `${1.5 / zoom} ${2.2 / zoom}`}
                 pointerEvents="none"
               />
             );
@@ -650,7 +650,7 @@ export default function StrokesEditorPage() {
                       d={stroke.d}
                       fill="none"
                       stroke={active ? "var(--duo-orange)" : "var(--duo-blue)"}
-                      strokeWidth={active ? 4.4 : 3.4}
+                      strokeWidth={(active ? 4.4 : 3.4) / zoom}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       opacity={active ? 0.95 : 0.72}
@@ -662,7 +662,7 @@ export default function StrokesEditorPage() {
                       style={{ cursor: "pointer" }}
                     />
                     <g style={{ transform: `scale(${1 / zoom})`, transformOrigin: `${start.x}px ${start.y}px` }}>
-                      <circle cx={start.x} cy={start.y} r={active ? 1.6 : 1.2} fill={active ? "var(--duo-orange)" : "white"} stroke="var(--duo-blue)" strokeWidth={0.5} />
+                      <circle cx={start.x} cy={start.y} r={active ? 1.6 : 1.2} fill={active ? "var(--duo-orange)" : "white"} stroke="var(--duo-blue)" strokeWidth={0.5 / zoom} />
                     </g>
                     <text x={start.x + 2} y={start.y - 1.8} fontSize={2.6} fill={active ? "var(--duo-orange-d)" : "var(--duo-blue)"} fontWeight={900} style={{ transform: `scale(${1 / zoom})`, transformOrigin: `${start.x + 2}px ${start.y - 1.8}px` }}>
                       {index + 1}
@@ -689,7 +689,7 @@ export default function StrokesEditorPage() {
                     r={1.5}
                     fill="white"
                     stroke={node.useCount > 1 ? "var(--duo-red)" : "var(--duo-green)"}
-                    strokeWidth={0.6}
+                    strokeWidth={0.6 / zoom}
                   />
                 </g>
                 <text
