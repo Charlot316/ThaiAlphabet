@@ -6621,12 +6621,42 @@ export function composeLetterStrokes(
     return placeComponent(componentKey, component, componentSlotTarget(componentKey, index, componentKeys.length));
   });
 
-  const strokes = resolvedComponents.flatMap((component) => component.strokes.map(cloneStroke));
+  let nextPointId = 1;
+  const idMap: Record<number, number> = {};
+
+  const strokes = resolvedComponents.flatMap((component) =>
+    component.strokes.map((stroke) => {
+      if (!stroke.points) return cloneStroke(stroke);
+
+      const remappedSequence = stroke.sequence?.map((id) => {
+        if (!idMap[id]) idMap[id] = nextPointId++;
+        return idMap[id];
+      });
+
+      return {
+        ...cloneStroke(stroke),
+        sequence: remappedSequence,
+      };
+    })
+  );
+
+  const allPoints = resolvedComponents.flatMap((component) =>
+    component.strokes.flatMap((stroke) =>
+      stroke.points?.map((point) => ({
+        ...point,
+        id: idMap[point.id] ?? point.id,
+      })) ?? []
+    )
+  );
+
   const guides = resolvedComponents.flatMap((component) => component.guides?.map(cloneStroke) ?? []);
 
   return {
     v: Math.max(...resolvedComponents.map((component) => component.v), 5),
-    strokes,
+    strokes: strokes.map((stroke) => ({
+      ...stroke,
+      points: allPoints.length > 0 ? allPoints.filter((p) => stroke.sequence?.includes(p.id)) : undefined,
+    })),
     guides: guides.length > 0 ? guides : undefined,
   };
 }
