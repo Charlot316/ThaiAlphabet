@@ -14,7 +14,7 @@ import { recordOutcome } from "@/lib/mastery";
 
 const SLOT_COUNT = 5; // 同时显示几对（左右各 SLOT_COUNT 张）
 const REFILL_THRESHOLD = SLOT_COUNT + 2;
-const MIN_MATCHABLE = 2; // 任何时候至少保证 N 对可配（不能让用户卡死等）
+const MIN_MATCHABLE = 4; // 任何时候至少保证 N 对可配（不能让用户卡死等）
 const BEST_KEY = "thai-alphabet:endless-match:best";
 
 interface BoardState {
@@ -104,6 +104,10 @@ export default function EndlessMatchPage() {
 
   const [pickedLeft, setPickedLeft] = useState<string | null>(null);
   const [pickedRight, setPickedRight] = useState<string | null>(null);
+  // ref 与 state 并行：左右两侧同时按下时，第二个 onClick 同步执行，
+  // 此时 state 还没 flush，但 ref 已经写入 → 用 ref 判断"对方是否已选"
+  const pickedLeftRef = useRef<string | null>(null);
+  const pickedRightRef = useRef<string | null>(null);
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [totalMatched, setTotalMatched] = useState(0);
@@ -205,6 +209,11 @@ export default function EndlessMatchPage() {
         setFlashSlot(null);
       }, 350);
     }
+  }
+
+  function clearPicks() {
+    pickedLeftRef.current = null;
+    pickedRightRef.current = null;
     setPickedLeft(null);
     setPickedRight(null);
   }
@@ -213,24 +222,37 @@ export default function EndlessMatchPage() {
     const item = board.leftSlots[idx];
     if (!item) return;
     feedbackTap();
-    if (pickedRight !== null) {
-      const rightIdx = board.rightSlots.findIndex((s) => s?.id === pickedRight);
-      if (rightIdx >= 0) tryMatch(idx, rightIdx);
-    } else {
-      setPickedLeft((p) => (p === item.id ? null : item.id));
+    const rightPick = pickedRightRef.current;
+    if (rightPick !== null) {
+      const rightIdx = board.rightSlots.findIndex((s) => s?.id === rightPick);
+      if (rightIdx >= 0) {
+        clearPicks();
+        tryMatch(idx, rightIdx);
+        return;
+      }
     }
+    // 切换本侧选中
+    const next = pickedLeftRef.current === item.id ? null : item.id;
+    pickedLeftRef.current = next;
+    setPickedLeft(next);
   }
 
   function onRight(idx: number) {
     const item = board.rightSlots[idx];
     if (!item) return;
     feedbackTap();
-    if (pickedLeft !== null) {
-      const leftIdx = board.leftSlots.findIndex((s) => s?.id === pickedLeft);
-      if (leftIdx >= 0) tryMatch(leftIdx, idx);
-    } else {
-      setPickedRight((p) => (p === item.id ? null : item.id));
+    const leftPick = pickedLeftRef.current;
+    if (leftPick !== null) {
+      const leftIdx = board.leftSlots.findIndex((s) => s?.id === leftPick);
+      if (leftIdx >= 0) {
+        clearPicks();
+        tryMatch(leftIdx, idx);
+        return;
+      }
     }
+    const next = pickedRightRef.current === item.id ? null : item.id;
+    pickedRightRef.current = next;
+    setPickedRight(next);
   }
 
   function slotClass(state: "idle" | "picked" | "ok" | "bad" | "empty"): string {

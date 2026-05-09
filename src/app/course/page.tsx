@@ -678,9 +678,18 @@ function MatchCard({
   const [matchedRight, setMatchedRight] = useState<Set<string>>(new Set());
   const [pickedLeft, setPickedLeft] = useState<string | null>(null);
   const [pickedRight, setPickedRight] = useState<string | null>(null);
+  const pickedLeftRef = useRef<string | null>(null);
+  const pickedRightRef = useRef<string | null>(null);
   const [streak, setStreak] = useState(0);
   const [flash, setFlash] = useState<"ok" | "bad" | null>(null);
   const completedRef = useRef(false);
+
+  const clearPicks = () => {
+    pickedLeftRef.current = null;
+    pickedRightRef.current = null;
+    setPickedLeft(null);
+    setPickedRight(null);
+  };
 
   const tryMatch = (leftId: string | null, rightId: string | null) => {
     if (!leftId || !rightId) return;
@@ -702,27 +711,33 @@ function MatchCard({
       feedbackMismatch();
       setTimeout(() => setFlash(null), 350);
     }
-    setPickedLeft(null);
-    setPickedRight(null);
   };
 
   const onLeft = (id: string) => {
     if (submitted || matchedLeft.has(id)) return;
     feedbackTap();
-    if (pickedRight) {
-      tryMatch(id, pickedRight);
-    } else {
-      setPickedLeft(pickedLeft === id ? null : id);
+    const rightPick = pickedRightRef.current;
+    if (rightPick) {
+      clearPicks();
+      tryMatch(id, rightPick);
+      return;
     }
+    const next = pickedLeftRef.current === id ? null : id;
+    pickedLeftRef.current = next;
+    setPickedLeft(next);
   };
   const onRight = (id: string) => {
     if (submitted || matchedRight.has(id)) return;
     feedbackTap();
-    if (pickedLeft) {
-      tryMatch(pickedLeft, id);
-    } else {
-      setPickedRight(pickedRight === id ? null : id);
+    const leftPick = pickedLeftRef.current;
+    if (leftPick) {
+      clearPicks();
+      tryMatch(leftPick, id);
+      return;
     }
+    const next = pickedRightRef.current === id ? null : id;
+    pickedRightRef.current = next;
+    setPickedRight(next);
   };
 
   useEffect(() => {
