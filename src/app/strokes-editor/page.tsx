@@ -117,8 +117,9 @@ function normalizeDraft(raw: unknown): StrokeDraft | null {
 
 function draftMatchesBase(draft: StrokeDraft, base: LetterStrokes | null): boolean {
   if (!base) return true;
-  if (draft.strokes.length !== base.strokes.length) return false;
-  return draft.strokes.every((stroke, index) => {
+  // Allow draft to have more strokes than base (user may have added new ones)
+  // Just verify that existing strokes match base
+  return draft.strokes.slice(0, base.strokes.length).every((stroke, index) => {
     const baseStroke = base.strokes[index];
     if (!baseStroke) return false;
     return (stroke.sourceD ?? stroke.d) === baseStroke.d;
