@@ -4,18 +4,28 @@ import { letterSkeleton } from "@/lib/thaiFont";
 import { feedbackComplete, feedbackTap } from "@/lib/feedback";
 import { getLetterStrokes } from "@/data/strokes";
 import { lockPageScroll, preventElementTouchScroll, unlockPageScroll, type PageScrollLock } from "@/lib/scrollLock";
+import { resolveStrokeSequence } from "@/lib/pathOrder";
 
 const DRAFT_KEY = "thai-alphabet:strokes-draft:v1";
 
-function loadLocalStrokeDraft(key: string): { strokes: { d: string }[]; guides?: { d: string }[] } | null {
+type LocalStroke = {
+  d: string;
+  sourceD?: string;
+  points?: Array<{ id: number; x: number; y: number }>;
+  sequence?: number[];
+};
+
+function loadLocalStrokeDraft(key: string): { strokes: LocalStroke[]; guides?: { d: string }[] } | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
-    const draft = JSON.parse(raw) as Record<string, { v?: number; strokes?: Array<{ d?: string }>; guides?: Array<{ d?: string }> }>;
+    const draft = JSON.parse(raw) as Record<string, { v?: number; strokes?: Array<Partial<LocalStroke>>; guides?: Array<{ d?: string }> }>;
     const item = draft[key];
     if (!item || (item.v ?? 0) < 5) return null;
-    const strokes = item.strokes?.filter((stroke): stroke is { d: string } => typeof stroke.d === "string") ?? [];
+    const strokes = item.strokes
+      ?.filter((stroke): stroke is LocalStroke => typeof stroke.d === "string")
+      .map((stroke) => resolveStrokeSequence(stroke)) ?? [];
     const guides = item.guides?.filter((stroke): stroke is { d: string } => typeof stroke.d === "string");
     return strokes.length > 0 ? { strokes, guides } : null;
   } catch {
@@ -94,10 +104,11 @@ export default function TraceSvg({
       ? { ...localDraft, guides: localDraft.guides ?? saved?.guides }
       : saved;
     if (manual && manual.strokes.length > 0) {
+      const resolvedStrokes = manual.strokes.map((stroke) => resolveStrokeSequence(stroke));
       // 手工 SVG 数据本身就是描红底纹；不要再叠字体 outline，避免轻微错位。
       setOutline({ d: "" });
       setVb({ x: 0, y: 0, w: 100, h: 100 });
-      setSkeletonPaths(manual.strokes.map((s) => s.d));
+      setSkeletonPaths(resolvedStrokes.map((s) => s.d));
       setGuidePaths(manual.guides?.map((s) => s.d) ?? []);
       setConstrainToOutline(false);
       return () => {

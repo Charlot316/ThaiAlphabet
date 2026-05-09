@@ -10,6 +10,7 @@ import {
   fmtPathNumber,
   pointModelFromStroke,
   reversePathBySegments,
+  resolveStrokeSequence,
   type PathNode,
 } from "@/lib/pathOrder";
 
@@ -90,7 +91,9 @@ function normalizeDraft(raw: unknown): StrokeDraft | null {
   if ((value.v ?? 0) < 5 || !Array.isArray(value.strokes)) return null;
   return {
     v: 5,
-    strokes: value.strokes.filter((stroke): stroke is Stroke => typeof stroke?.d === "string"),
+    strokes: value.strokes
+      .filter((stroke): stroke is Stroke => typeof stroke?.d === "string")
+      .map((stroke) => resolveStrokeSequence(stroke)),
     guides: Array.isArray(value.guides)
       ? value.guides.filter((stroke): stroke is Stroke => typeof stroke?.d === "string")
       : undefined,
@@ -268,26 +271,47 @@ export default function StrokesEditorPage() {
   }
 
   function applySequence() {
-    const stroke = strokes[selected];
-    if (!stroke) return;
+    commitSequenceDraft(sequenceDraft, true);
+  }
+
+  function buildStrokeFromSequence(stroke: Stroke, sequence: number[], showErrors = false): Stroke | null {
     const model = pointModelFromStroke(stroke);
     const validIds = new Set(model.nodes.map((node) => node.id));
-    if (sequenceDraft.length < 2 || sequenceDraft.some((id) => !validIds.has(id))) {
-      setSequenceError(`顺序至少需要两个点，且只能使用 1-${model.nodes.length} 的点 ID。`);
-      return;
+    if (sequence.length < 2 || sequence.some((id) => !validIds.has(id))) {
+      if (showErrors) setSequenceError(`顺序至少需要两个点，且只能使用 1-${model.nodes.length} 的点 ID。`);
+      return null;
     }
     const points = model.nodes.map((node) => ({ id: node.id, x: node.point.x, y: node.point.y }));
     const sourceD = stroke.sourceD ?? stroke.d;
-    const d = buildPathFromPointSequence({ ...stroke, d: sourceD, sourceD, points }, sequenceDraft);
+    const d = buildPathFromPointSequence({ ...stroke, d: sourceD, sourceD, points }, sequence);
     if (!d) {
-      setSequenceError("这个顺序没法生成路径。");
-      return;
+      if (showErrors) setSequenceError("这两个点之间没有沿原 SVG 相连的路径。");
+      return null;
     }
-    const sequence = sequenceDraft;
-    const next = strokes.map((item, index) => (index === selected ? { ...item, d, sourceD, points, sequence } : item));
+    return { ...stroke, d, sourceD, points, sequence };
+  }
+
+  function commitSequenceDraft(sequence: number[], showErrors = false): Stroke[] | null {
+    const stroke = strokes[selected];
+    if (!stroke) return null;
+    const nextStroke = buildStrokeFromSequence(stroke, sequence, showErrors);
+    if (!nextStroke) return null;
+    const next = strokes.map((item, index) => (index === selected ? nextStroke : item));
     setSequenceError(null);
     updateStrokes(next);
     setSequenceDraft(sequence);
+    return next;
+  }
+
+  function currentStrokesForSave(): Stroke[] {
+    const stroke = strokes[selected];
+    if (!stroke || sequenceDraft.length < 2) return strokes;
+    const nextStroke = buildStrokeFromSequence(stroke, sequenceDraft);
+    if (!nextStroke) return strokes;
+    const next = strokes.map((item, index) => (index === selected ? nextStroke : item));
+    setStrokes(next);
+    setSequenceDraft(nextStroke.sequence ?? sequenceDraft);
+    return next;
   }
 
   function resetSequenceInput() {
@@ -297,17 +321,23 @@ export default function StrokesEditorPage() {
   }
 
   function appendPointId(id: number) {
-    setSequenceDraft((value) => [...value, id]);
+    const next = [...sequenceDraft, id];
+    setSequenceDraft(next);
+    commitSequenceDraft(next);
     setSequenceError(null);
   }
 
   function removeSequenceAt(index: number) {
-    setSequenceDraft((value) => value.filter((_, i) => i !== index));
+    const next = sequenceDraft.filter((_, i) => i !== index);
+    setSequenceDraft(next);
+    commitSequenceDraft(next);
     setSequenceError(null);
   }
 
   function undoSequence() {
-    setSequenceDraft((value) => value.slice(0, -1));
+    const next = sequenceDraft.slice(0, -1);
+    setSequenceDraft(next);
+    commitSequenceDraft(next);
     setSequenceError(null);
   }
 
@@ -327,9 +357,10 @@ export default function StrokesEditorPage() {
   }
 
   function commitToDraft() {
+    const strokesToSave = currentStrokesForSave();
     const data: StrokeDraft = {
       v: 5,
-      strokes,
+      strokes: strokesToSave,
       guides,
       updated_at: Date.now(),
     };

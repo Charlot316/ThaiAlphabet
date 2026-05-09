@@ -176,6 +176,10 @@ function reverseSegment(segment: PathSegment): PathSegment {
   };
 }
 
+function segmentDistance(segment: PathSegment) {
+  return Math.hypot(segment.to.x - segment.from.x, segment.to.y - segment.from.y);
+}
+
 function closestNodeId(nodes: PathNode[], point: Point): number {
   let best = nodes[0]?.id ?? 1;
   let bestD2 = Infinity;
@@ -267,6 +271,60 @@ export function buildPathFromPointSequence(stroke: StrokeLike, sequence: number[
   const nodeById = new Map(model.nodes.map((node) => [node.id, node]));
   const output: PathSegment[] = [];
 
+  const routeBetween = (fromId: number, toId: number): PathSegment[] | null => {
+    type Step = { toId: number; segment: PathSegment; cost: number };
+    const graph = new Map<number, Step[]>();
+    for (const edge of model.edges) {
+      const cost = Math.max(segmentDistance(edge.segment), 0.01);
+      const forward = graph.get(edge.fromId) ?? [];
+      forward.push({ toId: edge.toId, segment: edge.segment, cost });
+      graph.set(edge.fromId, forward);
+
+      const backward = graph.get(edge.toId) ?? [];
+      backward.push({ toId: edge.fromId, segment: reverseSegment(edge.segment), cost });
+      graph.set(edge.toId, backward);
+    }
+
+    const distances = new Map<number, number>([[fromId, 0]]);
+    const previous = new Map<number, { fromId: number; segment: PathSegment }>();
+    const queue = new Set<number>([fromId]);
+
+    while (queue.size > 0) {
+      let current: number | null = null;
+      let best = Infinity;
+      for (const id of queue) {
+        const distance = distances.get(id) ?? Infinity;
+        if (distance < best) {
+          best = distance;
+          current = id;
+        }
+      }
+      if (current === null) break;
+      queue.delete(current);
+      if (current === toId) break;
+
+      for (const step of graph.get(current) ?? []) {
+        const nextDistance = best + step.cost;
+        if (nextDistance < (distances.get(step.toId) ?? Infinity)) {
+          distances.set(step.toId, nextDistance);
+          previous.set(step.toId, { fromId: current, segment: step.segment });
+          queue.add(step.toId);
+        }
+      }
+    }
+
+    if (!previous.has(toId)) return null;
+    const route: PathSegment[] = [];
+    let cursor = toId;
+    while (cursor !== fromId) {
+      const step = previous.get(cursor);
+      if (!step) return null;
+      route.unshift(step.segment);
+      cursor = step.fromId;
+    }
+    return route;
+  };
+
   for (let i = 0; i < sequence.length - 1; i++) {
     const fromId = sequence[i];
     const toId = sequence[i + 1];
@@ -275,22 +333,19 @@ export function buildPathFromPointSequence(stroke: StrokeLike, sequence: number[
     const to = nodeById.get(toId);
     if (!from || !to) return null;
 
-    const direct = model.edges.find((edge) => edge.fromId === fromId && edge.toId === toId);
-    if (direct) {
-      output.push(direct.segment);
-      continue;
-    }
-
-    const reversed = model.edges.find((edge) => edge.fromId === toId && edge.toId === fromId);
-    if (reversed) {
-      output.push(reverseSegment(reversed.segment));
-      continue;
-    }
-
-    output.push({ cmd: "L", from: from.point, to: to.point });
+    const route = routeBetween(fromId, toId);
+    if (!route) return null;
+    output.push(...route);
   }
 
   return output.length > 0 ? pathSegmentsToD(output) : null;
+}
+
+export function resolveStrokeSequence<T extends StrokeLike>(stroke: T): T {
+  if (!Array.isArray(stroke.sequence) || stroke.sequence.length < 2) return stroke;
+  const sourceD = stroke.sourceD ?? stroke.d;
+  const d = buildPathFromPointSequence({ ...stroke, d: sourceD, sourceD }, stroke.sequence);
+  return d ? { ...stroke, d, sourceD } : stroke;
 }
 
 export function moveSegmentForPoint(d: string, pointOrder: number, delta: -1 | 1): string | null {
