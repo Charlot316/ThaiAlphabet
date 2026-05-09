@@ -52,6 +52,7 @@ export default function Nav() {
         style={{
           background: "color-mix(in srgb, var(--duo-card) 92%, transparent)",
           borderTop: "2px solid var(--duo-line)",
+          paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
         <ul className="mx-auto grid max-w-2xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl grid-cols-6">

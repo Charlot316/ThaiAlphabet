@@ -16,7 +16,7 @@ import { speak, warmupVoices } from "@/lib/tts";
 import { feedbackComplete, feedbackCorrect, feedbackTap, feedbackWrong } from "@/lib/feedback";
 
 const LAST_LESSON_KEY = "thai-alphabet:last-lesson:v1";
-const LESSON_SIZE = 4;
+const LESSON_SIZE = 6;
 
 type QuestionKind = "sound" | "letter" | "look" | "write";
 
@@ -51,17 +51,67 @@ function pickLessonItems(items: StudyItem[], progress: MasteryProgress): StudyIt
 }
 
 function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Question[] {
-  const questions = lessonItems.flatMap((item) => {
-    const soundChoices = uniqueChoices(item, allItems, 4, (option) => option.roman);
-    const letterChoices = uniqueChoices(item, allItems, 4, (option) => option.roman);
-    return [
-      { id: `${item.id}:look`, kind: "look" as const, item, choices: [item] },
-      { id: `${item.id}:write`, kind: "write" as const, item, choices: [item] },
-      { id: `${item.id}:sound`, kind: "sound" as const, item, choices: soundChoices },
-      { id: `${item.id}:letter`, kind: "letter" as const, item, choices: letterChoices },
-    ];
+  // 每个音 7 题：1 look + 2 sound + 2 letter + 2 write。
+  // 'look' 总是放在该音的第一题（介绍），剩余 6 题随机排列；
+  // 然后用 round-robin 把不同音的题穿插，避免同一个音的题连续出现。
+  const perItem = lessonItems.map((item) => {
+    const introduction: Question = {
+      id: `${item.id}:look`,
+      kind: "look",
+      item,
+      choices: [item],
+    };
+    const drills: Question[] = shuffleStrong([
+      {
+        id: `${item.id}:sound:1`,
+        kind: "sound",
+        item,
+        choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
+      },
+      {
+        id: `${item.id}:sound:2`,
+        kind: "sound",
+        item,
+        choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
+      },
+      {
+        id: `${item.id}:letter:1`,
+        kind: "letter",
+        item,
+        choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
+      },
+      {
+        id: `${item.id}:letter:2`,
+        kind: "letter",
+        item,
+        choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
+      },
+      { id: `${item.id}:write:1`, kind: "write", item, choices: [item] },
+      { id: `${item.id}:write:2`, kind: "write", item, choices: [item] },
+    ]);
+    return { introduction, drills };
   });
-  return shuffleStrong(questions);
+
+  // Round 0: 把所有音的 look 先放出来（介绍轮，按音顺序但随机化）
+  const introRound = shuffleStrong(perItem.map((p) => p.introduction));
+
+  // Round-robin：每"轮"从每个音里取一道练习题，本轮内打散；
+  // 轮交界处如果连续两题同一个音，就交换一下避免相邻。
+  const result: Question[] = [...introRound];
+  const drillRounds = Math.max(...perItem.map((p) => p.drills.length));
+  for (let round = 0; round < drillRounds; round++) {
+    const slice = perItem
+      .map((p) => p.drills[round])
+      .filter((q): q is Question => Boolean(q));
+    const shuffled = shuffleStrong(slice);
+    const lastId = result[result.length - 1]?.item.id;
+    if (shuffled[0]?.item.id === lastId && shuffled.length > 1) {
+      [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
+    }
+    result.push(...shuffled);
+  }
+
+  return result;
 }
 
 const PRAISE = ["太棒了！", "做得好！", "完美！", "继续保持！", "答对了！", "厉害👏"];

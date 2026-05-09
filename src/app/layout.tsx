@@ -23,7 +23,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Nav />
           {/* main 铺满整个宽度让两侧空白也能接收滚动事件，内层 div 才负责把内容居中。 */}
           <main className="w-full flex-1 overflow-y-auto">
-            <div className="mx-auto h-full w-full max-w-2xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl px-4 py-4 pb-20">
+            <div
+              className="mx-auto h-full w-full max-w-2xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl px-4 py-4"
+              style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom))" }}
+            >
               {children}
             </div>
           </main>
