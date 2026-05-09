@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { letterPath, letterSkeleton } from "@/lib/thaiFont";
+import { letterSkeleton } from "@/lib/thaiFont";
 import { feedbackComplete, feedbackTap } from "@/lib/feedback";
 import { getLetterStrokes } from "@/data/strokes";
 import { lockPageScroll, preventElementTouchScroll, unlockPageScroll, type PageScrollLock } from "@/lib/scrollLock";
@@ -94,35 +94,12 @@ export default function TraceSvg({
       ? { ...localDraft, guides: localDraft.guides ?? saved?.guides }
       : saved;
     if (manual && manual.strokes.length > 0) {
-      // 手工数据用 viewBox 0..100，把字体 outline 映射进同一个 viewBox 作背景
-      letterPath(letter, 240)
-        .then(({ d, bbox }) => {
-          if (cancelled) return;
-          const w = bbox.x2 - bbox.x1;
-          const h = bbox.y2 - bbox.y1;
-          if (w > 0 && h > 0) {
-            const VB = 100;
-            const PAD = 6;
-            const scale = (VB - PAD * 2) / Math.max(w, h);
-            const offX = (VB - w * scale) / 2 - bbox.x1 * scale;
-            const offY = (VB - h * scale) / 2 - bbox.y1 * scale;
-            setOutline({
-              d,
-              transform: `translate(${offX} ${offY}) scale(${scale})`,
-              offX,
-              offY,
-              scale,
-            });
-          }
-          setVb({ x: 0, y: 0, w: 100, h: 100 });
-          setSkeletonPaths(manual.strokes.map((s) => s.d));
-          setGuidePaths(manual.guides?.map((s) => s.d) ?? []);
-          setConstrainToOutline(false);
-        })
-        .catch((e) => {
-          if (cancelled) return;
-          setError((e as Error).message || "字体加载失败");
-        });
+      // 手工 SVG 数据本身就是描红底纹；不要再叠字体 outline，避免轻微错位。
+      setOutline({ d: "" });
+      setVb({ x: 0, y: 0, w: 100, h: 100 });
+      setSkeletonPaths(manual.strokes.map((s) => s.d));
+      setGuidePaths(manual.guides?.map((s) => s.d) ?? []);
+      setConstrainToOutline(false);
       return () => {
         cancelled = true;
       };
@@ -319,8 +296,8 @@ export default function TraceSvg({
   }
 
   const ballR = vb.w * 0.045;
-  const skeletonStrokeW = vb.w * 0.025;
-  const trailStrokeW = vb.w * 0.04;
+  const skeletonStrokeW = vb.w * (constrainToOutline ? 0.027 : 0.036);
+  const trailStrokeW = vb.w * (constrainToOutline ? 0.042 : 0.055);
 
   return (
     <div className="space-y-3">
@@ -341,21 +318,23 @@ export default function TraceSvg({
           onPointerUp={onUp}
           onPointerCancel={onUp}
         >
-          <path
-            ref={outlinePathRef}
-            d={outline.d}
-            fill="black"
-            opacity={0}
-            style={{ pointerEvents: "none" }}
-          />
+          {outline.d && (
+            <path
+              ref={outlinePathRef}
+              d={outline.d}
+              fill="black"
+              opacity={0}
+              style={{ pointerEvents: "none" }}
+            />
+          )}
           {/* 背景：字体 outline 淡色填充作视觉参考 */}
           {outline.transform ? (
             <g transform={outline.transform}>
               <path d={outline.d} fill="rgba(0,0,0,0.07)" stroke="rgba(0,0,0,0.13)" strokeWidth={1} />
             </g>
-          ) : (
+          ) : outline.d ? (
             <path d={outline.d} fill="rgba(0,0,0,0.07)" stroke="rgba(0,0,0,0.13)" strokeWidth={vb.w * 0.005} />
-          )}
+          ) : null}
 
           {guidePaths.map((d, i) => (
             <path
@@ -363,7 +342,7 @@ export default function TraceSvg({
               d={d}
               fill="none"
               stroke="rgba(0,0,0,0.22)"
-              strokeWidth={vb.w * 0.012}
+              strokeWidth={vb.w * 0.018}
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeDasharray={`${vb.w * 0.01} ${vb.w * 0.015}`}
