@@ -481,6 +481,22 @@ export default function StrokesEditorPage() {
             />
           ))}
           {strokes.map((stroke, index) => {
+            const referenceD = stroke.sourceD ?? base?.strokes[index]?.d ?? stroke.d;
+            return (
+              <path
+                key={`reference-${item.key}-${index}`}
+                d={referenceD}
+                fill="none"
+                stroke="rgba(0,0,0,0.16)"
+                strokeWidth={index === selected ? 3.2 : 2.4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={index === selected ? "0" : "1.5 2.2"}
+                pointerEvents="none"
+              />
+            );
+          })}
+          {strokes.map((stroke, index) => {
             const active = index === selected;
             const { start } = endpointsFromPath(stroke.d);
             return (
