@@ -127,7 +127,6 @@ export default function CoursePage() {
     return groups;
   }, [allItems]);
   const [progress, setProgress] = useState<MasteryProgress>({});
-  const [lessonItems, setLessonItems] = useState<StudyItem[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [index, setIndex] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
@@ -156,12 +155,10 @@ export default function CoursePage() {
     }
   }, [current]);
 
-  const mastered = allItems.filter((item) => (progress[item.id] || 0) >= MASTERY_TARGET).length;
   const lessonProgress = questions.length === 0 ? 0 : Math.min(100, (index / questions.length) * 100);
 
   function startLesson(nextProgress = progress) {
     const pickedItems = pickLessonItems(allItems, nextProgress);
-    setLessonItems(pickedItems);
     setQuestions(buildQuestions(pickedItems, allItems));
     setIndex(0);
     setPicked(null);
@@ -295,23 +292,6 @@ export default function CoursePage() {
           </button>
           <div className="progress-track flex-1">
             <div className="progress-fill" style={{ width: `${lessonProgress}%` }} />
-          </div>
-        </div>
-
-        {/* 总进度 chip */}
-        <div className="card-soft mt-4 p-3 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="opacity-70">总熟练度</span>
-            <span className="font-extrabold">{mastered} / {allItems.length}</span>
-          </div>
-          <div className="progress-track mt-2" style={{ height: "8px" }}>
-            <div
-              className="progress-fill"
-              style={{ width: `${(mastered / allItems.length) * 100}%`, background: "linear-gradient(180deg, #ffe066, var(--duo-yellow))" }}
-            />
-          </div>
-          <div className="mt-2 thai-big opacity-80">
-            本轮: {lessonItems.map((item) => item.front).join(" ")}
           </div>
         </div>
       </div>
