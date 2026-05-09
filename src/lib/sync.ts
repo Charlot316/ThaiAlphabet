@@ -182,6 +182,63 @@ export async function pull(): Promise<{ ok: boolean; merged: number; error?: str
   }
 }
 
+const STROKES_DRAFT_KEY = "thai-alphabet:strokes-draft:v1";
+
+interface StrokeDraftValue {
+  v?: number;
+  strokes?: unknown;
+  guides?: unknown;
+  updated_at?: number;
+}
+
+/** 拉取云端所有笔画草稿，按 updated_at 合并到本地 strokes-draft localStorage。 */
+export async function pullStrokes(): Promise<{ ok: boolean; merged: number; error?: string }> {
+  const token = getToken();
+  if (!token) return { ok: false, merged: 0, error: "not-logged-in" };
+  try {
+    const res = await fetch("/api/strokes", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (res.status === 401) {
+      await logout();
+      return { ok: false, merged: 0, error: "session-expired" };
+    }
+    if (!res.ok) return { ok: false, merged: 0, error: `HTTP ${res.status}` };
+    const data = (await res.json()) as {
+      items?: { item_key: string; value: string; updated_at: number }[];
+    };
+    const items = data.items ?? [];
+    let local: Record<string, StrokeDraftValue> = {};
+    try {
+      local = JSON.parse(window.localStorage.getItem(STROKES_DRAFT_KEY) || "{}");
+    } catch {
+      local = {};
+    }
+    let merged = 0;
+    for (const row of items) {
+      try {
+        const parsed = JSON.parse(row.value) as StrokeDraftValue;
+        if (!parsed || typeof parsed !== "object") continue;
+        const existing = local[row.item_key];
+        const existingStamp = existing?.updated_at ?? 0;
+        if (row.updated_at > existingStamp) {
+          local[row.item_key] = { ...parsed, updated_at: row.updated_at };
+          merged++;
+        }
+      } catch {
+        // skip malformed rows
+      }
+    }
+    if (merged > 0) {
+      window.localStorage.setItem(STROKES_DRAFT_KEY, JSON.stringify(local));
+      window.dispatchEvent(new Event("thai-alphabet:strokes"));
+    }
+    return { ok: true, merged };
+  } catch (e) {
+    return { ok: false, merged: 0, error: (e as Error).message };
+  }
+}
+
 /** 把当前所有受跟踪 key 全量推送 */
 export async function pushAll(): Promise<{ ok: boolean; pushed: number; error?: string }> {
   const token = getToken();

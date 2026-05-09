@@ -53,6 +53,12 @@ export default function TraceSvg({
   onComplete?: () => void;
 }) {
   const lookupKey = strokeKey ?? letter;
+  const [strokesVersion, setStrokesVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => setStrokesVersion((v) => v + 1);
+    window.addEventListener("thai-alphabet:strokes", bump);
+    return () => window.removeEventListener("thai-alphabet:strokes", bump);
+  }, []);
   const [outline, setOutline] = useState<{ d: string; transform?: string; offX?: number; offY?: number; scale?: number } | null>(null);
   const [skeletonPaths, setSkeletonPaths] = useState<string[]>([]);
   const [guidePaths, setGuidePaths] = useState<string[]>([]);
@@ -144,7 +150,7 @@ export default function TraceSvg({
     return () => {
       cancelled = true;
     };
-  }, [letter, lookupKey]);
+  }, [letter, lookupKey, strokesVersion]);
 
   // skeleton paths 更新后取每段总长
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { installSyncHook, isLoggedIn, login, pull, subscribeAuth } from "@/lib/sync";
+import { installSyncHook, isLoggedIn, login, pull, pullStrokes, subscribeAuth } from "@/lib/sync";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -11,7 +11,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const sync = () => {
       const v = isLoggedIn();
       setLogged(v);
-      if (v) pull();
+      if (v) {
+        pull();
+        pullStrokes();
+      }
     };
     sync();
     setReady(true);
@@ -51,6 +54,7 @@ function LoginScreen() {
     }
     // 登录成功后，AuthGuard 会通过 subscribeAuth 收到事件并切换 UI；这里再触发一次 pull
     await pull();
+    pullStrokes();
     setBusy(false);
   }
 

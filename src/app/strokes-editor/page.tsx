@@ -115,6 +115,16 @@ function normalizeDraft(raw: unknown): StrokeDraft | null {
   };
 }
 
+function draftMatchesBase(draft: StrokeDraft, base: LetterStrokes | null): boolean {
+  if (!base) return true;
+  if (draft.strokes.length !== base.strokes.length) return false;
+  return draft.strokes.every((stroke, index) => {
+    const baseStroke = base.strokes[index];
+    if (!baseStroke) return false;
+    return (stroke.sourceD ?? stroke.d) === baseStroke.d;
+  });
+}
+
 function loadDraft(): Record<string, StrokeDraft> {
   if (typeof window === "undefined") return {};
   try {
@@ -190,16 +200,19 @@ export default function StrokesEditorPage() {
     if (!item) return;
     dirty.current = false;
     const localDraft = loadDraft();
-    const current = localDraft[item.key] ?? base;
+    const cached = localDraft[item.key];
+    const usableCached = cached && draftMatchesBase(cached, base) ? cached : null;
+    const current = usableCached ?? base;
     setDraft(localDraft);
     setStrokes(current?.strokes ?? []);
     setGuides(current?.guides ?? base?.guides ?? []);
     setSelected(0);
     setSequenceError(null);
-    setSaveState(localDraft[item.key] ? "saved" : "idle");
+    setSaveState(usableCached ? "saved" : "idle");
 
     fetchRemoteDraft(item.key).then((remote) => {
       if (!remote) return;
+      if (!draftMatchesBase(remote, base)) return;
       const latestLocal = loadDraft()[item.key];
       if ((remote.updated_at || 0) <= (latestLocal?.updated_at || 0)) return;
       const next = { ...loadDraft(), [item.key]: remote };
