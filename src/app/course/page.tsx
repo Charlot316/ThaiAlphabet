@@ -8,6 +8,7 @@ import {
   addMastery as recordMastery,
   applyWrongAnswer,
   loadMastery,
+  recordOutcome,
   resetMastery,
 } from "@/lib/mastery";
 import { StudyItem, buildStudyItems, displayRoman, shuffleStrong, uniqueChoices } from "@/lib/study";
@@ -306,19 +307,20 @@ export default function CoursePage() {
     if (!current || submitted) return;
     setSubmitted(true);
     const effective = peeked ? Math.min(grade, 2) : grade;
-    if (effective >= 3) {
-      gainMastery(current.item.id, 1);
+    const outcome = effective >= 3 ? "correct" : effective === 2 ? "hard" : "wrong";
+    recordOutcome(current.item.id, outcome);
+    setProgress(loadMastery());
+    if (outcome === "correct") {
       setCorrectCount((v) => v + 1);
       setFeedback("ok");
       setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
       markActive();
       feedbackCorrect();
-    } else if (effective === 2) {
+    } else if (outcome === "hard") {
       setFeedback("bad");
       feedbackTap();
       queueReplay(current);
     } else {
-      setProgress(applyWrongAnswer(current.item.id, current.item.id));
       setFeedback("bad");
       feedbackWrong();
       queueReplay(current);

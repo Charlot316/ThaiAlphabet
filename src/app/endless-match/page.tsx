@@ -11,6 +11,7 @@ import {
 } from "@/lib/feedback";
 import { speak, warmupVoices } from "@/lib/tts";
 import { markActive } from "@/lib/stats";
+import { recordOutcome } from "@/lib/mastery";
 
 const BATCH_SIZE = 6;
 const BEST_KEY = "thai-alphabet:endless-match:best";
@@ -97,12 +98,17 @@ export default function EndlessMatchPage() {
       const item = batch.find((b) => b.id === leftId);
       if (item) speak(item.speak);
       markActive();
+      // 计入熟练度（带连击信息更新 streakBest）
+      recordOutcome(leftId, "correct", { streak: newStreak });
       setTimeout(() => setFlash(null), 250);
     } else {
       setStreak(0);
       setTotalMissed((v) => v + 1);
       setFlash("bad");
       feedbackMismatch();
+      // 错配两个都按 hard 算（降熟练度但不太狠）
+      recordOutcome(leftId, "hard");
+      recordOutcome(rightId, "hard");
       setTimeout(() => setFlash(null), 350);
     }
     setPickedLeft(null);

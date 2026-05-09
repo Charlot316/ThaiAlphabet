@@ -1,34 +1,53 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CONSONANTS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import PronounceButton from "@/components/PronounceButton";
-import { Grade, SrsCard, dueCards, loadDeck, newCard, review, saveDeck } from "@/lib/srs";
-import { addMastery } from "@/lib/mastery";
-import { consonantPhonetic, consonantSpeak, displayRoman, vowelPhonetic, vowelSpeak } from "@/lib/study";
+import {
+  Outcome,
+  deriveScore,
+  dueIds,
+  getRecord,
+  recordOutcome,
+  useMasteryStore,
+} from "@/lib/mastery";
+import {
+  consonantPhonetic,
+  consonantSpeak,
+  displayRoman,
+  vowelPhonetic,
+  vowelSpeak,
+} from "@/lib/study";
 import { feedbackCorrect, feedbackReveal, feedbackTap, feedbackWrong } from "@/lib/feedback";
 import { speak } from "@/lib/tts";
 
-const DECK_KEY = "thai-alphabet:srs:v1";
-
 type Pool = "consonant" | "vowel" | "both";
 
-function buildAllItems() {
-  const cons = CONSONANTS.filter((c) => !c.obsolete).map((c) => ({
+interface MemoryItem {
+  id: string;
+  front: string;
+  back: string;
+  speak: string;
+  phonetic: string;
+  pool: "consonant" | "vowel";
+}
+
+function buildAllItems(): MemoryItem[] {
+  const cons: MemoryItem[] = CONSONANTS.filter((c) => !c.obsolete).map((c) => ({
     id: `c:${c.id}`,
     front: c.letter,
     back: `${displayRoman(c.romanInitial)} · ${c.name} (${c.meaning})`,
     speak: consonantSpeak(c),
     phonetic: consonantPhonetic(c),
-    pool: "consonant" as const,
+    pool: "consonant",
   }));
-  const vows = VOWELS.map((v) => ({
+  const vows: MemoryItem[] = VOWELS.map((v) => ({
     id: `v:${v.id}`,
     front: v.display,
     back: `${v.roman} · ${v.length === "long" ? "长" : "短"}${v.notes ? " · " + v.notes : ""}`,
     speak: vowelSpeak(v),
     phonetic: vowelPhonetic(v),
-    pool: "vowel" as const,
+    pool: "vowel",
   }));
   return [...cons, ...vows];
 }
@@ -37,50 +56,45 @@ export default function SrsPage() {
   const items = useMemo(buildAllItems, []);
   const itemById = useMemo(() => Object.fromEntries(items.map((i) => [i.id, i])), [items]);
   const [pool, setPool] = useState<Pool>("consonant");
-  const [deck, setDeck] = useState<SrsCard[]>([]);
   const [peeked, setPeeked] = useState(false);
+  const store = useMasteryStore();
 
-  useEffect(() => {
-    const stored = loadDeck(DECK_KEY);
-    const filtered = stored.filter((c) => itemById[c.id]);
-    // 自动加入新卡
-    const present = new Set(filtered.map((c) => c.id));
-    const candidates = items
-      .filter((i) => pool === "both" || i.pool === pool)
-      .filter((i) => !present.has(i.id))
-      .map((i) => newCard(i.id));
-    setDeck([...filtered, ...candidates]);
-  }, [pool, items, itemById]);
+  // 候选：本池所有字母；优先级 = 已到期 → 没碰过 → 按 score 升序
+  const queue = useMemo(() => {
+    const inPool = items.filter((it) => pool === "both" || it.pool === pool);
+    const due = dueIds().filter((id) => itemById[id] && (pool === "both" || itemById[id].pool === pool));
+    const dueSet = new Set(due);
+    const fresh = inPool.filter((it) => !store[it.id] || (store[it.id]?.attempts ?? 0) === 0);
+    const others = inPool
+      .filter((it) => !dueSet.has(it.id) && (store[it.id]?.attempts ?? 0) > 0)
+      .sort((a, b) => deriveScore(store[a.id]) - deriveScore(store[b.id]));
+    return [...due.map((id) => itemById[id]).filter(Boolean), ...fresh, ...others];
+  }, [items, pool, store, itemById]);
 
-  useEffect(() => {
-    if (deck.length) saveDeck(DECK_KEY, deck);
-  }, [deck]);
+  const item = queue[0];
 
-  const filtered = deck.filter((c) => {
-    const it = itemById[c.id];
-    return it && (pool === "both" || it.pool === pool);
-  });
-  const due = dueCards(filtered);
-  const current = due[0];
-  const item = current ? itemById[current.id] : null;
-
-  function grade(g: Grade) {
-    if (!current) return;
-    // 偷听过 → 即便选"认识"也按"模糊"降级
-    const effective: Grade = peeked && g === "good" ? "hard" : g;
-    const updated = review(current, effective);
-    if (effective === "good") {
-      addMastery(current.id, 1);
-      feedbackCorrect();
-    } else if (effective === "again") {
-      addMastery(current.id, -1);
-      feedbackWrong();
-    } else {
-      feedbackTap();
-    }
-    setDeck((d) => d.map((c) => (c.id === current.id ? updated : c)));
+  function grade(out: Outcome) {
+    if (!item) return;
+    // 偷听过 → "correct" 降级为 "hard"
+    const effective: Outcome = peeked && out === "correct" ? "hard" : out;
+    recordOutcome(item.id, effective);
+    if (effective === "correct") feedbackCorrect();
+    else if (effective === "hard") feedbackTap();
+    else feedbackWrong();
     setPeeked(false);
   }
+
+  const totalInPool = items.filter((it) => pool === "both" || it.pool === pool).length;
+  const dueCount = useMemo(
+    () => dueIds().filter((id) => itemById[id] && (pool === "both" || itemById[id].pool === pool)).length,
+    [itemById, pool, store] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const learnedCount = items.filter(
+    (it) => (pool === "both" || it.pool === pool) && deriveScore(store[it.id]) >= 60
+  ).length;
+
+  const score = item ? deriveScore(getRecord(item.id)) : 0;
+  const record = item ? getRecord(item.id) : null;
 
   return (
     <div className="space-y-4">
@@ -95,14 +109,25 @@ export default function SrsPage() {
           </button>
         ))}
       </div>
-      <div className="card-soft p-3 text-xs">
-        <div className="flex justify-between">
-          <span className="opacity-70">到期</span>
-          <span className="font-extrabold" style={{ color: "var(--duo-orange)" }}>{due.length}</span>
+
+      <div className="card-soft grid grid-cols-3 gap-2 p-3 text-center text-xs">
+        <div>
+          <div className="opacity-70">到期</div>
+          <div className="text-base font-extrabold" style={{ color: "var(--duo-orange)" }}>
+            {dueCount}
+          </div>
         </div>
-        <div className="mt-1 flex justify-between">
-          <span className="opacity-70">总卡</span>
-          <span className="font-extrabold">{filtered.length}</span>
+        <div>
+          <div className="opacity-70">已掌握</div>
+          <div className="text-base font-extrabold" style={{ color: "var(--duo-green)" }}>
+            {learnedCount} / {totalInPool}
+          </div>
+        </div>
+        <div>
+          <div className="opacity-70">本字熟练度</div>
+          <div className="text-base font-extrabold" style={{ color: "var(--duo-blue)" }}>
+            {score}
+          </div>
         </div>
       </div>
 
@@ -135,21 +160,41 @@ export default function SrsPage() {
                 <div className="font-mono text-sm" style={{ color: "var(--duo-blue)" }}>
                   🔊 应念: {item.phonetic}
                 </div>
-                <div><PronounceButton text={item.speak} label="🔊 再听" /></div>
+                <div>
+                  <PronounceButton text={item.speak} label="🔊 再听" />
+                </div>
+              </div>
+            )}
+            {record && record.attempts > 0 && (
+              <div className="mt-4 flex gap-3 text-[11px] opacity-70">
+                <span>答过 {record.attempts}</span>
+                <span>对 {record.correct}</span>
+                {record.reps > 0 && <span>连对 {record.reps}</span>}
+                {record.lapses > 0 && <span>翻车 {record.lapses}</span>}
               </div>
             )}
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <button onClick={() => grade("again")} className="btn-red">不认识</button>
-            <button onClick={() => grade("hard")} className="btn-orange">模糊</button>
-            <button onClick={() => grade("good")} className="btn-primary" disabled={peeked}>
+            <button onClick={() => grade("wrong")} className="btn-red">
+              不认识
+            </button>
+            <button onClick={() => grade("hard")} className="btn-orange">
+              模糊
+            </button>
+            <button
+              onClick={() => grade("correct")}
+              className="btn-primary"
+              disabled={peeked}
+            >
               {peeked ? "认识 (已封顶)" : "认识 ✓"}
             </button>
           </div>
           {peeked && (
-            <div className="mt-3 rounded-2xl px-4 py-2 text-center text-sm font-bold animate-pop"
-                 style={{ background: "rgba(28,176,246,0.1)", color: "var(--duo-blue)" }}>
+            <div
+              className="mt-3 rounded-2xl px-4 py-2 text-center text-sm font-bold animate-pop"
+              style={{ background: "rgba(28,176,246,0.1)", color: "var(--duo-blue)" }}
+            >
               {item.back}
             </div>
           )}

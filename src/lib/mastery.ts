@@ -1,69 +1,245 @@
 "use client";
 import { useEffect, useState } from "react";
 
-export const MASTERY_KEY = "thai-alphabet:course-progress:v1";
+// =============================================================================
+// 多维熟练度系统 (v2)
+// =============================================================================
+// 一份 MasteryRecord 同时给课程、记忆模式、无尽配对、总览使用，避免多套数据
+// 不同步。每个字母累计：
+//   - attempts/correct  → 总曝光与正确率
+//   - recent (EMA)      → 最近表现，新答题加权高
+//   - ease/interval/due → SRS 字段（SM-2 风格），决定下次复习时间
+//   - reps/lapses       → 连续答对/翻车计数
+//   - streakBest        → 无尽配对的历史最高连击（次要装饰用）
+//   - lastSeenAt        → 上次答题时间，用来给 score 加 "久未复习扣分"
+//
+// score 是从这些字段派生的 0-100 综合熟练度（用于 UI 展示）。
+// =============================================================================
+
 export const MASTERY_TARGET = 100;
+export const MASTERY_KEY = "thai-alphabet:mastery:v2";
+const LEGACY_KEY = "thai-alphabet:course-progress:v1";
 
-export type MasteryProgress = Record<string, number>;
+export type Outcome = "correct" | "hard" | "wrong";
 
-export function loadMastery(): MasteryProgress {
-  if (typeof window === "undefined") return {};
-  try {
-    return JSON.parse(window.localStorage.getItem(MASTERY_KEY) || "{}") as MasteryProgress;
-  } catch {
-    return {};
-  }
+export interface MasteryRecord {
+  attempts: number;
+  correct: number;
+  recent: number; // 0..1，最近 K 次正确性的 EMA
+  ease: number; // SRS ease，默认 2.5，区间 1.3..3.0
+  interval: number; // SRS 间隔（分钟）
+  due: number; // 下次到期时间 (unix ms)
+  reps: number; // 连续答对次数
+  lapses: number; // 翻车次数
+  lastSeenAt: number; // 上次答题时间 (unix ms)
+  streakBest: number; // 无尽配对模式里的历史最高连击
 }
 
-export function saveMastery(progress: MasteryProgress) {
+export type MasteryStore = Record<string, MasteryRecord>;
+// 向后兼容：UI 直接拿派生的 0-100 数字
+export type MasteryProgress = Record<string, number>;
+
+const MIN = 1;
+const HOUR = 60;
+const DAY = 24 * HOUR;
+
+function emptyRecord(): MasteryRecord {
+  return {
+    attempts: 0,
+    correct: 0,
+    recent: 0,
+    ease: 2.5,
+    interval: 0,
+    due: 0,
+    reps: 0,
+    lapses: 0,
+    lastSeenAt: 0,
+    streakBest: 0,
+  };
+}
+
+function emit() {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(MASTERY_KEY, JSON.stringify(progress));
   window.dispatchEvent(new Event("thai-alphabet:mastery"));
 }
 
-export function addMastery(itemId: string, amount = 1): MasteryProgress {
-  const current = loadMastery();
-  const next = {
-    ...current,
-    [itemId]: Math.max(0, Math.min(MASTERY_TARGET, (current[itemId] || 0) + amount)),
-  };
-  saveMastery(next);
-  return next;
+function readRaw(): unknown {
+  if (typeof window === "undefined") return null;
+  try {
+    return JSON.parse(window.localStorage.getItem(MASTERY_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function migrateLegacy(): MasteryStore | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(LEGACY_KEY);
+    if (!raw) return null;
+    const old = JSON.parse(raw) as Record<string, number>;
+    const store: MasteryStore = {};
+    const now = Date.now();
+    for (const [id, score] of Object.entries(old)) {
+      if (typeof score !== "number" || score <= 0) continue;
+      const r = emptyRecord();
+      // 把旧的 0-100 当作累计学习量
+      r.attempts = score;
+      r.correct = score;
+      r.recent = Math.min(1, score / 100);
+      r.ease = 2.5;
+      // 旧 score 越高 → SRS 间隔越长。score=100 → 约 7 天
+      r.interval = score >= 80 ? 3 * DAY : score >= 40 ? 1 * DAY : score * MIN * 6;
+      r.due = now;
+      r.lastSeenAt = now;
+      store[id] = r;
+    }
+    return store;
+  } catch {
+    return null;
+  }
+}
+
+export function loadStore(): MasteryStore {
+  const direct = readRaw();
+  if (direct && typeof direct === "object") return direct as MasteryStore;
+  const migrated = migrateLegacy();
+  if (migrated) {
+    saveStore(migrated);
+    return migrated;
+  }
+  return {};
+}
+
+export function saveStore(store: MasteryStore) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(MASTERY_KEY, JSON.stringify(store));
+  emit();
+}
+
+export function getRecord(id: string): MasteryRecord {
+  const store = loadStore();
+  return store[id] ?? emptyRecord();
+}
+
+// 写入一次答题结果。课程 / 记忆 / 配对都走这个口子。
+export function recordOutcome(
+  id: string,
+  outcome: Outcome,
+  opts?: { streak?: number }
+): MasteryStore {
+  const store = loadStore();
+  const record = { ...(store[id] ?? emptyRecord()) };
+  const now = Date.now();
+
+  record.attempts += 1;
+  record.lastSeenAt = now;
+
+  // 最近表现 EMA：新结果占 30%
+  const value = outcome === "correct" ? 1 : outcome === "hard" ? 0.5 : 0;
+  record.recent = record.recent * 0.7 + value * 0.3;
+
+  if (outcome === "correct") {
+    record.correct += 1;
+    record.reps += 1;
+    record.ease = Math.min(3.0, record.ease + 0.05);
+    if (record.interval < 1) record.interval = 10 * MIN;
+    else if (record.reps <= 2) record.interval = 1 * DAY;
+    else record.interval = record.interval * record.ease;
+    record.due = now + record.interval * 60 * 1000;
+  } else if (outcome === "hard") {
+    record.ease = Math.max(1.3, record.ease - 0.02);
+    record.interval = Math.max(5 * MIN, record.interval * 1.1);
+    record.due = now + record.interval * 60 * 1000;
+  } else {
+    record.lapses += 1;
+    record.reps = 0;
+    record.ease = Math.max(1.3, record.ease - 0.2);
+    record.interval = 1 * MIN;
+    record.due = now + 60 * 1000;
+  }
+
+  if (opts?.streak && opts.streak > record.streakBest) {
+    record.streakBest = opts.streak;
+  }
+
+  store[id] = record;
+  saveStore(store);
+  return store;
+}
+
+// 0-100 综合熟练度 — 给 UI 显示
+export function deriveScore(r: MasteryRecord | null | undefined): number {
+  if (!r || r.attempts === 0) return 0;
+  // 累计曝光 0-25：log 缓增（多次答题边际递减）
+  const exposure = Math.min(25, Math.log10(r.attempts + 1) * 18);
+  // 最近正确率 0-30
+  const recentScore = r.recent * 30;
+  // SRS 深度 0-35：interval 越长越自信。1 天 ≈ 22, 7 天 ≈ 32
+  const srsDepth = Math.min(35, Math.log10(r.interval / HOUR + 1) * 16);
+  // 翻车扣分 0-10
+  const lapsesPenalty = Math.min(10, r.lapses * 0.6);
+  // 久未复习扣分 0-10：14 天后扣到 ~0
+  const daysSince = (Date.now() - r.lastSeenAt) / (1000 * 60 * 60 * 24);
+  const recencyBonus = 10 * Math.exp(-daysSince / 14);
+  return Math.max(
+    0,
+    Math.min(100, Math.round(exposure + recentScore + srsDepth + recencyBonus - lapsesPenalty))
+  );
+}
+
+// 派生的 0-100 视图，给 UI 用
+export function loadMastery(): MasteryProgress {
+  const store = loadStore();
+  const out: MasteryProgress = {};
+  for (const [id, r] of Object.entries(store)) out[id] = deriveScore(r);
+  return out;
+}
+
+export function dueIds(now: number = Date.now()): string[] {
+  const store = loadStore();
+  return Object.entries(store)
+    .filter(([, r]) => r.attempts > 0 && r.due <= now)
+    .sort((a, b) => a[1].due - b[1].due)
+    .map(([id]) => id);
+}
+
+// =============================================================================
+// 向后兼容 API（课程、总览继续用，无需改动调用方）
+// =============================================================================
+
+/** 旧 API：amount > 0 视为答对，< 0 视为答错。amount 量级被忽略。 */
+export function addMastery(id: string, amount: number = 1): MasteryProgress {
+  recordOutcome(id, amount >= 0 ? "correct" : "wrong");
+  return loadMastery();
+}
+
+export function applyWrongAnswer(targetId: string, wrongId?: string): MasteryProgress {
+  recordOutcome(targetId, "wrong");
+  if (wrongId && wrongId !== targetId) recordOutcome(wrongId, "wrong");
+  return loadMastery();
+}
+
+export function clearMastery(itemId: string): MasteryProgress {
+  const store = loadStore();
+  if (!(itemId in store)) return loadMastery();
+  delete store[itemId];
+  saveStore(store);
+  return loadMastery();
 }
 
 export function resetMastery() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(MASTERY_KEY);
-  window.dispatchEvent(new Event("thai-alphabet:mastery"));
+  emit();
 }
 
-export function clearMastery(itemId: string): MasteryProgress {
-  const current = loadMastery();
-  if (!(itemId in current)) return current;
-  const next = { ...current };
-  delete next[itemId];
-  saveMastery(next);
-  return next;
-}
-
-/**
- * 答错时调整熟练度：目标字母 -1，被选错的那个字母也 -1（如果不是同一个）。
- */
-export function applyWrongAnswer(targetId: string, wrongId?: string): MasteryProgress {
-  const current = loadMastery();
-  const next = { ...current };
-  const dec = (id: string) => {
-    next[id] = Math.max(0, Math.min(MASTERY_TARGET, (next[id] || 0) - 1));
-  };
-  dec(targetId);
-  if (wrongId && wrongId !== targetId) dec(wrongId);
-  saveMastery(next);
-  return next;
-}
+// =============================================================================
+// React Hooks
+// =============================================================================
 
 export function useMastery() {
   const [progress, setProgress] = useState<MasteryProgress>({});
-
   useEffect(() => {
     const refresh = () => setProgress(loadMastery());
     refresh();
@@ -74,6 +250,20 @@ export function useMastery() {
       window.removeEventListener("thai-alphabet:mastery", refresh);
     };
   }, []);
-
   return progress;
+}
+
+export function useMasteryStore() {
+  const [store, setStore] = useState<MasteryStore>({});
+  useEffect(() => {
+    const refresh = () => setStore(loadStore());
+    refresh();
+    window.addEventListener("storage", refresh);
+    window.addEventListener("thai-alphabet:mastery", refresh);
+    return () => {
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("thai-alphabet:mastery", refresh);
+    };
+  }, []);
+  return store;
 }
