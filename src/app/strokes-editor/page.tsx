@@ -119,15 +119,10 @@ function normalizeDraft(raw: unknown): StrokeDraft | null {
 
 function draftMatchesBase(draft: StrokeDraft, base: LetterStrokes | null): boolean {
   if (!base) return true;
-  // Allow draft to have more strokes than base (user may have added new ones)
-  // Accept any modifications to stroke d values (generated from sequence editing)
-  // Just verify sourceD matches to ensure strokes are based on correct original paths
-  return draft.strokes.slice(0, base.strokes.length).every((stroke, index) => {
-    const baseStroke = base.strokes[index];
-    if (!baseStroke) return false;
+  const baseSources = new Set(base.strokes.map((stroke) => stroke.sourceD ?? stroke.d));
+  return draft.strokes.every((stroke) => {
     const strokeSourceD = stroke.sourceD ?? stroke.d;
-    const baseSourceD = baseStroke.sourceD ?? baseStroke.d;
-    return strokeSourceD === baseSourceD;
+    return stroke.d.trim().length === 0 || baseSources.has(strokeSourceD);
   });
 }
 
@@ -312,6 +307,20 @@ export default function StrokesEditorPage() {
     setSequenceDraft(pointModelFromStroke(stroke).sequence);
     setSequenceError(null);
   }, [item?.key, selected, strokes]);
+
+  const referencePaths = useMemo(() => {
+    const seen = new Set<string>();
+    return (strokes.length > 0 ? strokes : base?.strokes ?? [])
+      .map((stroke, index) => ({
+        d: stroke.sourceD ?? base?.strokes[index]?.d ?? stroke.d,
+        selected: index === selected,
+      }))
+      .filter((entry) => {
+        if (!entry.d || seen.has(entry.d)) return false;
+        seen.add(entry.d);
+        return true;
+      });
+  }, [base?.strokes, selected, strokes]);
 
   if (!item) return null;
 
@@ -627,18 +636,17 @@ export default function StrokesEditorPage() {
               strokeDasharray={`${1.2 / zoom} ${1.8 / zoom}`}
             />
           ))}
-          {(strokes.length > 0 ? strokes : base?.strokes ?? []).map((stroke, index) => {
-            const referenceD = stroke.sourceD ?? base?.strokes[index]?.d ?? stroke.d;
+          {referencePaths.map((reference, index) => {
             return (
               <path
                 key={`reference-${item.key}-${index}`}
-                d={referenceD}
+                d={reference.d}
                 fill="none"
                 stroke="rgba(0,0,0,0.16)"
-                strokeWidth={(index === selected ? 3.2 : 2.4) / zoom}
+                strokeWidth={(reference.selected ? 3.2 : 2.4) / zoom}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeDasharray={index === selected ? "0" : `${1.5 / zoom} ${2.2 / zoom}`}
+                strokeDasharray={reference.selected ? "0" : `${1.5 / zoom} ${2.2 / zoom}`}
                 pointerEvents="none"
               />
             );
@@ -742,8 +750,7 @@ export default function StrokesEditorPage() {
             </button>
             <button
               onClick={() => {
-                setSequenceDraft([]);
-                setSequenceError(null);
+                clearSelectedSequence([]);
               }}
               className="btn-red text-xs"
               disabled={sequenceDraft.length === 0}
