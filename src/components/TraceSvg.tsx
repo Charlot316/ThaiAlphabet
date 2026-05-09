@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { letterSkeleton } from "@/lib/thaiFont";
 import { feedbackComplete, feedbackTap } from "@/lib/feedback";
-import { getLetterStrokes } from "@/data/strokes";
+import { composeLetterStrokes, getLetterStrokes, getVowelStrokeComponentKeys, type LetterStrokes } from "@/data/strokes";
 import { lockPageScroll, preventElementTouchScroll, unlockPageScroll, type PageScrollLock } from "@/lib/scrollLock";
 import { resolveStrokeSequence } from "@/lib/pathOrder";
 
@@ -15,7 +15,7 @@ type LocalStroke = {
   sequence?: number[];
 };
 
-function loadLocalStrokeDraft(key: string): { strokes: LocalStroke[]; guides?: { d: string }[] } | null {
+function loadLocalStrokeDraft(key: string): LetterStrokes | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(DRAFT_KEY);
@@ -28,10 +28,33 @@ function loadLocalStrokeDraft(key: string): { strokes: LocalStroke[]; guides?: {
       .map((stroke) => resolveStrokeSequence(stroke))
       .filter((stroke) => stroke.d.trim().length > 0) ?? [];
     const guides = item.guides?.filter((stroke): stroke is { d: string } => typeof stroke.d === "string");
-    return strokes.length > 0 ? { strokes, guides } : null;
+    return strokes.length > 0 ? { v: item.v ?? 5, strokes, guides } : null;
   } catch {
     return null;
   }
+}
+
+function strokeDraftMatchesBase(draft: LetterStrokes, base: LetterStrokes | null): boolean {
+  if (!base) return true;
+  const baseSources = new Set(base.strokes.map((stroke) => stroke.sourceD ?? stroke.d));
+  return draft.strokes.every((stroke) => {
+    const strokeSourceD = stroke.sourceD ?? stroke.d;
+    return stroke.d.trim().length === 0 || baseSources.has(strokeSourceD);
+  });
+}
+
+function localOrSavedStrokes(key: string): LetterStrokes | null {
+  const saved = getLetterStrokes(key);
+  const local = loadLocalStrokeDraft(key);
+  return local && strokeDraftMatchesBase(local, saved) ? local : saved;
+}
+
+function loadTraceStrokes(key: string): LetterStrokes | null {
+  const componentKeys = getVowelStrokeComponentKeys(key);
+  if (componentKeys) {
+    return composeLetterStrokes(key, localOrSavedStrokes);
+  }
+  return localOrSavedStrokes(key);
 }
 
 /**
@@ -104,12 +127,8 @@ export default function TraceSvg({
     lastProgress.current = 0;
     setDone(false);
 
-    const localDraft = loadLocalStrokeDraft(lookupKey);
-    const saved = getLetterStrokes(lookupKey);
-    // 优先尝试用录制草稿，其次用手工录入的笔画数据（src/data/strokes.ts）
-    const manual = localDraft
-      ? { ...localDraft, guides: localDraft.guides ?? saved?.guides }
-      : saved;
+    // 元音整项由已编辑的元素拼成；辅音/元素本身优先读本地草稿，再回退到内置数据。
+    const manual = loadTraceStrokes(lookupKey);
     if (manual && manual.strokes.length > 0) {
       const resolvedStrokes = manual.strokes
         .map((stroke) => resolveStrokeSequence(stroke))

@@ -376,6 +376,7 @@ function QuestionCard({
         <TraceSvg
           key={question.id}
           letter={question.item.front}
+          strokeKey={question.item.id.startsWith("v:") ? question.item.id : undefined}
           onComplete={onWrote}
         />
         <button onClick={onWrote} className="btn-ghost w-full text-xs">

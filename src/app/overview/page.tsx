@@ -315,7 +315,7 @@ function Vowels() {
             <button onClick={() => setSelected(null)} className="text-2xl opacity-60 hover:opacity-100">✕</button>
           </div>
           <div className="flex-1 overflow-y-auto p-5">
-            <TraceSvg key={selected.id} letter={selected.display} />
+            <TraceSvg key={selected.id} letter={selected.display} strokeKey={`v:${selected.id}`} />
           </div>
         </div>
       </div>

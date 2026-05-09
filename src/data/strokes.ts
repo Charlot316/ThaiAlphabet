@@ -419,12 +419,12 @@ export const LETTER_STROKES: Record<string, LetterStrokes> = {
     "v": 5,
     "strokes": [
       {
-        "d": "M 47.68 6.27 C 47.68 9.65 44.94 12.39 41.56 12.39 C 38.18 12.39 35.44 9.65 35.44 6.27 C 35.44 2.89 38.18 0.15 41.56 0.15 C 44.94 0.15 47.68 2.89 47.68 6.27 Z"
+        "d": "M 73.9 12.13 C 73.9 15.51 71.16 18.25 67.78 18.25 C 64.4 18.25 61.66 15.51 61.66 12.13 C 61.66 8.75 64.4 6.01 67.78 6.01 C 71.16 6.01 73.9 8.75 73.9 12.13 Z"
       }
     ],
     "guides": [
       {
-        "d": "M 46.05 43.47 C 46.05 56.15 35.78 66.42 23.10 66.42 C 10.43 66.42 0.15 56.15 0.15 43.47 C 0.15 30.80 10.43 20.52 23.10 20.52 C 35.78 20.52 46.05 30.80 46.05 43.47 Z"
+        "d": "M 72.27 49.33 C 72.27 62.01 62 72.28 49.32 72.28 C 36.65 72.28 26.37 62.01 26.37 49.33 C 26.37 36.66 36.65 26.38 49.32 26.38 C 62 26.38 72.27 36.66 72.27 49.33 Z"
       }
     ]
   },
@@ -946,13 +946,90 @@ export function vowelStrokeKey(vowelId: string): string {
   return `v:${vowelId}`;
 }
 
-export function getLetterStrokes(key: string): LetterStrokes | null {
-  // Map vowel elements to consonant strokes
-  const vowelToConsonant: Record<string, string> = {
-    "v:o-letter": "อ",
-    "v:yo": "ย",
-    "v:wo": "ว",
+const VOWEL_TO_CONSONANT: Record<string, string> = {
+  "v:o-letter": "อ",
+  "v:yo": "ย",
+  "v:wo": "ว",
+};
+
+export const VOWEL_STROKE_COMPONENTS: Record<string, string[]> = {
+  "v:a-short": ["v:a-short"],
+  "v:a-long": ["v:a-long"],
+  "v:i-short": ["v:i-short"],
+  "v:i-long": ["v:i-long"],
+  "v:ue-short": ["v:ue-short"],
+  "v:ue-long": ["v:ue-long", "v:o-letter"],
+  "v:u-short": ["v:u-short"],
+  "v:u-long": ["v:u-long"],
+  "v:e-long": ["v:e-long"],
+  "v:ae-long": ["v:ae-long"],
+  "v:o-long": ["v:o-long"],
+  "v:or-long": ["v:o-letter"],
+  "v:er-long": ["v:e-long", "v:o-letter"],
+  "v:e-short": ["v:e-long", "v:a-short"],
+  "v:ae-short": ["v:ae-long", "v:a-short"],
+  "v:o-short": ["v:o-long", "v:a-short"],
+  "v:oe-short": ["v:e-long", "v:a-long", "v:a-short"],
+  "v:er-short": ["v:e-long", "v:o-letter", "v:a-short"],
+  "v:ia-long": ["v:e-long", "v:i-long", "v:yo"],
+  "v:ia-short": ["v:e-long", "v:i-long", "v:yo", "v:a-short"],
+  "v:uea-long": ["v:e-long", "v:ue-long", "v:o-letter"],
+  "v:uea-short": ["v:e-long", "v:ue-long", "v:o-letter", "v:a-short"],
+  "v:ua-long": ["v:mai-han-akat", "v:wo"],
+  "v:ua-short": ["v:mai-han-akat", "v:wo", "v:a-short"],
+  "v:am": ["v:mai-kham-mark", "v:a-long"],
+  "v:ai-maimuan": ["v:ai-maimuan"],
+  "v:ai-maimalai": ["v:ai-maimalai"],
+  "v:ao": ["v:e-long", "v:a-long"],
+  "v:rue": ["v:rue"],
+  "v:rue-long": ["v:rue", "v:mai-kham"],
+  "v:lue": ["v:lue"],
+  "v:lue-long": ["v:lue", "v:mai-kham"],
+};
+
+function cloneStroke(stroke: Stroke): Stroke {
+  return {
+    ...stroke,
+    points: stroke.points?.map((point) => ({ ...point })),
+    sequence: stroke.sequence ? [...stroke.sequence] : undefined,
   };
-  const mappedKey = vowelToConsonant[key] || key;
+}
+
+function baseLetterStrokes(key: string): LetterStrokes | null {
+  const mappedKey = VOWEL_TO_CONSONANT[key] || key;
   return LETTER_STROKES[mappedKey] ?? null;
+}
+
+export function getVowelStrokeComponentKeys(key: string): string[] | null {
+  return VOWEL_STROKE_COMPONENTS[key] ?? null;
+}
+
+export function composeLetterStrokes(
+  key: string,
+  resolve: (componentKey: string) => LetterStrokes | null = baseLetterStrokes
+): LetterStrokes | null {
+  const componentKeys = getVowelStrokeComponentKeys(key);
+  if (!componentKeys) return null;
+
+  const components = componentKeys.map(resolve);
+  if (components.some((component) => !component)) return null;
+  const resolvedComponents = components as LetterStrokes[];
+
+  const strokes = resolvedComponents.flatMap((component) => component.strokes.map(cloneStroke));
+  const guideMap = new Map<string, Stroke>();
+  for (const component of resolvedComponents) {
+    for (const guide of component.guides ?? []) {
+      if (!guideMap.has(guide.d)) guideMap.set(guide.d, cloneStroke(guide));
+    }
+  }
+
+  return {
+    v: Math.max(...resolvedComponents.map((component) => component.v), 5),
+    strokes,
+    guides: guideMap.size > 0 ? [...guideMap.values()] : undefined,
+  };
+}
+
+export function getLetterStrokes(key: string): LetterStrokes | null {
+  return baseLetterStrokes(key);
 }
