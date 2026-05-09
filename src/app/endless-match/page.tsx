@@ -114,6 +114,8 @@ export default function EndlessMatchPage() {
   const [totalMissed, setTotalMissed] = useState(0);
   const [flash, setFlash] = useState<"ok" | "bad" | null>(null);
   const [flashSlot, setFlashSlot] = useState<{ left?: number; right?: number } | null>(null);
+  // 已配对、正在淡出的槽（一秒后才被替换为新字母）
+  const [fadingSlots, setFadingSlots] = useState<{ left: number; right: number } | null>(null);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -164,38 +166,40 @@ export default function EndlessMatchPage() {
       markActive();
       recordOutcome(leftItem.id, "correct", { streak: newStreak });
 
-      // 同步重排：先 null 出空位 → 用 pickReplenishment 各补一个新字母 →
-      // ensureBuffered 保证队列不空。一次 setState 完成。
-      setBoard((b) => {
-        const leftAfterClear = [...b.leftSlots];
-        leftAfterClear[leftIdx] = null;
-        const rightAfterClear = [...b.rightSlots];
-        rightAfterClear[rightIdx] = null;
-
-        // 先补左槽（参考 right 现状）
-        const lPick = pickReplenishment(b.leftQueue, leftAfterClear, rightAfterClear);
-        const newLeftSlots = [...leftAfterClear];
-        newLeftSlots[leftIdx] = lPick.item;
-        const newLeftQueue = ensureBuffered(lPick.queue, allItems);
-
-        // 再补右槽（参考新 left 状态）
-        const rPick = pickReplenishment(b.rightQueue, rightAfterClear, newLeftSlots);
-        const newRightSlots = [...rightAfterClear];
-        newRightSlots[rightIdx] = rPick.item;
-        const newRightQueue = ensureBuffered(rPick.queue, allItems);
-
-        return {
-          leftSlots: newLeftSlots,
-          rightSlots: newRightSlots,
-          leftQueue: newLeftQueue,
-          rightQueue: newRightQueue,
-        };
-      });
+      // 把这两个槽标为"配对完成、正在淡出"，1 秒后再真正替换为新字母
+      setFadingSlots({ left: leftIdx, right: rightIdx });
 
       setTimeout(() => {
         setFlash(null);
         setFlashSlot(null);
       }, 250);
+
+      setTimeout(() => {
+        setBoard((b) => {
+          const leftAfterClear = [...b.leftSlots];
+          leftAfterClear[leftIdx] = null;
+          const rightAfterClear = [...b.rightSlots];
+          rightAfterClear[rightIdx] = null;
+
+          const lPick = pickReplenishment(b.leftQueue, leftAfterClear, rightAfterClear);
+          const newLeftSlots = [...leftAfterClear];
+          newLeftSlots[leftIdx] = lPick.item;
+          const newLeftQueue = ensureBuffered(lPick.queue, allItems);
+
+          const rPick = pickReplenishment(b.rightQueue, rightAfterClear, newLeftSlots);
+          const newRightSlots = [...rightAfterClear];
+          newRightSlots[rightIdx] = rPick.item;
+          const newRightQueue = ensureBuffered(rPick.queue, allItems);
+
+          return {
+            leftSlots: newLeftSlots,
+            rightSlots: newRightSlots,
+            leftQueue: newLeftQueue,
+            rightQueue: newRightQueue,
+          };
+        });
+        setFadingSlots(null);
+      }, 1000);
     } else {
       setStreak(0);
       setTotalMissed((v) => v + 1);
@@ -302,17 +306,24 @@ export default function EndlessMatchPage() {
       <div className="grid grid-cols-2 gap-3">
         <ul className="space-y-2">
           {board.leftSlots.map((it, idx) => {
+            const isFading = fadingSlots?.left === idx;
             let state: "idle" | "picked" | "ok" | "bad" | "empty" = "idle";
             if (!it) state = "empty";
+            else if (isFading) state = "ok";
             else if (flashSlot?.left === idx && flash === "ok") state = "ok";
             else if (flashSlot?.left === idx && flash === "bad") state = "bad";
             else if (pickedLeft === it.id) state = "picked";
             return (
-              <li key={`L-${idx}`}>
+              <li key={`L-${idx}-${it?.id ?? "empty"}`}>
                 <button
                   onClick={() => onLeft(idx)}
-                  disabled={!it}
+                  disabled={!it || isFading}
                   className={`${slotClass(state)} flex min-h-[72px] w-full items-center justify-center`}
+                  style={{
+                    opacity: isFading ? 0 : 1,
+                    transform: isFading ? "scale(0.88)" : "scale(1)",
+                    transition: "opacity 0.7s ease-out, transform 0.7s ease-out",
+                  }}
                 >
                   <span className="thai-big text-3xl leading-none">{it?.front ?? ""}</span>
                 </button>
@@ -322,17 +333,24 @@ export default function EndlessMatchPage() {
         </ul>
         <ul className="space-y-2">
           {board.rightSlots.map((it, idx) => {
+            const isFading = fadingSlots?.right === idx;
             let state: "idle" | "picked" | "ok" | "bad" | "empty" = "idle";
             if (!it) state = "empty";
+            else if (isFading) state = "ok";
             else if (flashSlot?.right === idx && flash === "ok") state = "ok";
             else if (flashSlot?.right === idx && flash === "bad") state = "bad";
             else if (pickedRight === it.id) state = "picked";
             return (
-              <li key={`R-${idx}`}>
+              <li key={`R-${idx}-${it?.id ?? "empty"}`}>
                 <button
                   onClick={() => onRight(idx)}
-                  disabled={!it}
+                  disabled={!it || isFading}
                   className={`${slotClass(state)} flex min-h-[72px] w-full items-center justify-center`}
+                  style={{
+                    opacity: isFading ? 0 : 1,
+                    transform: isFading ? "scale(0.88)" : "scale(1)",
+                    transition: "opacity 0.7s ease-out, transform 0.7s ease-out",
+                  }}
                 >
                   <span className="font-mono text-lg leading-none">{it ? displayRoman(it.roman) : ""}</span>
                 </button>
