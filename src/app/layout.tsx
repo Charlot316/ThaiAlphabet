@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="antialiased flex flex-col">
         <AuthGuard>
           <Nav />
-          <main className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-4 py-4">{children}</main>
+          <main className="mx-auto w-full max-w-2xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl flex-1 overflow-y-auto px-4 py-4 pb-20">{children}</main>
         </AuthGuard>
       </body>
     </html>

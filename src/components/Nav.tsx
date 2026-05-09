@@ -23,7 +23,7 @@ export default function Nav() {
           borderBottom: "2px solid var(--duo-line)",
         }}
       >
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-2xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/" className="flex items-center gap-2">
             <span
               className="thai-big inline-flex h-9 w-9 items-center justify-center rounded-full text-base text-white"
@@ -54,7 +54,7 @@ export default function Nav() {
           borderTop: "2px solid var(--duo-line)",
         }}
       >
-        <ul className="mx-auto grid max-w-2xl grid-cols-6">
+        <ul className="mx-auto grid max-w-2xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl grid-cols-6">
           {TABS.map((t) => {
             const active = pathname === t.href || (t.href !== "/" && pathname?.startsWith(t.href));
             return (
