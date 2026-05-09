@@ -191,10 +191,46 @@ export default function StrokesEditorPage() {
   const [sequenceError, setSequenceError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, StrokeDraft>>({});
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [zoom, setZoom] = useState(1);
   const dirty = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchDistanceRef = useRef(0);
 
   useEffect(() => setIdx(0), [tab]);
+
+  const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom((z) => Math.max(1, Math.min(3, z * delta)));
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (e.touches.length !== 2) return;
+    const p1 = e.touches[0];
+    const p2 = e.touches[1];
+    const dx = p2.clientX - p1.clientX;
+    const dy = p2.clientY - p1.clientY;
+    touchDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (e.touches.length !== 2 || touchDistanceRef.current === 0) return;
+    e.preventDefault();
+    const p1 = e.touches[0];
+    const p2 = e.touches[1];
+    const dx = p2.clientX - p1.clientX;
+    const dy = p2.clientY - p1.clientY;
+    const newDistance = Math.sqrt(dx * dx + dy * dy);
+    const ratio = newDistance / touchDistanceRef.current;
+    if (ratio > 0.9 && ratio < 1.1) return;
+    setZoom((z) => Math.max(1, Math.min(3, z * ratio)));
+    touchDistanceRef.current = newDistance;
+  };
+
+  const handleTouchEnd = () => {
+    touchDistanceRef.current = 0;
+  };
 
   useEffect(() => {
     if (!item) return;
@@ -539,7 +575,22 @@ export default function StrokesEditorPage() {
       </div>
 
       <div className="card-soft p-2">
-        <svg viewBox={`0 0 ${VB} ${VB}`} className="block w-full select-none" style={{ aspectRatio: "1 / 1", background: "white" }}>
+        <div style={{ overflow: "hidden", aspectRatio: "1 / 1" }}>
+          <svg
+            viewBox={`0 0 ${VB} ${VB}`}
+            className="block w-full select-none"
+            style={{
+              aspectRatio: "1 / 1",
+              background: "white",
+              transform: `scale(${zoom})`,
+              transformOrigin: "center",
+              transition: "transform 0.1s ease-out",
+            }}
+            onWheel={handleWheel}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
           {[25, 50, 75].map((p) => (
             <g key={p} stroke="rgba(0,0,0,0.05)" strokeWidth={0.2}>
               <line x1={p} y1={0} x2={p} y2={VB} />
@@ -638,7 +689,8 @@ export default function StrokesEditorPage() {
               </g>
             );
           })}
-        </svg>
+          </svg>
+        </div>
       </div>
 
       <div className="grid grid-cols-5 gap-2">
