@@ -651,8 +651,10 @@ export default function StrokesEditorPage() {
                       }}
                       style={{ cursor: "pointer" }}
                     />
-                    <circle cx={start.x} cy={start.y} r={active ? 2.5 : 1.8} fill={active ? "var(--duo-orange)" : "white"} stroke="var(--duo-blue)" strokeWidth={0.8} />
-                    <text x={start.x + 2.5} y={start.y - 2.5} fontSize={4.2} fill={active ? "var(--duo-orange-d)" : "var(--duo-blue)"} fontWeight={900} style={{ transform: `scale(${1 / zoom})`, transformOrigin: `${start.x + 2.5}px ${start.y - 2.5}px` }}>
+                    <g style={{ transform: `scale(${1 / zoom})`, transformOrigin: `${start.x}px ${start.y}px` }}>
+                      <circle cx={start.x} cy={start.y} r={active ? 1.6 : 1.2} fill={active ? "var(--duo-orange)" : "white"} stroke="var(--duo-blue)" strokeWidth={0.5} />
+                    </g>
+                    <text x={start.x + 2} y={start.y - 1.8} fontSize={2.6} fill={active ? "var(--duo-orange-d)" : "var(--duo-blue)"} fontWeight={900} style={{ transform: `scale(${1 / zoom})`, transformOrigin: `${start.x + 2}px ${start.y - 1.8}px` }}>
                       {index + 1}
                     </text>
                   </>
@@ -670,22 +672,24 @@ export default function StrokesEditorPage() {
                 }}
                 style={{ cursor: "pointer" }}
               >
-                <circle
-                  cx={node.point.x}
-                  cy={node.point.y}
-                  r={3}
-                  fill="white"
-                  stroke={node.useCount > 1 ? "var(--duo-red)" : "var(--duo-green)"}
-                  strokeWidth={0.9}
-                />
+                <g style={{ transform: `scale(${1 / zoom})`, transformOrigin: `${node.point.x}px ${node.point.y}px` }}>
+                  <circle
+                    cx={node.point.x}
+                    cy={node.point.y}
+                    r={1.5}
+                    fill="white"
+                    stroke={node.useCount > 1 ? "var(--duo-red)" : "var(--duo-green)"}
+                    strokeWidth={0.6}
+                  />
+                </g>
                 <text
                   x={node.point.x}
-                  y={node.point.y + 1.3}
+                  y={node.point.y + 0.8}
                   textAnchor="middle"
-                  fontSize={3.4}
+                  fontSize={2.2}
                   fill="var(--duo-green-d)"
                   fontWeight={900}
-                  style={{ pointerEvents: "none", transform: `scale(${1 / zoom})`, transformOrigin: `${node.point.x}px ${node.point.y + 1.3}px` }}
+                  style={{ pointerEvents: "none", transform: `scale(${1 / zoom})`, transformOrigin: `${node.point.x}px ${node.point.y + 0.8}px` }}
                 >
                   {node.id}
                 </text>
