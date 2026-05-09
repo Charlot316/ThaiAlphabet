@@ -54,7 +54,7 @@ export default function Nav() {
           borderTop: "2px solid var(--duo-line)",
         }}
       >
-        <ul className="mx-auto grid max-w-2xl grid-cols-8">
+        <ul className="mx-auto grid max-w-2xl grid-cols-6">
           {TABS.map((t) => {
             const active = pathname === t.href || (t.href !== "/" && pathname?.startsWith(t.href));
             return (

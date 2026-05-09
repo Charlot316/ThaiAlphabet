@@ -2,6 +2,8 @@
 // Coordinates are normalized to viewBox 0 0 100 100.
 // guides are visual-only reference marks such as ◌; they are not traced as strokes.
 
+import { parsePathSegments, pathSegmentsToD, type Point } from "@/lib/pathOrder";
+
 export type StrokePoint = { id: number; x: number; y: number };
 
 export type Stroke = {
@@ -995,6 +997,101 @@ function cloneStroke(stroke: Stroke): Stroke {
   };
 }
 
+type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
+type TargetBox = { x: number; y: number; w: number; h: number };
+
+const VOWEL_COMPONENT_TARGETS: Record<string, TargetBox> = {
+  "v:o-letter": { x: 68, y: 38, w: 24, h: 30 },
+  "v:yo": { x: 76, y: 39, w: 18, h: 26 },
+  "v:wo": { x: 78, y: 42, w: 16, h: 18 },
+  "v:mai-kham": { x: 84, y: 39, w: 9, h: 22 },
+};
+
+function pathBounds(d: string): Bounds | null {
+  const segments = parsePathSegments(d);
+  if (!segments?.length) return null;
+  const points = segments.flatMap((segment) =>
+    segment.cmd === "L"
+      ? [segment.from, segment.to]
+      : [segment.from, segment.c1, segment.c2, segment.to]
+  );
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  return {
+    minX: Math.min(...xs),
+    minY: Math.min(...ys),
+    maxX: Math.max(...xs),
+    maxY: Math.max(...ys),
+  };
+}
+
+function transformPoint(point: Point, bounds: Bounds, target: TargetBox): Point {
+  const sourceW = Math.max(bounds.maxX - bounds.minX, 1);
+  const sourceH = Math.max(bounds.maxY - bounds.minY, 1);
+  const scale = Math.min(target.w / sourceW, target.h / sourceH);
+  const offsetX = target.x + (target.w - sourceW * scale) / 2;
+  const offsetY = target.y + (target.h - sourceH * scale) / 2;
+  return {
+    x: offsetX + (point.x - bounds.minX) * scale,
+    y: offsetY + (point.y - bounds.minY) * scale,
+  };
+}
+
+function transformPath(d: string, bounds: Bounds, target: TargetBox): string {
+  const segments = parsePathSegments(d);
+  if (!segments?.length) return d;
+  return pathSegmentsToD(
+    segments.map((segment) =>
+      segment.cmd === "L"
+        ? {
+            cmd: "L",
+            from: transformPoint(segment.from, bounds, target),
+            to: transformPoint(segment.to, bounds, target),
+          }
+        : {
+            cmd: "C",
+            from: transformPoint(segment.from, bounds, target),
+            c1: transformPoint(segment.c1, bounds, target),
+            c2: transformPoint(segment.c2, bounds, target),
+            to: transformPoint(segment.to, bounds, target),
+          }
+    )
+  );
+}
+
+function transformStroke(stroke: Stroke, target: TargetBox): Stroke {
+  const sourceD = stroke.sourceD ?? stroke.d;
+  const bounds = pathBounds(sourceD);
+  if (!bounds) return cloneStroke(stroke);
+  const transformedSourceD = transformPath(sourceD, bounds, target);
+  return {
+    ...stroke,
+    d: transformPath(stroke.d, bounds, target),
+    sourceD: transformedSourceD,
+    points: stroke.points?.map((point) => ({
+      id: point.id,
+      ...transformPoint({ x: point.x, y: point.y }, bounds, target),
+    })),
+    sequence: stroke.sequence ? [...stroke.sequence] : undefined,
+  };
+}
+
+function placeComponent(componentKey: string, component: LetterStrokes): LetterStrokes {
+  const target = VOWEL_COMPONENT_TARGETS[componentKey];
+  if (!target) {
+    return {
+      ...component,
+      strokes: component.strokes.map(cloneStroke),
+      guides: component.guides?.map(cloneStroke),
+    };
+  }
+  return {
+    ...component,
+    strokes: component.strokes.map((stroke) => transformStroke(stroke, target)),
+    guides: component.guides?.map((guide) => transformStroke(guide, target)),
+  };
+}
+
 function baseLetterStrokes(key: string): LetterStrokes | null {
   const mappedKey = VOWEL_TO_CONSONANT[key] || key;
   return LETTER_STROKES[mappedKey] ?? null;
@@ -1013,7 +1110,9 @@ export function composeLetterStrokes(
 
   const components = componentKeys.map(resolve);
   if (components.some((component) => !component)) return null;
-  const resolvedComponents = components as LetterStrokes[];
+  const resolvedComponents = (components as LetterStrokes[]).map((component, index) =>
+    placeComponent(componentKeys[index], component)
+  );
 
   const strokes = resolvedComponents.flatMap((component) => component.strokes.map(cloneStroke));
   const guideMap = new Map<string, Stroke>();
