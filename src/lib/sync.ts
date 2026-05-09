@@ -13,14 +13,23 @@ const PREFIX = "thai-alphabet:";
 
 // 这些 key 才参与同步
 const SYNC_KEYS = new Set<string>([
-  "thai-alphabet:course-progress:v1",       // mastery
-  "thai-alphabet:srs:v1",                   // srs deck
-  "thai-alphabet:stats:v1",                 // streak
-  "thai-alphabet:last-lesson:v1",           // course last lesson
+  "thai-alphabet:mastery:v2",                // 多维熟练度（含 SRS 字段）
+  "thai-alphabet:stats:v1",                  // streak / active days
+  "thai-alphabet:last-lesson:v1",            // course last lesson
+  "thai-alphabet:endless-match:best",        // 无尽配对最高连击
   "thai-alphabet:flashcards-last-order:v1:consonant",
   "thai-alphabet:flashcards-last-order:v1:vowel",
   "thai-alphabet:flashcards-last-order:v1:both",
 ]);
+
+// 不再使用、已废弃的 key —— 登录时一次性请求云端删除
+export const LEGACY_REMOTE_KEYS: readonly string[] = [
+  "thai-alphabet:course-progress:v1",
+  "thai-alphabet:srs:v1",
+];
+
+// 本地标记：旧 key 已经在云端 + 本地都清理过了
+const LEGACY_CLEANUP_FLAG = "thai-alphabet:cleanup:legacy:v2";
 
 const SKIP_KEYS = new Set<string>([TOKEN_KEY, USER_KEY, SINCE_KEY, META_KEY]);
 
@@ -236,6 +245,65 @@ export async function pullStrokes(): Promise<{ ok: boolean; merged: number; erro
     return { ok: true, merged };
   } catch (e) {
     return { ok: false, merged: 0, error: (e as Error).message };
+  }
+}
+
+/**
+ * 一次性清理：把本地和云端的旧 key 全部删掉。需登录态。
+ * 用 localStorage flag 防止重复调用，所以本机只会跑一次。
+ */
+export async function cleanupLegacyKeys(): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (!isLoggedIn()) return;
+  try {
+    if (window.localStorage.getItem(LEGACY_CLEANUP_FLAG)) return;
+  } catch {
+    return;
+  }
+  // 先尝试云端删；失败就先不设 flag，下次再试
+  const res = await deleteRemoteKeys(LEGACY_REMOTE_KEYS);
+  if (!res.ok) return;
+  // 云端删除成功，再删本地（pull 不会再把它们带回来）
+  for (const k of LEGACY_REMOTE_KEYS) {
+    try {
+      window.localStorage.removeItem(k);
+    } catch {
+      /* ignore */
+    }
+  }
+  try {
+    window.localStorage.setItem(LEGACY_CLEANUP_FLAG, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 在云端删除指定 key（用于清理废弃 key）。已登录时调用，失败静默。 */
+export async function deleteRemoteKeys(keys: readonly string[]): Promise<{ ok: boolean; deleted: number }> {
+  const token = getToken();
+  if (!token) return { ok: false, deleted: 0 };
+  if (keys.length === 0) return { ok: true, deleted: 0 };
+  try {
+    const res = await fetch("/api/sync", {
+      method: "DELETE",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ keys }),
+    });
+    if (!res.ok) return { ok: false, deleted: 0 };
+    const data = (await res.json()) as { deleted?: number };
+    // 同步本地 meta，避免下次 push 把老 stamp 又带回去
+    const meta = loadMeta();
+    let dirty = false;
+    for (const k of keys) {
+      if (k in meta) {
+        delete meta[k];
+        dirty = true;
+      }
+    }
+    if (dirty) saveMeta(meta);
+    return { ok: true, deleted: data.deleted ?? 0 };
+  } catch {
+    return { ok: false, deleted: 0 };
   }
 }
 

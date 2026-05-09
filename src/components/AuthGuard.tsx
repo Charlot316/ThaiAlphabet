@@ -1,6 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
-import { installSyncHook, isLoggedIn, login, pull, pullStrokes, subscribeAuth } from "@/lib/sync";
+import {
+  cleanupLegacyKeys,
+  installSyncHook,
+  isLoggedIn,
+  login,
+  pull,
+  pullStrokes,
+  subscribeAuth,
+} from "@/lib/sync";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -12,8 +20,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       const v = isLoggedIn();
       setLogged(v);
       if (v) {
-        pull();
-        pullStrokes();
+        // 先一次性清理废弃 key，再 pull，避免被云端的旧数据反向覆盖
+        cleanupLegacyKeys()
+          .catch(() => {})
+          .finally(() => {
+            pull();
+            pullStrokes();
+          });
       }
     };
     sync();
@@ -52,7 +65,8 @@ function LoginScreen() {
       setBusy(false);
       return;
     }
-    // 登录成功后，AuthGuard 会通过 subscribeAuth 收到事件并切换 UI；这里再触发一次 pull
+    // 登录成功后，AuthGuard 会通过 subscribeAuth 收到事件并切换 UI；这里再触发一次清理 + pull
+    await cleanupLegacyKeys();
     await pull();
     pullStrokes();
     setBusy(false);

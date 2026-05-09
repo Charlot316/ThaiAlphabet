@@ -80,3 +80,38 @@ export async function onRequestPost(context: {
     serverTime: Date.now(),
   });
 }
+
+interface DeleteBody {
+  keys?: string[];
+}
+
+export async function onRequestDelete(context: {
+  request: Request;
+  env: Env;
+}): Promise<Response> {
+  const { request, env } = context;
+  const userId = await authUserId(request, env);
+  if (!userId) return new Response("Unauthorized", { status: 401 });
+
+  let body: DeleteBody;
+  try {
+    body = (await request.json()) as DeleteBody;
+  } catch {
+    return jsonError(400, "bad-request");
+  }
+  const keys = (body.keys || []).filter(
+    (k) => typeof k === "string" && k.length > 0 && k.length < 256
+  );
+  if (keys.length === 0) {
+    return Response.json({ ok: true, deleted: 0 });
+  }
+  const stmt = env.DB.prepare("DELETE FROM kv WHERE user_id = ? AND key = ?");
+  const batch = keys.map((k) => stmt.bind(userId, k));
+  const results = await env.DB.batch(batch);
+  let deleted = 0;
+  for (const r of results) {
+    const meta = (r as unknown as { meta?: { changes?: number } }).meta;
+    deleted += meta?.changes ?? 0;
+  }
+  return Response.json({ ok: true, deleted });
+}
