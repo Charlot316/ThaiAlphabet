@@ -73,20 +73,24 @@ function readRaw(): unknown {
   }
 }
 
-function purgeLegacy() {
+const PURGE_FLAG = "thai-alphabet:mastery:legacy-purged";
+let purgedThisSession = false;
+
+function purgeLegacyOnce() {
+  if (purgedThisSession) return;
+  purgedThisSession = true;
   if (typeof window === "undefined") return;
-  for (const key of LEGACY_KEYS) {
-    try {
-      window.localStorage.removeItem(key);
-    } catch {
-      /* ignore */
-    }
+  try {
+    if (window.localStorage.getItem(PURGE_FLAG)) return;
+    for (const key of LEGACY_KEYS) window.localStorage.removeItem(key);
+    window.localStorage.setItem(PURGE_FLAG, "1");
+  } catch {
+    /* ignore */
   }
 }
 
 export function loadStore(): MasteryStore {
-  // 顺手清掉旧版 key，不再迁移
-  purgeLegacy();
+  purgeLegacyOnce();
   const direct = readRaw();
   if (direct && typeof direct === "object") return direct as MasteryStore;
   return {};
