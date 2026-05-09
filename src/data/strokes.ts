@@ -1000,12 +1000,27 @@ function cloneStroke(stroke: Stroke): Stroke {
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 type TargetBox = { x: number; y: number; w: number; h: number };
 
-const VOWEL_COMPONENT_TARGETS: Record<string, TargetBox> = {
-  "v:o-letter": { x: 68, y: 38, w: 24, h: 30 },
-  "v:yo": { x: 76, y: 39, w: 18, h: 26 },
-  "v:wo": { x: 78, y: 42, w: 16, h: 18 },
-  "v:mai-kham": { x: 84, y: 39, w: 9, h: 22 },
+const RIGHT_SIDE_COMPONENTS = new Set(["v:a-short", "v:a-long", "v:o-letter", "v:yo", "v:wo", "v:mai-kham"]);
+
+const RIGHT_COMPONENT_BOX: Record<string, Omit<TargetBox, "x">> = {
+  "v:a-short": { y: 39, w: 15, h: 24 },
+  "v:a-long": { y: 40, w: 16, h: 26 },
+  "v:o-letter": { y: 38, w: 22, h: 30 },
+  "v:yo": { y: 39, w: 18, h: 26 },
+  "v:wo": { y: 42, w: 16, h: 18 },
+  "v:mai-kham": { y: 38, w: 15, h: 30 },
 };
+
+function rightComponentTarget(componentKey: string, rightIndex: number, rightCount: number): TargetBox | null {
+  const box = RIGHT_COMPONENT_BOX[componentKey];
+  if (!box) return null;
+  const centersByCount =
+    rightCount <= 1 ? [80] :
+    rightCount === 2 ? [70, 86] :
+    [64, 78, 91];
+  const center = centersByCount[Math.min(rightIndex, centersByCount.length - 1)];
+  return { ...box, x: center - box.w / 2 };
+}
 
 function pathBounds(d: string): Bounds | null {
   const segments = parsePathSegments(d);
@@ -1076,8 +1091,7 @@ function transformStroke(stroke: Stroke, target: TargetBox): Stroke {
   };
 }
 
-function placeComponent(componentKey: string, component: LetterStrokes): LetterStrokes {
-  const target = VOWEL_COMPONENT_TARGETS[componentKey];
+function placeComponent(componentKey: string, component: LetterStrokes, target: TargetBox | null): LetterStrokes {
   if (!target) {
     return {
       ...component,
@@ -1110,9 +1124,15 @@ export function composeLetterStrokes(
 
   const components = componentKeys.map(resolve);
   if (components.some((component) => !component)) return null;
-  const resolvedComponents = (components as LetterStrokes[]).map((component, index) =>
-    placeComponent(componentKeys[index], component)
-  );
+  const rightKeys = componentKeys.filter((componentKey) => RIGHT_SIDE_COMPONENTS.has(componentKey));
+  let rightIndex = 0;
+  const resolvedComponents = (components as LetterStrokes[]).map((component, index) => {
+    const componentKey = componentKeys[index];
+    const target = RIGHT_SIDE_COMPONENTS.has(componentKey)
+      ? rightComponentTarget(componentKey, rightIndex++, rightKeys.length)
+      : null;
+    return placeComponent(componentKey, component, target);
+  });
 
   const strokes = resolvedComponents.flatMap((component) => component.strokes.map(cloneStroke));
   const guideMap = new Map<string, Stroke>();
