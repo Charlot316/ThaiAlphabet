@@ -68,90 +68,118 @@ function pickLessonItems(items: StudyItem[], progress: MasteryProgress): StudyIt
   return lesson;
 }
 
-function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Question[] {
-  // 课程按"题型轮"组织：每轮是一种题型 × N 个音（轮内打散，相邻题不同音）。
-  // 题型从易到难排列：先看一眼 → 带提示选择 → 书写 → 记忆 → 第二次书写 →
-  // 最后两轮才是无提示选择题（最难，不能放开头让用户冷启动）→ 末尾大配对。
-  const buckets: Record<string, Question[]> = {
-    look: lessonItems.map((item) => ({
-      id: `${item.id}:look`,
-      kind: "look",
-      item,
-      choices: [item],
-    })),
-    sound: lessonItems.map((item) => ({
-      id: `${item.id}:sound`,
-      kind: "sound",
-      item,
-      choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
-    })),
-    letter: lessonItems.map((item) => ({
-      id: `${item.id}:letter`,
-      kind: "letter",
-      item,
-      choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
-    })),
-    write1: lessonItems.map((item) => ({
-      id: `${item.id}:write:1`,
-      kind: "write",
-      item,
-      choices: [item],
-    })),
-    memory: lessonItems.map((item) => ({
-      id: `${item.id}:memory`,
-      kind: "memory",
-      item,
-      choices: [item],
-    })),
-    write2: lessonItems.map((item) => ({
-      id: `${item.id}:write:2`,
-      kind: "write",
-      item,
-      choices: [item],
-    })),
-    soundBlind: lessonItems.map((item) => ({
-      id: `${item.id}:sound-blind`,
-      kind: "sound-blind",
-      item,
-      choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
-    })),
-    letterBlind: lessonItems.map((item) => ({
-      id: `${item.id}:letter-blind`,
-      kind: "letter-blind",
-      item,
-      choices: uniqueChoices(item, allItems, 4, (option) => option.roman),
-    })),
-  };
+type QuestionKindKey =
+  | "sound"
+  | "letter"
+  | "write1"
+  | "write2"
+  | "memory"
+  | "soundBlind"
+  | "letterBlind";
 
-  // look 始终在最前作为介绍。前半（带提示的 sound/letter/write1/write2）
-  // 之间打乱顺序；后半（无提示的 memory/soundBlind/letterBlind）也打乱，
-  // 但永远都在前半之后出现。
-  const order = [
-    "look",
-    ...shuffleStrong(["sound", "letter", "write1", "write2"]),
-    ...shuffleStrong(["memory", "soundBlind", "letterBlind"]),
-  ];
+function makeQuestion(
+  item: StudyItem,
+  kind: QuestionKindKey,
+  allItems: StudyItem[]
+): Question {
+  switch (kind) {
+    case "sound":
+      return {
+        id: `${item.id}:sound`,
+        kind: "sound",
+        item,
+        choices: uniqueChoices(item, allItems, 4, (o) => o.roman),
+      };
+    case "letter":
+      return {
+        id: `${item.id}:letter`,
+        kind: "letter",
+        item,
+        choices: uniqueChoices(item, allItems, 4, (o) => o.roman),
+      };
+    case "write1":
+      return { id: `${item.id}:write:1`, kind: "write", item, choices: [item] };
+    case "write2":
+      return { id: `${item.id}:write:2`, kind: "write", item, choices: [item] };
+    case "memory":
+      return { id: `${item.id}:memory`, kind: "memory", item, choices: [item] };
+    case "soundBlind":
+      return {
+        id: `${item.id}:sound-blind`,
+        kind: "sound-blind",
+        item,
+        choices: uniqueChoices(item, allItems, 4, (o) => o.roman),
+      };
+    case "letterBlind":
+      return {
+        id: `${item.id}:letter-blind`,
+        kind: "letter-blind",
+        item,
+        choices: uniqueChoices(item, allItems, 4, (o) => o.roman),
+      };
+  }
+}
 
+// 把 N 个 item × M 个题型打散：每个 item 内部题型先各自打乱，再用 round-robin
+// 跨 item 抽题，每"轮"内再打散。结果 = 每个 item 出现 M 次、每两道相邻题
+// 通常不同 item，且**题型**也是混合的（一道选择紧接一道书写紧接一道选择…）。
+function buildShuffledHalf(
+  lessonItems: StudyItem[],
+  kinds: QuestionKindKey[],
+  allItems: StudyItem[]
+): Question[] {
+  const perItem = lessonItems.map((item) =>
+    shuffleStrong(kinds).map((k) => makeQuestion(item, k, allItems))
+  );
   const result: Question[] = [];
-  for (const round of order) {
-    const shuffled = shuffleStrong(buckets[round]);
-    // 轮内已打散；如果新轮的第 1 题和上轮最后 1 题同音，交换一下避免相邻
+  for (let r = 0; r < kinds.length; r++) {
+    const round = perItem.map((qs) => qs[r]).filter((q): q is Question => Boolean(q));
+    const shuffled = shuffleStrong(round);
+    // 轮交界处避免连续两题同 item
     const lastId = result[result.length - 1]?.item.id;
     if (shuffled.length > 1 && shuffled[0]?.item.id === lastId) {
       [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
     }
     result.push(...shuffled);
   }
+  return result;
+}
 
-  // 末尾追加 1 道配对题，把本轮所有字母放在一起练习
-  result.push({
+function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Question[] {
+  // 1) 介绍轮：每个音的 look 题。look 都在前面，但音之间打乱。
+  const introRound = shuffleStrong(
+    lessonItems.map((item) => ({
+      id: `${item.id}:look`,
+      kind: "look" as const,
+      item,
+      choices: [item],
+    }))
+  );
+
+  // 2) 前半：4 种带提示的题型（sound / letter / write×2）混合打散。
+  //    每个音 4 题，4 round-robin 轮内 shuffle，相邻题既不同音又不同题型。
+  const earlyHalf = buildShuffledHalf(
+    lessonItems,
+    ["sound", "letter", "write1", "write2"],
+    allItems
+  );
+
+  // 3) 后半：3 种无提示题型（memory / sound-blind / letter-blind）混合打散。
+  const lateHalf = buildShuffledHalf(
+    lessonItems,
+    ["memory", "soundBlind", "letterBlind"],
+    allItems
+  );
+
+  // 4) 末尾大配对覆盖本轮所有字母
+  const finalMatch: Question = {
     id: `match:${Date.now()}`,
     kind: "match",
     item: lessonItems[0],
     choices: lessonItems,
-  });
+  };
 
-  return result;
+  return [...introRound, ...earlyHalf, ...lateHalf, finalMatch];
 }
 
 const PRAISE = ["太棒了！", "做得好！", "完美！", "继续保持！", "答对了！", "厉害👏"];
@@ -842,6 +870,12 @@ function MemoryCard({
   onNext: () => void;
 }) {
   const [peeked, setPeeked] = useState(false);
+  // 双保险：题目变化时显式 reset peeked。即便 React 复用了 instance（例如
+  // queueReplay 改写 questions 数组导致 reconcile 行为微妙），也保证新题
+  // 开始时 peeked=false，不会让上一题的偷看状态把"认识"降成"模糊"。
+  useEffect(() => {
+    setPeeked(false);
+  }, [question.id]);
   return (
     <section className="space-y-4">
       <div className={`card-soft p-7 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
