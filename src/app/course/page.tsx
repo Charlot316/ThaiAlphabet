@@ -11,7 +11,14 @@ import {
   recordOutcome,
   resetMastery,
 } from "@/lib/mastery";
-import { StudyItem, buildStudyItems, displayRoman, shuffleStrong, uniqueChoices } from "@/lib/study";
+import {
+  StudyItem,
+  buildStudyItems,
+  displayRoman,
+  getSpecializedGroups,
+  shuffleStrong,
+  uniqueChoices,
+} from "@/lib/study";
 import { markActive } from "@/lib/stats";
 import { speak, warmupVoices } from "@/lib/tts";
 import {
@@ -58,14 +65,55 @@ function rememberLesson(ids: string[]) {
   window.localStorage.setItem(LAST_LESSON_KEY, JSON.stringify(ids));
 }
 
-function pickLessonItems(items: StudyItem[], progress: MasteryProgress): StudyItem[] {
+function pickLessonItems(
+  items: StudyItem[],
+  progress: MasteryProgress
+): { items: StudyItem[]; title: string } {
   const lastIds = new Set(getLastLesson());
+
+  // 1. 尝试抽专门训练组 (形近字/同音字)，概率 25%
+  if (Math.random() < 0.25) {
+    const groups = getSpecializedGroups(items);
+    // 过滤掉全部都太熟练的组 (所有成员 mastery >= TARGET)
+    // 也要过滤掉跟上一轮完全重复的组
+    const candidates = shuffleStrong(groups).filter((g) => {
+      const allMastered = g.every((it) => (progress[it.id] || 0) >= MASTERY_TARGET);
+      const allLast = g.every((it) => lastIds.has(it.id));
+      return !allMastered && !allLast;
+    });
+
+    if (candidates.length > 0) {
+      const group = candidates[0];
+      // 判定是同音还是形近
+      const isHomophone =
+        group.every((it) => it.id.startsWith("c:")) &&
+        new Set(group.map((it) => it.roman)).size === 1;
+      const title = isHomophone ? "专项训练：同音字对比" : "专项训练：形近字对比";
+
+      // 如果组太小，补一些低熟练度的其它字
+      let lessonItems = [...group];
+      if (lessonItems.length < LESSON_SIZE) {
+        const ids = new Set(lessonItems.map((it) => it.id));
+        const extra = items
+          .filter((it) => !ids.has(it.id))
+          .sort((a, b) => (progress[a.id] || 0) - (progress[b.id] || 0))
+          .slice(0, LESSON_SIZE - lessonItems.length);
+        lessonItems = [...lessonItems, ...extra];
+      } else if (lessonItems.length > LESSON_SIZE) {
+        lessonItems = lessonItems.slice(0, LESSON_SIZE);
+      }
+
+      rememberLesson(lessonItems.map((item) => item.id));
+      return { items: lessonItems, title };
+    }
+  }
+
   const sorted = shuffleStrong(items).sort((a, b) => (progress[a.id] || 0) - (progress[b.id] || 0));
   const fresh = sorted.filter((item) => !lastIds.has(item.id));
   const source = fresh.length >= LESSON_SIZE ? fresh : sorted;
-  const lesson = source.slice(0, LESSON_SIZE);
-  rememberLesson(lesson.map((item) => item.id));
-  return lesson;
+  const lessonItems = source.slice(0, LESSON_SIZE);
+  rememberLesson(lessonItems.map((item) => item.id));
+  return { items: lessonItems, title: "日常练习" };
 }
 
 type QuestionKindKey =
@@ -196,6 +244,7 @@ export default function CoursePage() {
   }, [allItems]);
   const [progress, setProgress] = useState<MasteryProgress>({});
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [lessonTitle, setLessonTitle] = useState("正在生成课程...");
   const [index, setIndex] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -226,8 +275,9 @@ export default function CoursePage() {
   const lessonProgress = questions.length === 0 ? 0 : Math.min(100, (index / questions.length) * 100);
 
   function startLesson(nextProgress = progress) {
-    const pickedItems = pickLessonItems(allItems, nextProgress);
+    const { items: pickedItems, title } = pickLessonItems(allItems, nextProgress);
     setQuestions(buildQuestions(pickedItems, allItems));
+    setLessonTitle(title);
     setIndex(0);
     setPicked(null);
     setSubmitted(false);
@@ -408,6 +458,14 @@ export default function CoursePage() {
     <div className="flex h-full flex-col gap-4">
       {/* 进度条 + 重置 */}
       <div className="shrink-0">
+        <div className="flex items-center justify-between gap-3 mb-1 px-1">
+          <div className="text-[10px] font-bold opacity-40 tracking-wider uppercase">
+            {lessonTitle}
+          </div>
+          <div className="text-[10px] font-bold opacity-40">
+            {index < questions.length ? `${index + 1} / ${questions.length}` : "完成"}
+          </div>
+        </div>
         <div className="flex items-center gap-3">
           <button
             onClick={resetProgress}

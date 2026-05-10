@@ -1,6 +1,6 @@
-import { CONSONANTS } from "@/data/consonants";
+import { CONSONANTS, consonantsByInitialSound } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
-import { Consonant, Vowel } from "@/data/types";
+import { Consonant, Vowel, SHAPE_CONFUSABLES } from "@/data";
 
 export type StudyPool = "consonant" | "vowel" | "both";
 
@@ -114,6 +114,31 @@ export function filterStudyItems(items: StudyItem[], pool: StudyPool): StudyItem
 
 export function displayRoman(roman: string): string {
   return roman === "ʔ" ? "空/喉塞" : roman;
+}
+
+/**
+ * 获取所有的专门训练组：同音字组 和 形近字组
+ */
+export function getSpecializedGroups(allItems: StudyItem[]): StudyItem[][] {
+  const groups: StudyItem[][] = [];
+
+  // 1. 同音字组 (仅限辅音)
+  const bySound = consonantsByInitialSound();
+  for (const sound in bySound) {
+    const ids = bySound[sound].map(id => `c:${id}`);
+    if (ids.length > 1) {
+      const group = allItems.filter(item => ids.includes(item.id));
+      if (group.length > 1) groups.push(group);
+    }
+  }
+
+  // 2. 形近字组
+  for (const shapes of SHAPE_CONFUSABLES) {
+    const group = allItems.filter(item => shapes.includes(item.front));
+    if (group.length > 1) groups.push(group);
+  }
+
+  return groups;
 }
 
 function randomInt(max: number): number {
