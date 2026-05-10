@@ -2,6 +2,8 @@ import { CONSONANTS, consonantsByInitialSound } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import { Consonant, Vowel, SHAPE_CONFUSABLES } from "@/data";
 
+export { SHAPE_CONFUSABLES, consonantsByInitialSound };
+
 export type StudyPool = "consonant" | "vowel" | "both";
 
 export interface StudyItem {

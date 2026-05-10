@@ -14,10 +14,11 @@ import {
 import {
   StudyItem,
   buildStudyItems,
+  consonantsByInitialSound,
   displayRoman,
-  getSpecializedGroups,
   shuffleStrong,
   uniqueChoices,
+  SHAPE_CONFUSABLES,
 } from "@/lib/study";
 import { markActive } from "@/lib/stats";
 import { speak, warmupVoices } from "@/lib/tts";
@@ -71,49 +72,96 @@ function pickLessonItems(
 ): { items: StudyItem[]; title: string } {
   const lastIds = new Set(getLastLesson());
 
-  // 1. 尝试抽专门训练组 (形近字/同音字)，概率 25%
-  if (Math.random() < 0.25) {
-    const groups = getSpecializedGroups(items);
-    // 过滤掉全部都太熟练的组 (所有成员 mastery >= TARGET)
-    // 也要过滤掉跟上一轮完全重复的组
-    const candidates = shuffleStrong(groups).filter((g) => {
-      const allMastered = g.every((it) => (progress[it.id] || 0) >= MASTERY_TARGET);
-      const allLast = g.every((it) => lastIds.has(it.id));
-      return !allMastered && !allLast;
-    });
+  // 按熟练度排序，找出最生疏的字母
+  const sortedByMastery = [...items].sort(
+    (a, b) => (progress[a.id] || 0) - (progress[b.id] || 0)
+  );
+  const weakestItem = sortedByMastery[0];
 
-    if (candidates.length > 0) {
-      const group = candidates[0];
-      // 判定是同音还是形近
-      const isHomophone =
-        group.every((it) => it.id.startsWith("c:")) &&
-        new Set(group.map((it) => it.roman)).size === 1;
-      const title = isHomophone ? "专项训练：同音字对比" : "专项训练：形近字对比";
+  // 1. 抽选课程类型 (1:1:2 比例)
+  // 1 (日常) : 1 (同音) : 2 (形近) -> 总权重 4
+  const rand = Math.random() * 4;
+  let lessonType: "daily" | "homophone" | "shape" = "daily";
+  if (rand < 1) lessonType = "daily";
+  else if (rand < 2) lessonType = "homophone";
+  else lessonType = "shape";
 
-      // 如果组太小，补一些低熟练度的其它字
-      let lessonItems = [...group];
-      if (lessonItems.length < LESSON_SIZE) {
-        const ids = new Set(lessonItems.map((it) => it.id));
-        const extra = items
-          .filter((it) => !ids.has(it.id))
-          .sort((a, b) => (progress[a.id] || 0) - (progress[b.id] || 0))
-          .slice(0, LESSON_SIZE - lessonItems.length);
-        lessonItems = [...lessonItems, ...extra];
-      } else if (lessonItems.length > LESSON_SIZE) {
-        lessonItems = lessonItems.slice(0, LESSON_SIZE);
+  // 2. 尝试执行专项逻辑
+  if (lessonType === "homophone") {
+    const bySound = consonantsByInitialSound();
+    const soundGroups: StudyItem[][] = [];
+    for (const sound in bySound) {
+      const ids = bySound[sound].map((id) => `c:${id}`);
+      if (ids.length > 1) {
+        const group = items.filter((item) => ids.includes(item.id));
+        if (group.length > 1) soundGroups.push(group);
       }
+    }
 
-      rememberLesson(lessonItems.map((item) => item.id));
-      return { items: lessonItems, title };
+    // 找到包含最生疏字母的同音组
+    const targetGroups = soundGroups.filter((g) =>
+      g.some((it) => it.id === weakestItem.id)
+    );
+    const chosenGroup = targetGroups.length > 0 ? shuffleStrong(targetGroups)[0] : null;
+
+    if (chosenGroup) {
+      return prepareLesson(chosenGroup, "专项训练：同音字对比", items, progress);
     }
   }
 
-  const sorted = shuffleStrong(items).sort((a, b) => (progress[a.id] || 0) - (progress[b.id] || 0));
-  const fresh = sorted.filter((item) => !lastIds.has(item.id));
-  const source = fresh.length >= LESSON_SIZE ? fresh : sorted;
+  if (lessonType === "shape") {
+    // 获取包含最生疏字母的所有形近组
+    const shapeGroups: StudyItem[][] = [];
+    for (const shapes of SHAPE_CONFUSABLES) {
+      const group = items.filter((item) => shapes.includes(item.front));
+      // 必须包含 weakestItem，且组内至少有 2 个成员
+      if (group.length > 1 && group.some((it) => it.id === weakestItem.id)) {
+        shapeGroups.push(group);
+      }
+    }
+
+    const chosenGroup = shapeGroups.length > 0 ? shuffleStrong(shapeGroups)[0] : null;
+    if (chosenGroup) {
+      return prepareLesson(chosenGroup, "专项训练：形近字对比", items, progress);
+    }
+  }
+
+  // 3. 兜底逻辑：日常练习
+  const fresh = sortedByMastery.filter((item) => !lastIds.has(item.id));
+  const source = fresh.length >= LESSON_SIZE ? fresh : sortedByMastery;
   const lessonItems = source.slice(0, LESSON_SIZE);
   rememberLesson(lessonItems.map((item) => item.id));
   return { items: lessonItems, title: "日常练习" };
+}
+
+/**
+ * 辅助函数：整理专项练习的项目，处理长度不足或超出的情况
+ */
+function prepareLesson(
+  group: StudyItem[],
+  title: string,
+  allItems: StudyItem[],
+  progress: MasteryProgress
+): { items: StudyItem[]; title: string } {
+  let lessonItems = [...group];
+  if (lessonItems.length < LESSON_SIZE) {
+    const ids = new Set(lessonItems.map((it) => it.id));
+    // 补齐低熟练度的其它字
+    const extra = allItems
+      .filter((it) => !ids.has(it.id))
+      .sort((a, b) => (progress[a.id] || 0) - (progress[b.id] || 0))
+      .slice(0, LESSON_SIZE - lessonItems.length);
+    lessonItems = [...lessonItems, ...extra];
+  } else if (lessonItems.length > LESSON_SIZE) {
+    // 如果组太大，优先保留最生疏的，其余随机
+    const sorted = [...lessonItems].sort(
+      (a, b) => (progress[a.id] || 0) - (progress[b.id] || 0)
+    );
+    lessonItems = sorted.slice(0, LESSON_SIZE);
+  }
+
+  rememberLesson(lessonItems.map((item) => item.id));
+  return { items: shuffleStrong(lessonItems), title };
 }
 
 type QuestionKindKey =
