@@ -44,7 +44,8 @@ type QuestionKind =
   | "look"
   | "write"
   | "match"
-  | "memory";
+  | "memory"
+  | "class";
 
 interface Question {
   id: string;
@@ -171,7 +172,8 @@ type QuestionKindKey =
   | "write2"
   | "memory"
   | "soundBlind"
-  | "letterBlind";
+  | "letterBlind"
+  | "class";
 
 function makeQuestion(
   item: StudyItem,
@@ -213,6 +215,8 @@ function makeQuestion(
         item,
         choices: uniqueChoices(item, allItems, 4, (o) => o.roman),
       };
+    case "class":
+      return { id: `${item.id}:class`, kind: "class", item, choices: [item] };
   }
 }
 
@@ -224,9 +228,11 @@ function buildShuffledHalf(
   kinds: QuestionKindKey[],
   allItems: StudyItem[]
 ): Question[] {
-  const perItem = lessonItems.map((item) =>
-    shuffleStrong(kinds).map((k) => makeQuestion(item, k, allItems))
-  );
+  const perItem = lessonItems.map((item) => {
+    // 只有辅音有等级题
+    const validKinds = kinds.filter((k) => k !== "class" || item.id.startsWith("c:"));
+    return shuffleStrong(validKinds).map((k) => makeQuestion(item, k, allItems));
+  });
   const result: Question[] = [];
   for (let r = 0; r < kinds.length; r++) {
     const round = perItem.map((qs) => qs[r]).filter((q): q is Question => Boolean(q));
@@ -252,11 +258,11 @@ function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Questi
     }))
   );
 
-  // 2) 前半：4 种带提示的题型（sound / letter / write×2）混合打散。
-  //    每个音 4 题，4 round-robin 轮内 shuffle，相邻题既不同音又不同题型。
+  // 2) 前半：5 种带提示的题型（sound / letter / write×2 / class）混合打散。
+  //    每个音 4-5 题，round-robin 轮内 shuffle，相邻题既不同音又不同题型。
   const earlyHalf = buildShuffledHalf(
     lessonItems,
-    ["sound", "letter", "write1", "write2"],
+    ["sound", "letter", "write1", "write2", "class"],
     allItems
   );
 
@@ -477,6 +483,24 @@ export default function CoursePage() {
     feedbackComplete();
   }
 
+  function answerClass(correct: boolean) {
+    if (!current || submitted) return;
+    setSubmitted(true);
+    if (correct) {
+      gainMastery(current.item.id, 1);
+      setCorrectCount((v) => v + 1);
+      setFeedback("ok");
+      setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+      markActive();
+      feedbackCorrect();
+    } else {
+      setProgress(applyWrongAnswer(current.item.id));
+      setFeedback("bad");
+      feedbackWrong();
+      queueReplay(current);
+    }
+  }
+
   function markLooked() {
     if (!current) return;
     gainMastery(current.item.id, 1);
@@ -557,12 +581,14 @@ export default function CoursePage() {
             onConfirmLetter={confirmLetter}
             onAnswerBlind={answerBlind}
             onAnswerMemory={answerMemory}
+            onAnswerClass={answerClass}
             onCompleteMatch={completeMatch}
             onNext={next}
             onLooked={markLooked}
             onWrote={markWrote}
             romanGroups={romanGroups}
-          />
+            />
+
         ) : (
           <section className="card-soft p-6 text-center text-sm opacity-70">正在生成课程...</section>
         )}
@@ -583,6 +609,7 @@ function QuestionCard({
   onConfirmLetter,
   onAnswerBlind,
   onAnswerMemory,
+  onAnswerClass,
   onCompleteMatch,
   onNext,
   onLooked,
@@ -600,6 +627,7 @@ function QuestionCard({
   onConfirmLetter: () => void;
   onAnswerBlind: (id: string) => void;
   onAnswerMemory: (grade: number, peeked: boolean) => void;
+  onAnswerClass: (correct: boolean) => void;
   onCompleteMatch: () => void;
   onNext: () => void;
   onLooked: () => void;
@@ -669,6 +697,20 @@ function QuestionCard({
         question={question}
         submitted={submitted}
         onComplete={onCompleteMatch}
+        onNext={onNext}
+      />
+    );
+  }
+
+  if (question.kind === "class") {
+    return (
+      <ClassCard
+        key={question.id}
+        question={question}
+        submitted={submitted}
+        feedback={feedback}
+        praise={praise}
+        onAnswer={onAnswerClass}
         onNext={onNext}
       />
     );
@@ -1021,6 +1063,101 @@ function MemoryCard({
           <div className="flex items-center justify-between gap-3">
             <div className="text-base">{feedback === "ok" ? `${praise || "答对了！"}` : "再试试看！"}</div>
             <button onClick={onNext} className={feedback === "ok" ? "btn-primary px-5" : "btn-red px-5"}>继续</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ClassCard({
+  question,
+  submitted,
+  feedback,
+  praise,
+  onAnswer,
+  onNext,
+}: {
+  question: Question;
+  submitted: boolean;
+  feedback: "ok" | "bad" | null;
+  praise: string;
+  onAnswer: (correct: boolean) => void;
+  onNext: () => void;
+}) {
+  const [picked, setPicked] = useState<string | null>(null);
+
+  const OPTIONS = [
+    { label: "中辅音", value: "mid", color: "var(--duo-blue)" },
+    { label: "高辅音", value: "high", color: "var(--duo-green)" },
+    { label: "低辅音", value: "low", color: "var(--duo-orange)" },
+  ];
+
+  const handlePick = (val: string) => {
+    if (submitted) return;
+    setPicked(val);
+    onAnswer(val === question.item.class);
+  };
+
+  return (
+    <section className="space-y-4">
+      <div className={`card-soft p-7 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
+        <div className="chip chip-blue">判断辅音等级</div>
+        <div className="thai-big mt-5 text-8xl leading-none">{question.item.front}</div>
+        <div className="mt-3 text-2xl font-extrabold" style={{ color: "var(--duo-blue)" }}>
+          {displayRoman(question.item.roman)}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {OPTIONS.map((opt) => {
+          const isCorrect = opt.value === question.item.class;
+          const isPicked = picked === opt.value;
+          let cls = "btn-ghost border-2";
+          let style = {};
+
+          if (submitted) {
+            if (isCorrect) {
+              cls = "btn-primary";
+            } else if (isPicked) {
+              cls = "btn-red";
+            } else {
+              cls = "btn-ghost opacity-40";
+            }
+          } else if (isPicked) {
+            style = { borderColor: opt.color, color: opt.color };
+          }
+
+          return (
+            <button
+              key={opt.value}
+              onClick={() => handlePick(opt.value)}
+              disabled={submitted}
+              className={`${cls} py-4 text-sm font-bold`}
+              style={style}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {submitted && (
+        <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-base">
+              {feedback === "ok" ? (
+                <span>✅ {praise}</span>
+              ) : (
+                <span>❌ 正确答案：{OPTIONS.find(o => o.value === question.item.class)?.label}</span>
+              )}
+            </div>
+            <button
+              onClick={onNext}
+              className={feedback === "ok" ? "btn-primary px-5" : "btn-red px-5"}
+            >
+              继续
+            </button>
           </div>
         </div>
       )}

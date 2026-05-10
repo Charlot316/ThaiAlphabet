@@ -2,7 +2,7 @@ import { CONSONANTS, consonantsByInitialSound } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import { Consonant, Vowel, SHAPE_CONFUSABLES } from "@/data";
 
-export { SHAPE_CONFUSABLES, consonantsByInitialSound };
+export { SHAPE_CONFUSABLES, consonantsByInitialSound, CONSONANTS };
 
 export type StudyPool = "consonant" | "vowel" | "both";
 
@@ -17,6 +17,7 @@ export interface StudyItem {
   /** 用户「应该听到」的拼音对照，例如 "kor kai"、"ia (短)" */
   phonetic: string;
   pool: Exclude<StudyPool, "both">;
+  class?: string;
 }
 
 /**
@@ -95,6 +96,7 @@ export function buildStudyItems(): StudyItem[] {
     speak: consonantSpeak(c),
     phonetic: consonantPhonetic(c),
     pool: "consonant" as const,
+    class: c.class,
   }));
 
   const vowels = VOWELS.map((v) => ({
