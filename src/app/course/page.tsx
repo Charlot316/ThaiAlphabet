@@ -173,7 +173,8 @@ type QuestionKindKey =
   | "memory"
   | "soundBlind"
   | "letterBlind"
-  | "class";
+  | "class1"
+  | "class2";
 
 function makeQuestion(
   item: StudyItem,
@@ -215,14 +216,15 @@ function makeQuestion(
         item,
         choices: uniqueChoices(item, allItems, 4, (o) => o.roman),
       };
-    case "class":
-      return { id: `${item.id}:class`, kind: "class", item, choices: [item] };
+    case "class1":
+    case "class2":
+      return { id: `${item.id}:class:${kind}`, kind: "class", item, choices: [item] };
   }
 }
 
 // 把 N 个 item × M 个题型打散：每个 item 内部题型先各自打乱，再用 round-robin
 // 跨 item 抽题，每"轮"内再打散。结果 = 每个 item 出现 M 次、每两道相邻题
-// 通常不同 item，且**题型**也是混合的（一道选择紧接一道书写紧接一道选择…）。
+// 通常不同 item，且**题型**也是混合的。
 function buildShuffledHalf(
   lessonItems: StudyItem[],
   kinds: QuestionKindKey[],
@@ -230,11 +232,14 @@ function buildShuffledHalf(
 ): Question[] {
   const perItem = lessonItems.map((item) => {
     // 只有辅音有等级题
-    const validKinds = kinds.filter((k) => k !== "class" || item.id.startsWith("c:"));
+    const validKinds = kinds.filter((k) => !k.startsWith("class") || item.id.startsWith("c:"));
     return shuffleStrong(validKinds).map((k) => makeQuestion(item, k, allItems));
   });
+
   const result: Question[] = [];
-  for (let r = 0; r < kinds.length; r++) {
+  const maxRounds = kinds.length;
+
+  for (let r = 0; r < maxRounds; r++) {
     const round = perItem.map((qs) => qs[r]).filter((q): q is Question => Boolean(q));
     const shuffled = shuffleStrong(round);
     // 轮交界处避免连续两题同 item
@@ -248,7 +253,7 @@ function buildShuffledHalf(
 }
 
 function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Question[] {
-  // 1) 介绍轮：每个音的 look 题。look 都在前面，但音之间打乱。
+  // 1) 介绍轮：每个音的 look 题。
   const introRound = shuffleStrong(
     lessonItems.map((item) => ({
       id: `${item.id}:look`,
@@ -258,22 +263,21 @@ function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Questi
     }))
   );
 
-  // 2) 前半：5 种带提示的题型（sound / letter / write×2 / class）混合打散。
-  //    每个音 4-5 题，round-robin 轮内 shuffle，相邻题既不同音又不同题型。
+  // 2) 前半轮（带提示）：2次书写，2次选择 (sound/letter)，1次辅音等级判断
   const earlyHalf = buildShuffledHalf(
     lessonItems,
-    ["sound", "letter", "write1", "write2", "class"],
+    ["sound", "letter", "write1", "write2", "class1"],
     allItems
   );
 
-  // 3) 后半：3 种无提示题型（memory / sound-blind / letter-blind）混合打散。
+  // 3) 后半轮（无提示）：2次盲选 (soundBlind/letterBlind)，1道记忆题，1次辅音等级判断
   const lateHalf = buildShuffledHalf(
     lessonItems,
-    ["memory", "soundBlind", "letterBlind"],
+    ["memory", "soundBlind", "letterBlind", "class2"],
     allItems
   );
 
-  // 4) 末尾大配对覆盖本轮所有字母
+  // 4) 末尾大配对
   const finalMatch: Question = {
     id: `match:${Date.now()}`,
     kind: "match",
