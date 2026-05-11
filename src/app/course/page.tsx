@@ -696,6 +696,16 @@ function QuestionCard({
         <div className="mt-2 font-mono text-xs" style={{ color: "var(--duo-blue)" }}>
           🔊 应念: {question.item.phonetic}
         </div>
+        {isConsonant && (
+          <div className="mt-1 text-xs font-bold" style={{ color: "var(--duo-purple)" }}>
+            等级: {question.item.class === "mid" ? "中辅音" : question.item.class === "high" ? "高辅音" : "低辅音"}
+          </div>
+        )}
+        {!isConsonant && question.item.length && (
+          <div className="mt-1 text-xs font-bold" style={{ color: "var(--duo-purple)" }}>
+            长度: {question.item.length === "short" ? "短元音" : "长元音"}
+          </div>
+        )}
         <div className="mt-3">
           <PronounceButton text={question.item.speak} label="🔊 听一下" />
         </div>
