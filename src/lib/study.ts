@@ -18,6 +18,7 @@ export interface StudyItem {
   phonetic: string;
   pool: Exclude<StudyPool, "both">;
   class?: string;
+  length?: "short" | "long";
 }
 
 /**
@@ -107,6 +108,7 @@ export function buildStudyItems(): StudyItem[] {
     speak: vowelSpeak(v),
     phonetic: vowelPhonetic(v),
     pool: "vowel" as const,
+    length: v.length,
   }));
 
   return [...consonants, ...vowels];

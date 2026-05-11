@@ -45,7 +45,8 @@ type QuestionKind =
   | "write"
   | "match"
   | "memory"
-  | "class";
+  | "class"
+  | "length";
 
 interface Question {
   id: string;
@@ -174,7 +175,9 @@ type QuestionKindKey =
   | "soundBlind"
   | "letterBlind"
   | "class1"
-  | "class2";
+  | "class2"
+  | "length1"
+  | "length2";
 
 function makeQuestion(
   item: StudyItem,
@@ -219,6 +222,9 @@ function makeQuestion(
     case "class1":
     case "class2":
       return { id: `${item.id}:class:${kind}`, kind: "class", item, choices: [item] };
+    case "length1":
+    case "length2":
+      return { id: `${item.id}:length:${kind}`, kind: "length", item, choices: [item] };
   }
 }
 
@@ -231,8 +237,12 @@ function buildShuffledHalf(
   allItems: StudyItem[]
 ): Question[] {
   const perItem = lessonItems.map((item) => {
-    // 只有辅音有等级题
-    const validKinds = kinds.filter((k) => !k.startsWith("class") || item.id.startsWith("c:"));
+    // 过滤掉不适用于该 item 的题型
+    const validKinds = kinds.filter((k) => {
+      if (k.startsWith("class")) return item.id.startsWith("c:"); // 只有辅音有等级题
+      if (k.startsWith("length")) return item.id.startsWith("v:"); // 只有元音有长度题
+      return true;
+    });
     return shuffleStrong(validKinds).map((k) => makeQuestion(item, k, allItems));
   });
 
@@ -263,17 +273,17 @@ function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Questi
     }))
   );
 
-  // 2) 前半轮（带提示）：2次书写，2次选择 (sound/letter)，1次辅音等级判断
+  // 2) 前半轮（带提示）：2次书写，2次选择 (sound/letter)，1次辅音等级判断/元音长度判断
   const earlyHalf = buildShuffledHalf(
     lessonItems,
-    ["sound", "letter", "write1", "write2", "class1"],
+    ["sound", "letter", "write1", "write2", "class1", "length1"],
     allItems
   );
 
-  // 3) 后半轮（无提示）：2次盲选 (soundBlind/letterBlind)，1道记忆题，1次辅音等级判断
+  // 3) 后半轮（无提示）：2次盲选 (soundBlind/letterBlind)，1道记忆题，1次辅音等级判断/元音长度判断
   const lateHalf = buildShuffledHalf(
     lessonItems,
-    ["memory", "soundBlind", "letterBlind", "class2"],
+    ["memory", "soundBlind", "letterBlind", "class2", "length2"],
     allItems
   );
 
@@ -505,12 +515,37 @@ export default function CoursePage() {
     }
   }
 
-  function markLooked() {
+  function answerLength(correct: boolean) {
+    if (!current || submitted) return;
+    setSubmitted(true);
+    if (correct) {
+      gainMastery(current.item.id, 1);
+      setCorrectCount((v) => v + 1);
+      setFeedback("ok");
+      setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+      markActive();
+      feedbackCorrect();
+    } else {
+      setProgress(applyWrongAnswer(current.item.id));
+      setFeedback("bad");
+      feedbackWrong();
+      queueReplay(current);
+    }
+  }
+
+  function answerLook(correct: boolean) {
     if (!current) return;
-    gainMastery(current.item.id, 1);
-    setCorrectCount((v) => v + 1);
-    markActive();
-    next();
+    if (correct) {
+      gainMastery(current.item.id, 1);
+      setCorrectCount((v) => v + 1);
+      markActive();
+      next();
+    } else {
+      setFeedback("bad");
+      feedbackWrong();
+      // look 轮答错不重排，但通过 feedback 让用户知道错了
+      setTimeout(() => setFeedback(null), 800);
+    }
   }
 
   function markWrote() {
@@ -586,9 +621,10 @@ export default function CoursePage() {
             onAnswerBlind={answerBlind}
             onAnswerMemory={answerMemory}
             onAnswerClass={answerClass}
+            onAnswerLength={answerLength}
+            onAnswerLook={answerLook}
             onCompleteMatch={completeMatch}
             onNext={next}
-            onLooked={markLooked}
             onWrote={markWrote}
             romanGroups={romanGroups}
             />
@@ -614,9 +650,10 @@ function QuestionCard({
   onAnswerBlind,
   onAnswerMemory,
   onAnswerClass,
+  onAnswerLength,
+  onAnswerLook,
   onCompleteMatch,
   onNext,
-  onLooked,
   onWrote,
   romanGroups,
 }: {
@@ -632,17 +669,19 @@ function QuestionCard({
   onAnswerBlind: (id: string) => void;
   onAnswerMemory: (grade: number, peeked: boolean) => void;
   onAnswerClass: (correct: boolean) => void;
+  onAnswerLength: (correct: boolean) => void;
+  onAnswerLook: (correct: boolean) => void;
   onCompleteMatch: () => void;
   onNext: () => void;
-  onLooked: () => void;
   onWrote: () => void;
   romanGroups: Record<string, StudyItem[]>;
 }) {
   const mastery = progress[question.item.id] || 0;
 
   if (question.kind === "look") {
+    const isConsonant = question.item.id.startsWith("c:");
     return (
-      <section className="card-soft p-7 text-center animate-pop">
+      <section className={`card-soft p-7 text-center animate-pop ${feedback === "bad" ? "animate-shake" : ""}`}>
         <div className="chip chip-blue">先看一眼</div>
         <div className="thai-big mt-5 text-8xl leading-none">{question.item.front}</div>
         <div className="mt-3 text-2xl font-extrabold" style={{ color: "var(--duo-blue)" }}>
@@ -660,12 +699,29 @@ function QuestionCard({
         <div className="mt-3">
           <PronounceButton text={question.item.speak} label="🔊 听一下" />
         </div>
-        <div className="mt-5 text-xs opacity-70">
+
+        {isConsonant ? (
+          <div className="mt-6 space-y-2">
+            <div className="text-[11px] opacity-60">请根据题面判断辅音等级：</div>
+            <div className="grid grid-cols-3 gap-2">
+              <button onClick={() => onAnswerLook(question.item.class === "mid")} className="btn-ghost border-2 py-3 text-xs">中辅音</button>
+              <button onClick={() => onAnswerLook(question.item.class === "high")} className="btn-ghost border-2 py-3 text-xs">高辅音</button>
+              <button onClick={() => onAnswerLook(question.item.class === "low")} className="btn-ghost border-2 py-3 text-xs">低辅音</button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6 space-y-2">
+            <div className="text-[11px] opacity-60">请根据题面判断元音长度：</div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => onAnswerLook(question.item.length === "short")} className="btn-ghost border-2 py-3 text-sm">短元音</button>
+              <button onClick={() => onAnswerLook(question.item.length === "long")} className="btn-ghost border-2 py-3 text-sm">长元音</button>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-5 text-xs opacity-50">
           熟练度 {mastery} / {MASTERY_TARGET}
         </div>
-        <button onClick={onLooked} className="btn-primary mt-5 w-full">
-          记住一点了 ✨
-        </button>
       </section>
     );
   }
@@ -715,6 +771,20 @@ function QuestionCard({
         feedback={feedback}
         praise={praise}
         onAnswer={onAnswerClass}
+        onNext={onNext}
+      />
+    );
+  }
+
+  if (question.kind === "length") {
+    return (
+      <LengthCard
+        key={question.id}
+        question={question}
+        submitted={submitted}
+        feedback={feedback}
+        praise={praise}
+        onAnswer={onAnswerLength}
         onNext={onNext}
       />
     );
@@ -1154,6 +1224,92 @@ function ClassCard({
                 <span>✅ {praise}</span>
               ) : (
                 <span>❌ 正确答案：{OPTIONS.find(o => o.value === question.item.class)?.label}</span>
+              )}
+            </div>
+            <button
+              onClick={onNext}
+              className={feedback === "ok" ? "btn-primary px-5" : "btn-red px-5"}
+            >
+              继续
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LengthCard({
+  question,
+  submitted,
+  feedback,
+  praise,
+  onAnswer,
+  onNext,
+}: {
+  question: Question;
+  submitted: boolean;
+  feedback: "ok" | "bad" | null;
+  praise: string;
+  onAnswer: (correct: boolean) => void;
+  onNext: () => void;
+}) {
+  const [picked, setPicked] = useState<string | null>(null);
+
+  const OPTIONS = [
+    { label: "短元音", value: "short" },
+    { label: "长元音", value: "long" },
+  ];
+
+  const handlePick = (val: string) => {
+    if (submitted) return;
+    setPicked(val);
+    onAnswer(val === question.item.length);
+  };
+
+  return (
+    <section className="space-y-4">
+      <div className={`card-soft p-7 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
+        <div className="chip chip-purple">判断元音长度</div>
+        <div className="thai-big mt-5 text-8xl leading-none">{question.item.front}</div>
+        <div className="mt-3 text-2xl font-extrabold" style={{ color: "var(--duo-blue)" }}>
+          {displayRoman(question.item.roman)}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {OPTIONS.map((opt) => {
+          const isCorrect = opt.value === question.item.length;
+          const isPicked = picked === opt.value;
+          let cls = "btn-ghost border-2";
+
+          if (submitted) {
+            if (isCorrect) cls = "btn-primary";
+            else if (isPicked) cls = "btn-red";
+            else cls = "btn-ghost opacity-40";
+          }
+
+          return (
+            <button
+              key={opt.value}
+              onClick={() => handlePick(opt.value)}
+              disabled={submitted}
+              className={`${cls} py-5 text-base font-bold`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {submitted && (
+        <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-base">
+              {feedback === "ok" ? (
+                <span>✅ {praise}</span>
+              ) : (
+                <span>❌ 正确答案：{question.item.length === "long" ? "长元音" : "短元音"}</span>
               )}
             </div>
             <button
