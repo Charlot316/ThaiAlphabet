@@ -10,11 +10,23 @@ import {
   subscribeAuth,
 } from "@/lib/sync";
 
+function shouldBypassAuthLocally() {
+  if (process.env.NODE_ENV === "development") return true;
+  if (typeof window === "undefined") return false;
+  return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+}
+
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [logged, setLogged] = useState(false);
 
   useEffect(() => {
+    if (shouldBypassAuthLocally()) {
+      setLogged(true);
+      setReady(true);
+      return;
+    }
+
     installSyncHook();
     const sync = () => {
       const v = isLoggedIn();

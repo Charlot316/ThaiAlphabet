@@ -35,15 +35,15 @@ export default function OverviewPage() {
 }
 
 function classTag(cls: string) {
-  if (cls === "mid") return <span className="chip chip-mid h-9 min-w-9 justify-center px-2">中</span>;
-  if (cls === "high") return <span className="chip chip-high h-9 min-w-9 justify-center px-2">高</span>;
-  return <span className="chip chip-low h-9 min-w-9 justify-center px-2">低</span>;
+  if (cls === "mid") return <span className="chip chip-raised chip-mid h-9 min-w-9 justify-center px-2">中</span>;
+  if (cls === "high") return <span className="chip chip-raised chip-high h-9 min-w-9 justify-center px-2">高</span>;
+  return <span className="chip chip-raised chip-low h-9 min-w-9 justify-center px-2">低</span>;
 }
 
 function vowelLengthTag(length: Vowel["length"]) {
   return length === "long"
-    ? <span className="chip chip-blue h-9 min-w-9 justify-center px-2">长</span>
-    : <span className="chip chip-yellow h-9 min-w-9 justify-center px-2">短</span>;
+    ? <span className="chip chip-raised chip-blue h-9 min-w-9 justify-center px-2">长</span>
+    : <span className="chip chip-raised chip-yellow h-9 min-w-9 justify-center px-2">短</span>;
 }
 
 function Consonants() {
@@ -233,7 +233,7 @@ function ConsonantCard({
       </div>
       <div className="grid grid-cols-[minmax(2.5rem,1fr)_auto] items-center gap-2">
         <div className="thai-big min-w-0 text-3xl leading-none">{c.letter}</div>
-        <div className="flex h-9 shrink-0 items-center gap-1">
+        <div className="flex h-10 shrink-0 items-start gap-1">
           {classTag(c.class)}
           <PronounceButton text={consonantSpeak(c)} className="h-9 min-w-14 px-3 py-0" />
         </div>
@@ -445,7 +445,7 @@ function VowelCard({
       </div>
       <div className="grid grid-cols-[minmax(2.5rem,1fr)_auto] items-center gap-2">
         <div className="thai-big min-w-0 truncate text-2xl leading-none">{v.display}</div>
-        <div className="flex h-9 shrink-0 items-center gap-1">
+        <div className="flex h-10 shrink-0 items-start gap-1">
           {vowelLengthTag(v.length)}
           <PronounceButton text={vowelSpeak(v)} className="h-9 min-w-14 px-3 py-0" />
         </div>

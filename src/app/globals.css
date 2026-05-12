@@ -185,6 +185,9 @@ body {
   .chip {
     @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-extrabold uppercase tracking-wide;
   }
+  .chip-raised {
+    box-shadow: 0 4px 0 color-mix(in srgb, currentColor 24%, transparent);
+  }
   .chip-mid    { background: rgba(255, 150, 0, 0.18); color: #b35f00; }
   .chip-high   { background: rgba(88, 204, 2, 0.18); color: #2e7a01; }
   .chip-low    { background: rgba(206, 130, 255, 0.18); color: #7a36c2; }
