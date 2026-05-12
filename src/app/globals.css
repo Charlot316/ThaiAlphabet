@@ -83,6 +83,8 @@ body {
     @apply inline-flex items-center justify-center select-none font-extrabold
       uppercase tracking-wide rounded-2xl px-4 py-3 text-sm
       transition-all duration-100 active:translate-y-[2px];
+    min-width: 0;
+    max-width: 100%;
     box-shadow: 0 4px 0 var(--duo-line-d);
   }
   .btn:active { box-shadow: 0 2px 0 var(--duo-line-d); }
@@ -138,6 +140,9 @@ body {
   .opt {
     @apply w-full select-none rounded-2xl px-3 py-4 text-base
       transition-all duration-100 active:translate-y-[2px] font-bold;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     background: var(--duo-card);
     color: var(--duo-text);
     border: 2px solid var(--duo-line);
@@ -215,6 +220,18 @@ body {
   /* 答对/答错 大反馈条 */
   .feedback {
     @apply rounded-2xl p-4 font-extrabold;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-wrap: anywhere;
+  }
+  .feedback > .flex {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+  .feedback button {
+    flex-shrink: 0;
   }
   .feedback-ok {
     background: rgba(88, 204, 2, 0.15);

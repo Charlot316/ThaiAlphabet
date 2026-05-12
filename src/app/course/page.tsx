@@ -566,7 +566,7 @@ export default function CoursePage() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex h-full min-w-0 flex-col gap-4 overflow-x-hidden">
       {/* 进度条 + 重置 */}
       <div className="shrink-0">
         <div className="flex items-center justify-between gap-3 mb-1 px-1">
@@ -593,7 +593,7 @@ export default function CoursePage() {
       </div>
 
       {/* 中间：主要内容 */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden" style={{ touchAction: "pan-y" }}>
         {complete ? (
           <section className="card-soft p-7 text-center animate-pop">
             <div className="text-6xl">🎉</div>
@@ -608,26 +608,28 @@ export default function CoursePage() {
             </button>
           </section>
         ) : current ? (
-          <QuestionCard
-            question={current}
-            picked={picked}
-            submitted={submitted}
-            progress={progress}
-            feedback={feedback}
-            praise={praise}
-            onAnswerSound={answerSound}
-            onPreviewLetter={previewLetter}
-            onConfirmLetter={confirmLetter}
-            onAnswerBlind={answerBlind}
-            onAnswerMemory={answerMemory}
-            onAnswerClass={answerClass}
-            onAnswerLength={answerLength}
-            onAnswerLook={answerLook}
-            onCompleteMatch={completeMatch}
-            onNext={next}
-            onWrote={markWrote}
-            romanGroups={romanGroups}
+          <div className="min-w-0 max-w-full overflow-x-hidden">
+            <QuestionCard
+              question={current}
+              picked={picked}
+              submitted={submitted}
+              progress={progress}
+              feedback={feedback}
+              praise={praise}
+              onAnswerSound={answerSound}
+              onPreviewLetter={previewLetter}
+              onConfirmLetter={confirmLetter}
+              onAnswerBlind={answerBlind}
+              onAnswerMemory={answerMemory}
+              onAnswerClass={answerClass}
+              onAnswerLength={answerLength}
+              onAnswerLook={answerLook}
+              onCompleteMatch={completeMatch}
+              onNext={next}
+              onWrote={markWrote}
+              romanGroups={romanGroups}
             />
+          </div>
 
         ) : (
           <section className="card-soft p-6 text-center text-sm opacity-70">正在生成课程...</section>
