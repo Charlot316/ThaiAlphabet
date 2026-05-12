@@ -11,9 +11,9 @@ export default function StatusBar() {
           size={16}
           strokeWidth={2.3}
           aria-hidden
-          style={{ color: s.streak > 0 ? "var(--duo-orange)" : "var(--duo-muted)" }}
+          style={{ color: s.streak > 0 ? "var(--duo-green-d)" : "var(--duo-muted)" }}
         />
-        <span style={{ color: s.streak > 0 ? "var(--duo-orange)" : "var(--duo-muted)" }}>
+        <span style={{ color: s.streak > 0 ? "var(--duo-text)" : "var(--duo-muted)" }}>
           {s.streak}
         </span>
       </span>
@@ -24,31 +24,31 @@ export default function StatusBar() {
 export function HeroStatusBar() {
   const s = useStats();
   return (
-    <div className="card-soft flex items-center justify-between p-4">
+    <div className="card-soft flex items-center justify-between gap-4 p-4">
       <div className="flex items-center gap-3">
         <div
-          className="flex h-11 w-11 items-center justify-center rounded-lg"
+          className="flex h-10 w-10 items-center justify-center rounded-lg border"
           style={{
-            background: "color-mix(in srgb, var(--duo-orange) 14%, transparent)",
-            color: "var(--duo-orange)",
-            border: "1px solid color-mix(in srgb, var(--duo-orange) 25%, transparent)",
+            background: "var(--surface-subtle)",
+            color: s.streak > 0 ? "var(--duo-green-d)" : "var(--duo-muted)",
+            borderColor: "var(--duo-line)",
           }}
         >
-          <Flame size={21} strokeWidth={2.4} />
+          <Flame size={19} strokeWidth={2.3} />
         </div>
         <div>
           <div
-            className="text-2xl font-semibold leading-none"
-            style={{ color: s.streak > 0 ? "var(--duo-orange)" : "var(--duo-muted)" }}
+            className="text-xl font-semibold leading-none"
+            style={{ color: s.streak > 0 ? "var(--duo-text)" : "var(--duo-muted)" }}
           >
             {s.streak}
           </div>
-          <div className="mt-0.5 text-[11px] font-medium opacity-60">
+          <div className="mt-1 text-[11px] font-medium" style={{ color: "var(--duo-muted)" }}>
             连续学习
           </div>
         </div>
       </div>
-      <div className="text-right text-xs opacity-60">
+      <div className="text-right text-xs" style={{ color: "var(--duo-muted)" }}>
         {s.lastActiveDay ? `上次 ${s.lastActiveDay}` : "今天来打个卡吧"}
       </div>
     </div>

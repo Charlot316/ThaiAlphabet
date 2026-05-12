@@ -30,9 +30,9 @@ export default function Nav() {
       <header
         className="sticky top-0 z-30"
         style={{
-          background: "color-mix(in srgb, var(--duo-bg) 88%, transparent)",
+          background: "rgba(255, 255, 255, 0.92)",
           borderBottom: "1px solid var(--duo-line)",
-          backdropFilter: "blur(18px)",
+          backdropFilter: "blur(14px)",
         }}
       >
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3 md:max-w-3xl lg:max-w-5xl xl:max-w-6xl">
@@ -40,14 +40,14 @@ export default function Nav() {
             <span
               className="thai-big inline-flex h-9 w-9 items-center justify-center rounded-lg text-base font-semibold"
               style={{
-                background: "color-mix(in srgb, var(--duo-green) 16%, var(--duo-card))",
-                border: "1px solid color-mix(in srgb, var(--duo-green) 28%, transparent)",
-                color: "var(--duo-green)",
+                background: "var(--surface-solid)",
+                border: "1px solid var(--duo-line)",
+                color: "var(--duo-green-d)",
               }}
             >
               ก
             </span>
-            <span className="text-sm font-semibold">Thai Alphabet</span>
+            <span className="text-sm font-semibold tracking-normal">Thai Alphabet</span>
           </Link>
           <div className="flex items-center gap-3">
             <StatusBar />
@@ -56,7 +56,7 @@ export default function Nav() {
               className="inline-flex h-9 w-9 items-center justify-center rounded-lg transition"
               style={{
                 border: "1px solid var(--duo-line)",
-                background: "var(--surface-subtle)",
+                background: "var(--surface-solid)",
                 color: "var(--duo-muted)",
               }}
               aria-label="设置"
@@ -73,8 +73,8 @@ export default function Nav() {
         style={{
           background: "color-mix(in srgb, var(--duo-card) 94%, var(--duo-bg))",
           borderTop: "1px solid var(--duo-line)",
-          boxShadow: "0 -16px 42px rgba(0, 0, 0, 0.08)",
-          backdropFilter: "blur(18px)",
+          boxShadow: "0 -1px 2px rgba(31, 31, 29, 0.03)",
+          backdropFilter: "blur(14px)",
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
@@ -88,9 +88,9 @@ export default function Nav() {
                   href={t.href}
                   className="flex h-14 flex-col items-center justify-center gap-1 rounded-lg transition"
                   style={{
-                    color: active ? "var(--duo-green)" : "var(--duo-muted)",
-                    background: active ? "color-mix(in srgb, var(--duo-green) 12%, transparent)" : "transparent",
-                    border: active ? "1px solid color-mix(in srgb, var(--duo-green) 24%, transparent)" : "1px solid transparent",
+                    color: active ? "var(--duo-green-d)" : "var(--duo-muted)",
+                    background: active ? "var(--surface-pressed)" : "transparent",
+                    border: "1px solid transparent",
                   }}
                 >
                   <Icon size={18} strokeWidth={active ? 2.5 : 2} aria-hidden />

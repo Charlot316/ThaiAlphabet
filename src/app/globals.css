@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kanit:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&family=Noto+Sans+Thai+Looped:wght@400;600;700&family=Prompt:wght@400;600;700&family=Sarabun:wght@400;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kanit:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;600;700&family=Noto+Sans+Thai+Looped:wght@400;600;700&family=Prompt:wght@400;600;700&family=Sarabun:wght@400;600;700&display=swap");
 
 @font-face {
   font-family: "Droid Sans Thai";
@@ -14,29 +14,29 @@
 
 :root {
   color-scheme: light;
-  --duo-green: #16b978;
-  --duo-green-d: #0d8f5c;
-  --duo-green-shadow: rgba(22, 185, 120, 0.28);
-  --duo-blue: #2f8fff;
-  --duo-blue-d: #1668d9;
-  --duo-purple: #8b6df6;
-  --duo-purple-d: #6448cf;
-  --duo-orange: #e89432;
-  --duo-orange-d: #b96c18;
-  --duo-yellow: #e4b84a;
-  --duo-red: #f05266;
-  --duo-red-d: #c93346;
-  --duo-bg: #f6f8f5;
-  --duo-card: rgba(255, 255, 255, 0.82);
-  --duo-line: rgba(23, 39, 33, 0.12);
-  --duo-line-d: rgba(23, 39, 33, 0.2);
-  --duo-text: #16211d;
-  --duo-muted: #697970;
+  --duo-green: #08795f;
+  --duo-green-d: #075c49;
+  --duo-green-shadow: rgba(8, 121, 95, 0.12);
+  --duo-blue: #2563eb;
+  --duo-blue-d: #1d4ed8;
+  --duo-purple: #6d5bd0;
+  --duo-purple-d: #5140a8;
+  --duo-orange: #c76619;
+  --duo-orange-d: #9b4a10;
+  --duo-yellow: #9a6a00;
+  --duo-red: #d83a42;
+  --duo-red-d: #b4232b;
+  --duo-bg: #f7f7f5;
+  --duo-card: #ffffff;
+  --duo-line: rgba(26, 26, 26, 0.1);
+  --duo-line-d: rgba(26, 26, 26, 0.18);
+  --duo-text: #1f1f1d;
+  --duo-muted: #706f6a;
   --surface-solid: #ffffff;
-  --surface-subtle: rgba(255, 255, 255, 0.58);
-  --surface-pressed: rgba(22, 185, 120, 0.08);
-  --shadow-soft: 0 18px 46px rgba(29, 49, 41, 0.08), 0 2px 10px rgba(29, 49, 41, 0.05);
-  --shadow-small: 0 8px 24px rgba(29, 49, 41, 0.08);
+  --surface-subtle: #f1f1ef;
+  --surface-pressed: #edf7f3;
+  --shadow-soft: 0 1px 2px rgba(31, 31, 29, 0.04), 0 12px 28px rgba(31, 31, 29, 0.04);
+  --shadow-small: 0 1px 2px rgba(31, 31, 29, 0.04);
 }
 
 html, body {
@@ -50,53 +50,13 @@ html, body {
 
 body {
   background-color: var(--duo-bg);
-  background-image:
-    linear-gradient(180deg, rgba(22, 185, 120, 0.08) 0%, transparent 28rem),
-    linear-gradient(rgba(23, 39, 33, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 39, 33, 0.035) 1px, transparent 1px);
-  background-size: auto, 48px 48px, 48px 48px;
+  background-image: none;
   color: var(--duo-text);
-  font-family: "Droid Sans Thai", "Noto Sans Thai Looped", "Noto Sans Thai",
-    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+  font-family: "Noto Sans SC", "Inter", "Droid Sans Thai", "Noto Sans Thai Looped", "Noto Sans Thai",
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     "Helvetica Neue", "Leelawadee UI", "Tahoma", sans-serif;
   font-weight: 500;
   letter-spacing: 0;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --duo-green: #62e6a7;
-    --duo-green-d: #29bf7a;
-    --duo-green-shadow: rgba(98, 230, 167, 0.22);
-    --duo-blue: #69b8ff;
-    --duo-blue-d: #2f8fff;
-    --duo-purple: #b49cff;
-    --duo-purple-d: #8b6df6;
-    --duo-orange: #ffb35a;
-    --duo-orange-d: #d3832c;
-    --duo-yellow: #f1d26a;
-    --duo-red: #ff6b7c;
-    --duo-red-d: #ff4c63;
-    --duo-bg: #09110f;
-    --duo-card: rgba(18, 29, 25, 0.82);
-    --duo-line: rgba(220, 244, 232, 0.12);
-    --duo-line-d: rgba(220, 244, 232, 0.18);
-    --duo-text: #edf7f2;
-    --duo-muted: #8ca098;
-    --surface-solid: #121d19;
-    --surface-subtle: rgba(255, 255, 255, 0.045);
-    --surface-pressed: rgba(98, 230, 167, 0.1);
-    --shadow-soft: 0 22px 52px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.03);
-    --shadow-small: 0 10px 30px rgba(0, 0, 0, 0.26);
-  }
-
-  body {
-    background-image:
-      linear-gradient(180deg, rgba(98, 230, 167, 0.08) 0%, transparent 30rem),
-      linear-gradient(rgba(220, 244, 232, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(220, 244, 232, 0.025) 1px, transparent 1px);
-  }
 }
 
 .thai-big {
@@ -123,7 +83,7 @@ body {
     letter-spacing: 0;
   }
   .btn:hover:not(:disabled) {
-    transform: translateY(-1px);
+    transform: none;
   }
   .btn:disabled {
     @apply cursor-not-allowed opacity-45;
@@ -131,37 +91,37 @@ body {
 
   .btn-primary {
     @apply btn;
-    background: linear-gradient(135deg, var(--duo-green) 0%, #22c7b8 100%);
-    color: #052016;
-    box-shadow: 0 12px 28px var(--duo-green-shadow);
+    background: var(--duo-green);
+    color: #fff;
+    box-shadow: none;
   }
 
   .btn-blue {
     @apply btn;
-    background: color-mix(in srgb, var(--duo-blue) 18%, var(--duo-card));
+    background: color-mix(in srgb, var(--duo-blue) 7%, var(--duo-card));
     color: var(--duo-blue-d);
-    border-color: color-mix(in srgb, var(--duo-blue) 38%, transparent);
+    border-color: color-mix(in srgb, var(--duo-blue) 18%, transparent);
   }
 
   .btn-purple {
     @apply btn;
-    background: color-mix(in srgb, var(--duo-purple) 18%, var(--duo-card));
-    color: var(--duo-purple);
-    border-color: color-mix(in srgb, var(--duo-purple) 34%, transparent);
+    background: color-mix(in srgb, var(--duo-purple) 7%, var(--duo-card));
+    color: var(--duo-purple-d);
+    border-color: color-mix(in srgb, var(--duo-purple) 18%, transparent);
   }
 
   .btn-orange {
     @apply btn;
-    background: color-mix(in srgb, var(--duo-orange) 20%, var(--duo-card));
-    color: var(--duo-orange);
-    border-color: color-mix(in srgb, var(--duo-orange) 34%, transparent);
+    background: color-mix(in srgb, var(--duo-orange) 8%, var(--duo-card));
+    color: var(--duo-orange-d);
+    border-color: color-mix(in srgb, var(--duo-orange) 18%, transparent);
   }
 
   .btn-red {
     @apply btn;
-    background: color-mix(in srgb, var(--duo-red) 18%, var(--duo-card));
-    color: var(--duo-red);
-    border-color: color-mix(in srgb, var(--duo-red) 34%, transparent);
+    background: color-mix(in srgb, var(--duo-red) 7%, var(--duo-card));
+    color: var(--duo-red-d);
+    border-color: color-mix(in srgb, var(--duo-red) 18%, transparent);
   }
 
   .btn-ghost {
@@ -169,7 +129,7 @@ body {
     background: var(--surface-subtle);
     color: var(--duo-text);
     border-color: var(--duo-line);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    box-shadow: none;
   }
   .btn-ghost:hover:not(:disabled) { background: var(--surface-pressed); }
 
@@ -186,8 +146,8 @@ body {
     box-shadow: none;
   }
   .opt:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--duo-blue) 58%, var(--duo-line));
-    background: color-mix(in srgb, var(--duo-blue) 8%, var(--duo-card));
+    border-color: var(--duo-line-d);
+    background: var(--surface-subtle);
   }
 
   .opt-selected {
@@ -219,7 +179,7 @@ body {
     background: var(--duo-card);
     border: 1px solid var(--duo-line);
     box-shadow: var(--shadow-soft);
-    backdrop-filter: blur(18px);
+    backdrop-filter: none;
   }
 
   /* 颜色 chip / tag */
@@ -231,21 +191,12 @@ body {
   .chip-raised {
     box-shadow: none;
   }
-  .chip-mid    { background: color-mix(in srgb, var(--duo-orange) 14%, transparent); color: var(--duo-orange); border-color: color-mix(in srgb, var(--duo-orange) 24%, transparent); }
-  .chip-high   { background: color-mix(in srgb, var(--duo-green) 14%, transparent); color: var(--duo-green-d); border-color: color-mix(in srgb, var(--duo-green) 24%, transparent); }
-  .chip-low    { background: color-mix(in srgb, var(--duo-purple) 14%, transparent); color: var(--duo-purple); border-color: color-mix(in srgb, var(--duo-purple) 24%, transparent); }
-  .chip-blue   { background: color-mix(in srgb, var(--duo-blue) 14%, transparent); color: var(--duo-blue); border-color: color-mix(in srgb, var(--duo-blue) 24%, transparent); }
-  .chip-yellow { background: color-mix(in srgb, var(--duo-yellow) 16%, transparent); color: var(--duo-yellow); border-color: color-mix(in srgb, var(--duo-yellow) 26%, transparent); }
-  .chip-red    { background: color-mix(in srgb, var(--duo-red) 14%, transparent); color: var(--duo-red); border-color: color-mix(in srgb, var(--duo-red) 24%, transparent); }
-
-  @media (prefers-color-scheme: dark) {
-    .chip-mid    { background: rgba(255,150,0,0.22); color: #ffb24b; }
-    .chip-high   { background: rgba(88,204,2,0.22); color: #9ce562; }
-    .chip-low    { background: rgba(206,130,255,0.25); color: #e1b3ff; }
-    .chip-blue   { background: rgba(28,176,246,0.22); color: #6ed1ff; }
-    .chip-yellow { background: rgba(255,200,0,0.25); color: #ffe17a; }
-    .chip-red    { background: rgba(255,75,75,0.22); color: #ff8d8d; }
-  }
+  .chip-mid    { background: color-mix(in srgb, var(--duo-orange) 8%, transparent); color: var(--duo-orange-d); border-color: color-mix(in srgb, var(--duo-orange) 18%, transparent); }
+  .chip-high   { background: color-mix(in srgb, var(--duo-green) 8%, transparent); color: var(--duo-green-d); border-color: color-mix(in srgb, var(--duo-green) 18%, transparent); }
+  .chip-low    { background: color-mix(in srgb, var(--duo-purple) 7%, transparent); color: var(--duo-purple-d); border-color: color-mix(in srgb, var(--duo-purple) 16%, transparent); }
+  .chip-blue   { background: color-mix(in srgb, var(--duo-blue) 7%, transparent); color: var(--duo-blue-d); border-color: color-mix(in srgb, var(--duo-blue) 16%, transparent); }
+  .chip-yellow { background: color-mix(in srgb, var(--duo-yellow) 8%, transparent); color: var(--duo-yellow); border-color: color-mix(in srgb, var(--duo-yellow) 18%, transparent); }
+  .chip-red    { background: color-mix(in srgb, var(--duo-red) 7%, transparent); color: var(--duo-red-d); border-color: color-mix(in srgb, var(--duo-red) 16%, transparent); }
 
   /* 进度条 */
   .progress-track {
@@ -254,8 +205,8 @@ body {
   }
   .progress-fill {
     @apply h-full rounded-full transition-[width] duration-500;
-    background: linear-gradient(90deg, var(--duo-green) 0%, #22c7b8 100%);
-    box-shadow: 0 0 18px var(--duo-green-shadow);
+    background: var(--duo-green);
+    box-shadow: none;
   }
 
   /* 顶部状态条徽章 */
@@ -288,10 +239,6 @@ body {
     background: color-mix(in srgb, var(--duo-red) 12%, var(--duo-card));
     color: var(--duo-red-d);
     border: 1px solid color-mix(in srgb, var(--duo-red) 35%, transparent);
-  }
-  @media (prefers-color-scheme: dark) {
-    .feedback-ok { color: #9ce562; }
-    .feedback-bad { color: #ff8d8d; }
   }
 }
 
