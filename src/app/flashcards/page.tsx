@@ -12,6 +12,19 @@ function poolLabel(pool: StudyPool) {
   return "全部";
 }
 
+function classLabel(c?: string) {
+  if (c === "high") return "高辅音";
+  if (c === "mid") return "中辅音";
+  if (c === "low") return "低辅音";
+  return null;
+}
+
+function lengthLabel(l?: string) {
+  if (l === "long") return "长元音";
+  if (l === "short") return "短元音";
+  return null;
+}
+
 export default function FlashcardsPage() {
   const allItems = useMemo(buildStudyItems, []);
   const [pool, setPool] = useState<StudyPool>("consonant");
@@ -91,8 +104,20 @@ export default function FlashcardsPage() {
           key={current.id}
           className="card-soft animate-pop flex min-h-[360px] flex-col items-center justify-center p-8 text-center"
         >
-          <div className="chip chip-blue mb-3">
-            {index + 1} / {order.length || items.length}
+          <div className="flex flex-wrap justify-center gap-2 mb-3">
+            <div className="chip chip-blue">
+              {index + 1} / {order.length || items.length}
+            </div>
+            {current.class && (
+              <div className={`chip chip-${current.class}`}>
+                {classLabel(current.class)}
+              </div>
+            )}
+            {current.length && (
+              <div className={`chip ${current.length === "long" ? "chip-blue" : "chip-yellow"}`}>
+                {lengthLabel(current.length)}
+              </div>
+            )}
           </div>
           <div className="thai-big mt-2 text-8xl leading-none">{current.front}</div>
           <div className="mt-5 text-2xl font-extrabold" style={{ color: "var(--duo-blue)" }}>
