@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&family=Noto+Sans+Thai+Looped:wght@400;600;700&family=Prompt:wght@400;600;700&family=Sarabun:wght@400;600;700&family=Nunito:wght@500;700;800;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kanit:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&family=Noto+Sans+Thai+Looped:wght@400;600;700&family=Prompt:wght@400;600;700&family=Sarabun:wght@400;600;700&display=swap");
 
 @font-face {
   font-family: "Droid Sans Thai";
@@ -14,25 +14,29 @@
 
 :root {
   color-scheme: light;
-  /* Duolingo 灵感的多巴胺调色板 */
-  --duo-green: #58cc02;
-  --duo-green-d: #46a302;
-  --duo-green-shadow: #58a700;
-  --duo-blue: #1cb0f6;
-  --duo-blue-d: #0094d2;
-  --duo-purple: #ce82ff;
-  --duo-purple-d: #ad5cff;
-  --duo-orange: #ff9600;
-  --duo-orange-d: #e08600;
-  --duo-yellow: #ffc800;
-  --duo-red: #ff4b4b;
-  --duo-red-d: #ea2b2b;
-  --duo-bg: #fff7e9;
-  --duo-card: #ffffff;
-  --duo-line: #e5e5e5;
-  --duo-line-d: #cfcfcf;
-  --duo-text: #4b4b4b;
-  --duo-muted: #777777;
+  --duo-green: #16b978;
+  --duo-green-d: #0d8f5c;
+  --duo-green-shadow: rgba(22, 185, 120, 0.28);
+  --duo-blue: #2f8fff;
+  --duo-blue-d: #1668d9;
+  --duo-purple: #8b6df6;
+  --duo-purple-d: #6448cf;
+  --duo-orange: #e89432;
+  --duo-orange-d: #b96c18;
+  --duo-yellow: #e4b84a;
+  --duo-red: #f05266;
+  --duo-red-d: #c93346;
+  --duo-bg: #f6f8f5;
+  --duo-card: rgba(255, 255, 255, 0.82);
+  --duo-line: rgba(23, 39, 33, 0.12);
+  --duo-line-d: rgba(23, 39, 33, 0.2);
+  --duo-text: #16211d;
+  --duo-muted: #697970;
+  --surface-solid: #ffffff;
+  --surface-subtle: rgba(255, 255, 255, 0.58);
+  --surface-pressed: rgba(22, 185, 120, 0.08);
+  --shadow-soft: 0 18px 46px rgba(29, 49, 41, 0.08), 0 2px 10px rgba(29, 49, 41, 0.05);
+  --shadow-small: 0 8px 24px rgba(29, 49, 41, 0.08);
 }
 
 html, body {
@@ -45,29 +49,60 @@ html, body {
 }
 
 body {
-  background: var(--duo-bg);
+  background-color: var(--duo-bg);
+  background-image:
+    linear-gradient(180deg, rgba(22, 185, 120, 0.08) 0%, transparent 28rem),
+    linear-gradient(rgba(23, 39, 33, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 39, 33, 0.035) 1px, transparent 1px);
+  background-size: auto, 48px 48px, 48px 48px;
   color: var(--duo-text);
   font-family: "Droid Sans Thai", "Noto Sans Thai Looped", "Noto Sans Thai",
-    "Nunito", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     "Helvetica Neue", "Leelawadee UI", "Tahoma", sans-serif;
-  font-weight: 700;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --duo-bg: #131f24;
-    --duo-card: #1f2c33;
-    --duo-line: #37464f;
-    --duo-line-d: #2c3a42;
-    --duo-text: #f0f5f7;
-    --duo-muted: #93a4ad;
+    color-scheme: dark;
+    --duo-green: #62e6a7;
+    --duo-green-d: #29bf7a;
+    --duo-green-shadow: rgba(98, 230, 167, 0.22);
+    --duo-blue: #69b8ff;
+    --duo-blue-d: #2f8fff;
+    --duo-purple: #b49cff;
+    --duo-purple-d: #8b6df6;
+    --duo-orange: #ffb35a;
+    --duo-orange-d: #d3832c;
+    --duo-yellow: #f1d26a;
+    --duo-red: #ff6b7c;
+    --duo-red-d: #ff4c63;
+    --duo-bg: #09110f;
+    --duo-card: rgba(18, 29, 25, 0.82);
+    --duo-line: rgba(220, 244, 232, 0.12);
+    --duo-line-d: rgba(220, 244, 232, 0.18);
+    --duo-text: #edf7f2;
+    --duo-muted: #8ca098;
+    --surface-solid: #121d19;
+    --surface-subtle: rgba(255, 255, 255, 0.045);
+    --surface-pressed: rgba(98, 230, 167, 0.1);
+    --shadow-soft: 0 22px 52px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    --shadow-small: 0 10px 30px rgba(0, 0, 0, 0.26);
+  }
+
+  body {
+    background-image:
+      linear-gradient(180deg, rgba(98, 230, 167, 0.08) 0%, transparent 30rem),
+      linear-gradient(rgba(220, 244, 232, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(220, 244, 232, 0.025) 1px, transparent 1px);
   }
 }
 
 .thai-big {
   font-family: "Droid Sans Thai", "Noto Sans Thai Looped", "Noto Sans Thai", "Leelawadee UI", "Tahoma", sans-serif;
   font-feature-settings: "kern" 1;
-  letter-spacing: 0.005em;
+  letter-spacing: 0;
 }
 
 .thai-font-droid { font-family: "Droid Sans Thai", "Noto Sans Thai Looped", "Leelawadee UI", "Tahoma", sans-serif; }
@@ -78,122 +113,130 @@ body {
 .thai-font-sarabun { font-family: "Sarabun", "Th Sarabun New", serif; }
 
 @layer components {
-  /* === 按钮：Duolingo 风格的"3D 实色阴影" === */
   .btn {
-    @apply inline-flex items-center justify-center select-none font-extrabold
-      uppercase tracking-wide rounded-2xl px-4 py-3 text-sm
-      transition-all duration-100 active:translate-y-[2px];
+    @apply inline-flex items-center justify-center select-none rounded-lg px-4 py-2.5 text-sm font-semibold
+      transition-all duration-150 active:scale-[0.98];
     min-width: 0;
     max-width: 100%;
-    box-shadow: 0 4px 0 var(--duo-line-d);
+    border: 1px solid transparent;
+    box-shadow: none;
+    letter-spacing: 0;
   }
-  .btn:active { box-shadow: 0 2px 0 var(--duo-line-d); }
-  .btn:disabled { @apply opacity-50 cursor-not-allowed; box-shadow: 0 4px 0 var(--duo-line-d); }
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+  .btn:disabled {
+    @apply cursor-not-allowed opacity-45;
+  }
 
   .btn-primary {
-    @apply btn text-white;
-    background: var(--duo-green);
-    box-shadow: 0 4px 0 var(--duo-green-shadow);
+    @apply btn;
+    background: linear-gradient(135deg, var(--duo-green) 0%, #22c7b8 100%);
+    color: #052016;
+    box-shadow: 0 12px 28px var(--duo-green-shadow);
   }
-  .btn-primary:hover { background: #61d904; }
-  .btn-primary:active { box-shadow: 0 2px 0 var(--duo-green-shadow); }
 
   .btn-blue {
-    @apply btn text-white;
-    background: var(--duo-blue);
-    box-shadow: 0 4px 0 var(--duo-blue-d);
+    @apply btn;
+    background: color-mix(in srgb, var(--duo-blue) 18%, var(--duo-card));
+    color: var(--duo-blue-d);
+    border-color: color-mix(in srgb, var(--duo-blue) 38%, transparent);
   }
-  .btn-blue:active { box-shadow: 0 2px 0 var(--duo-blue-d); }
 
   .btn-purple {
-    @apply btn text-white;
-    background: var(--duo-purple);
-    box-shadow: 0 4px 0 var(--duo-purple-d);
+    @apply btn;
+    background: color-mix(in srgb, var(--duo-purple) 18%, var(--duo-card));
+    color: var(--duo-purple);
+    border-color: color-mix(in srgb, var(--duo-purple) 34%, transparent);
   }
-  .btn-purple:active { box-shadow: 0 2px 0 var(--duo-purple-d); }
 
   .btn-orange {
-    @apply btn text-white;
-    background: var(--duo-orange);
-    box-shadow: 0 4px 0 var(--duo-orange-d);
+    @apply btn;
+    background: color-mix(in srgb, var(--duo-orange) 20%, var(--duo-card));
+    color: var(--duo-orange);
+    border-color: color-mix(in srgb, var(--duo-orange) 34%, transparent);
   }
-  .btn-orange:active { box-shadow: 0 2px 0 var(--duo-orange-d); }
 
   .btn-red {
-    @apply btn text-white;
-    background: var(--duo-red);
-    box-shadow: 0 4px 0 var(--duo-red-d);
+    @apply btn;
+    background: color-mix(in srgb, var(--duo-red) 18%, var(--duo-card));
+    color: var(--duo-red);
+    border-color: color-mix(in srgb, var(--duo-red) 34%, transparent);
   }
-  .btn-red:active { box-shadow: 0 2px 0 var(--duo-red-d); }
 
   .btn-ghost {
     @apply btn;
-    background: var(--duo-card);
+    background: var(--surface-subtle);
     color: var(--duo-text);
-    border: 2px solid var(--duo-line);
-    box-shadow: 0 4px 0 var(--duo-line);
+    border-color: var(--duo-line);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   }
-  .btn-ghost:hover { background: rgba(0,0,0,0.02); }
-  .btn-ghost:active { box-shadow: 0 2px 0 var(--duo-line); }
+  .btn-ghost:hover:not(:disabled) { background: var(--surface-pressed); }
 
   /* 选项按钮（答题时使用） */
   .opt {
-    @apply w-full select-none rounded-2xl px-3 py-4 text-base
-      transition-all duration-100 active:translate-y-[2px] font-bold;
+    @apply w-full select-none rounded-lg px-3 py-4 text-base font-semibold
+      transition-all duration-150 active:scale-[0.99];
     min-width: 0;
     max-width: 100%;
     overflow-wrap: anywhere;
     background: var(--duo-card);
     color: var(--duo-text);
-    border: 2px solid var(--duo-line);
-    box-shadow: 0 4px 0 var(--duo-line);
+    border: 1px solid var(--duo-line);
+    box-shadow: none;
   }
-  .opt:active { box-shadow: 0 2px 0 var(--duo-line); }
-  .opt:hover:not(:disabled) { border-color: var(--duo-blue); }
+  .opt:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--duo-blue) 58%, var(--duo-line));
+    background: color-mix(in srgb, var(--duo-blue) 8%, var(--duo-card));
+  }
 
   .opt-selected {
     border-color: var(--duo-blue) !important;
-    background: rgba(28, 176, 246, 0.1);
+    background: color-mix(in srgb, var(--duo-blue) 13%, var(--duo-card));
     color: var(--duo-blue);
   }
   .opt-correct {
     border-color: var(--duo-green) !important;
-    background: rgba(88, 204, 2, 0.15);
+    background: color-mix(in srgb, var(--duo-green) 15%, var(--duo-card));
     color: var(--duo-green-d);
   }
   .opt-wrong {
     border-color: var(--duo-red) !important;
-    background: rgba(255, 75, 75, 0.12);
+    background: color-mix(in srgb, var(--duo-red) 13%, var(--duo-card));
     color: var(--duo-red);
   }
   .opt-disabled { opacity: 0.45; }
 
   /* 卡片 */
   .card {
-    @apply rounded-3xl p-4;
+    @apply rounded-lg p-4;
     background: var(--duo-card);
-    border: 2px solid var(--duo-line);
+    border: 1px solid var(--duo-line);
+    box-shadow: none;
   }
   .card-soft {
-    @apply rounded-3xl p-4;
+    @apply rounded-lg p-4;
     background: var(--duo-card);
-    border: 2px solid var(--duo-line);
-    box-shadow: 0 4px 0 var(--duo-line);
+    border: 1px solid var(--duo-line);
+    box-shadow: var(--shadow-soft);
+    backdrop-filter: blur(18px);
   }
 
   /* 颜色 chip / tag */
   .chip {
-    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-extrabold uppercase tracking-wide;
+    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold;
+    border: 1px solid transparent;
+    letter-spacing: 0;
   }
   .chip-raised {
-    box-shadow: 0 4px 0 color-mix(in srgb, currentColor 24%, transparent);
+    box-shadow: none;
   }
-  .chip-mid    { background: rgba(255, 150, 0, 0.18); color: #b35f00; }
-  .chip-high   { background: rgba(88, 204, 2, 0.18); color: #2e7a01; }
-  .chip-low    { background: rgba(206, 130, 255, 0.18); color: #7a36c2; }
-  .chip-blue   { background: rgba(28, 176, 246, 0.18); color: #006fa3; }
-  .chip-yellow { background: rgba(255, 200, 0, 0.22); color: #8a6700; }
-  .chip-red    { background: rgba(255, 75, 75, 0.18); color: #b32b2b; }
+  .chip-mid    { background: color-mix(in srgb, var(--duo-orange) 14%, transparent); color: var(--duo-orange); border-color: color-mix(in srgb, var(--duo-orange) 24%, transparent); }
+  .chip-high   { background: color-mix(in srgb, var(--duo-green) 14%, transparent); color: var(--duo-green-d); border-color: color-mix(in srgb, var(--duo-green) 24%, transparent); }
+  .chip-low    { background: color-mix(in srgb, var(--duo-purple) 14%, transparent); color: var(--duo-purple); border-color: color-mix(in srgb, var(--duo-purple) 24%, transparent); }
+  .chip-blue   { background: color-mix(in srgb, var(--duo-blue) 14%, transparent); color: var(--duo-blue); border-color: color-mix(in srgb, var(--duo-blue) 24%, transparent); }
+  .chip-yellow { background: color-mix(in srgb, var(--duo-yellow) 16%, transparent); color: var(--duo-yellow); border-color: color-mix(in srgb, var(--duo-yellow) 26%, transparent); }
+  .chip-red    { background: color-mix(in srgb, var(--duo-red) 14%, transparent); color: var(--duo-red); border-color: color-mix(in srgb, var(--duo-red) 24%, transparent); }
 
   @media (prefers-color-scheme: dark) {
     .chip-mid    { background: rgba(255,150,0,0.22); color: #ffb24b; }
@@ -206,23 +249,23 @@ body {
 
   /* 进度条 */
   .progress-track {
-    @apply relative h-3 w-full overflow-hidden rounded-full;
+    @apply relative h-2 w-full overflow-hidden rounded-full;
     background: var(--duo-line);
   }
   .progress-fill {
     @apply h-full rounded-full transition-[width] duration-500;
-    background: linear-gradient(180deg, #7be026 0%, var(--duo-green) 100%);
-    box-shadow: inset 0 -3px 0 rgba(0,0,0,0.08), inset 0 3px 0 rgba(255,255,255,0.3);
+    background: linear-gradient(90deg, var(--duo-green) 0%, #22c7b8 100%);
+    box-shadow: 0 0 18px var(--duo-green-shadow);
   }
 
   /* 顶部状态条徽章 */
   .stat {
-    @apply inline-flex items-center gap-1 font-extrabold;
+    @apply inline-flex items-center gap-1.5 font-semibold;
   }
 
   /* 答对/答错 大反馈条 */
   .feedback {
-    @apply rounded-2xl p-4 font-extrabold;
+    @apply rounded-lg p-4 font-semibold;
     min-width: 0;
     max-width: 100%;
     overflow-x: hidden;
@@ -237,14 +280,14 @@ body {
     flex-shrink: 0;
   }
   .feedback-ok {
-    background: rgba(88, 204, 2, 0.15);
+    background: color-mix(in srgb, var(--duo-green) 13%, var(--duo-card));
     color: var(--duo-green-d);
-    border: 2px solid rgba(88, 204, 2, 0.3);
+    border: 1px solid color-mix(in srgb, var(--duo-green) 35%, transparent);
   }
   .feedback-bad {
-    background: rgba(255, 75, 75, 0.12);
+    background: color-mix(in srgb, var(--duo-red) 12%, var(--duo-card));
     color: var(--duo-red-d);
-    border: 2px solid rgba(255, 75, 75, 0.3);
+    border: 1px solid color-mix(in srgb, var(--duo-red) 35%, transparent);
   }
   @media (prefers-color-scheme: dark) {
     .feedback-ok { color: #9ce562; }
@@ -255,6 +298,15 @@ body {
 @layer utilities {
   .text-balance { text-wrap: balance; }
   .no-tap { -webkit-tap-highlight-color: transparent; }
+  .tracking-wide,
+  .tracking-wider,
+  .tracking-tight {
+    letter-spacing: 0 !important;
+  }
+  .font-bold,
+  .font-extrabold {
+    font-weight: 600 !important;
+  }
   /* "弹一下"动画，用于答对庆祝 */
   @keyframes pop {
     0% { transform: scale(0.85); opacity: 0; }

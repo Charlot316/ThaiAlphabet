@@ -89,17 +89,21 @@ function LoginScreen() {
       <div className="card-soft w-full p-6">
         <div className="flex flex-col items-center">
           <div
-            className="thai-big flex h-16 w-16 items-center justify-center rounded-3xl text-4xl text-white"
-            style={{ background: "var(--duo-green)", boxShadow: "0 5px 0 var(--duo-green-shadow)" }}
+            className="thai-big flex h-16 w-16 items-center justify-center rounded-lg text-3xl font-semibold"
+            style={{
+              background: "color-mix(in srgb, var(--duo-green) 14%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--duo-green) 26%, transparent)",
+              color: "var(--duo-green)",
+            }}
           >
             ไทย
           </div>
-          <h1 className="mt-4 text-xl font-extrabold">学习泰语字母</h1>
+          <h1 className="mt-4 text-xl font-semibold">学习泰语字母</h1>
           <p className="mt-1 text-xs opacity-70">登录以开始学习并跨设备同步进度</p>
         </div>
         <form onSubmit={handleLogin} className="mt-5 space-y-3">
           <div>
-            <label className="text-[11px] uppercase tracking-wider opacity-60">
+            <label className="text-[11px] font-medium opacity-60">
               用户名
             </label>
             <input
@@ -110,7 +114,7 @@ function LoginScreen() {
               autoCapitalize="off"
               autoCorrect="off"
               spellCheck={false}
-              className="mt-1 w-full rounded-2xl border-2 px-3 py-3 text-sm font-bold"
+              className="mt-1 w-full rounded-lg border px-3 py-3 text-sm font-medium outline-none transition focus:border-[var(--duo-green)]"
               style={{
                 borderColor: "var(--duo-line)",
                 background: "var(--duo-card)",
@@ -119,7 +123,7 @@ function LoginScreen() {
             />
           </div>
           <div>
-            <label className="text-[11px] uppercase tracking-wider opacity-60">
+            <label className="text-[11px] font-medium opacity-60">
               密码
             </label>
             <input
@@ -127,7 +131,7 @@ function LoginScreen() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
-              className="mt-1 w-full rounded-2xl border-2 px-3 py-3 font-mono text-sm"
+              className="mt-1 w-full rounded-lg border px-3 py-3 font-mono text-sm outline-none transition focus:border-[var(--duo-green)]"
               style={{
                 borderColor: "var(--duo-line)",
                 background: "var(--duo-card)",

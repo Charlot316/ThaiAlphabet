@@ -382,7 +382,6 @@ export default function EndlessMatchPage() {
             <div className="opacity-70">连击</div>
             <div className="text-lg font-extrabold" style={{ color: "var(--duo-orange)" }}>
               {streak}
-              {streak >= 3 ? " 🔥" : ""}
             </div>
           </div>
           <div>

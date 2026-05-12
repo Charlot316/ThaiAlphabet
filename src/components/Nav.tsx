@@ -1,16 +1,26 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  Brain,
+  Gamepad2,
+  Home,
+  Keyboard,
+  LibraryBig,
+  Settings,
+  Target,
+  Zap,
+} from "lucide-react";
 import StatusBar from "./StatusBar";
 
 const TABS = [
-  { href: "/", icon: "🏠", label: "首页" },
-  { href: "/overview", icon: "📚", label: "总览" },
-  { href: "/course", icon: "🎯", label: "课程" },
-  { href: "/endless-match", icon: "🎮", label: "配对" },
-  { href: "/srs", icon: "🧠", label: "记忆" },
-  { href: "/flashcards", icon: "⚡", label: "速看" },
-  { href: "/spell", icon: "🔤", label: "拼读" },
+  { href: "/", icon: Home, label: "首页" },
+  { href: "/overview", icon: LibraryBig, label: "总览" },
+  { href: "/course", icon: Target, label: "课程" },
+  { href: "/endless-match", icon: Gamepad2, label: "配对" },
+  { href: "/srs", icon: Brain, label: "记忆" },
+  { href: "/flashcards", icon: Zap, label: "速看" },
+  { href: "/spell", icon: Keyboard, label: "拼读" },
 ];
 
 export default function Nav() {
@@ -20,29 +30,39 @@ export default function Nav() {
       <header
         className="sticky top-0 z-30"
         style={{
-          background: "var(--duo-bg)",
-          borderBottom: "2px solid var(--duo-line)",
+          background: "color-mix(in srgb, var(--duo-bg) 88%, transparent)",
+          borderBottom: "1px solid var(--duo-line)",
+          backdropFilter: "blur(18px)",
         }}
       >
-        <div className="mx-auto flex max-w-2xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3 md:max-w-3xl lg:max-w-5xl xl:max-w-6xl">
           <Link href="/" className="flex items-center gap-2">
             <span
-              className="thai-big inline-flex h-9 w-9 items-center justify-center rounded-full text-base text-white"
-              style={{ background: "var(--duo-green)", boxShadow: "0 3px 0 var(--duo-green-shadow)" }}
+              className="thai-big inline-flex h-9 w-9 items-center justify-center rounded-lg text-base font-semibold"
+              style={{
+                background: "color-mix(in srgb, var(--duo-green) 16%, var(--duo-card))",
+                border: "1px solid color-mix(in srgb, var(--duo-green) 28%, transparent)",
+                color: "var(--duo-green)",
+              }}
             >
               ก
             </span>
-            <span className="text-sm font-extrabold uppercase tracking-wide">Thai</span>
+            <span className="text-sm font-semibold">Thai Alphabet</span>
           </Link>
           <div className="flex items-center gap-3">
             <StatusBar />
             <Link
               href="/settings"
-              className="text-xl opacity-70 hover:opacity-100"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg transition"
+              style={{
+                border: "1px solid var(--duo-line)",
+                background: "var(--surface-subtle)",
+                color: "var(--duo-muted)",
+              }}
               aria-label="设置"
               title="同步设置"
             >
-              ⚙️
+              <Settings size={17} strokeWidth={2.2} />
             </Link>
           </div>
         </div>
@@ -51,25 +71,30 @@ export default function Nav() {
       <nav
         className="fixed bottom-0 left-0 right-0 z-30"
         style={{
-          background: "var(--duo-card)",
-          borderTop: "2px solid var(--duo-line)",
+          background: "color-mix(in srgb, var(--duo-card) 94%, var(--duo-bg))",
+          borderTop: "1px solid var(--duo-line)",
+          boxShadow: "0 -16px 42px rgba(0, 0, 0, 0.08)",
+          backdropFilter: "blur(18px)",
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
-        <ul className="mx-auto grid max-w-2xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl grid-cols-7">
+        <ul className="mx-auto grid max-w-2xl grid-cols-7 gap-1 px-2 py-2 md:max-w-3xl lg:max-w-5xl xl:max-w-6xl">
           {TABS.map((t) => {
             const active = pathname === t.href || (t.href !== "/" && pathname?.startsWith(t.href));
+            const Icon = t.icon;
             return (
               <li key={t.href}>
                 <Link
                   href={t.href}
-                  className="flex h-16 flex-col items-center justify-center gap-0.5 transition-colors"
-                  style={{ color: active ? "var(--duo-green)" : "var(--duo-muted)" }}
+                  className="flex h-14 flex-col items-center justify-center gap-1 rounded-lg transition"
+                  style={{
+                    color: active ? "var(--duo-green)" : "var(--duo-muted)",
+                    background: active ? "color-mix(in srgb, var(--duo-green) 12%, transparent)" : "transparent",
+                    border: active ? "1px solid color-mix(in srgb, var(--duo-green) 24%, transparent)" : "1px solid transparent",
+                  }}
                 >
-                  <span className="text-lg leading-none" aria-hidden>
-                    {t.icon}
-                  </span>
-                  <span className="text-[10px] font-extrabold tracking-wide">{t.label}</span>
+                  <Icon size={18} strokeWidth={active ? 2.5 : 2} aria-hidden />
+                  <span className="text-[10px] font-semibold">{t.label}</span>
                 </Link>
               </li>
             );

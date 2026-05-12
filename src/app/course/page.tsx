@@ -1073,8 +1073,8 @@ function MatchCard({
         <div className="mt-3 flex items-center justify-center gap-3 text-sm">
           <span className="opacity-70">已配对 {matchedLeft.size} / {items.length}</span>
           {streak >= 2 && (
-            <span className="font-extrabold animate-pop" style={{ color: "var(--duo-orange)" }}>
-              连击 ×{streak} 🔥
+            <span className="font-semibold animate-pop" style={{ color: "var(--duo-orange)" }}>
+              连击 ×{streak}
             </span>
           )}
         </div>

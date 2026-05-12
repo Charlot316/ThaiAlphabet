@@ -556,11 +556,11 @@ export default function StrokesEditorPage() {
       <div className="card-soft p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-base font-extrabold">笔画顺序编辑器</h1>
+            <h1 className="text-base font-semibold">笔画顺序编辑器</h1>
             <p className="mt-0.5 text-xs opacity-70">基于 Figma SVG；只改笔画、线段和经过点顺序，不移动点位</p>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-extrabold" style={{ color: "var(--duo-green)" }}>
+            <div className="text-2xl font-semibold" style={{ color: "var(--duo-green)" }}>
               {totalDoneAll}/{allItems.length}
             </div>
             <div className="text-[10px] uppercase opacity-60">已编辑草稿</div>
@@ -582,8 +582,12 @@ export default function StrokesEditorPage() {
 
       <div className="card-soft flex items-center gap-3 p-3">
         <div
-          className="thai-big flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-4xl text-white"
-          style={{ background: "var(--duo-green)", boxShadow: "0 4px 0 var(--duo-green-shadow)" }}
+          className="thai-big flex h-16 w-16 shrink-0 items-center justify-center rounded-lg text-4xl font-semibold"
+          style={{
+            background: "color-mix(in srgb, var(--duo-green) 14%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--duo-green) 26%, transparent)",
+            color: "var(--duo-green)",
+          }}
         >
           {item.display}
         </div>

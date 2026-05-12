@@ -164,9 +164,9 @@ function Consonants() {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelected(null)}>
-          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between p-5 border-b border-black/10 dark:border-white/10">
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/55 p-4" onClick={() => setSelected(null)}>
+          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden rounded-lg border" style={{ background: "var(--surface-solid)", borderColor: "var(--duo-line)", boxShadow: "var(--shadow-soft)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between p-5 border-b" style={{ borderColor: "var(--duo-line)" }}>
               <div className="flex-1">
                 <div className="thai-big text-5xl leading-none mb-2">{selected.letter}</div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -183,7 +183,7 @@ function Consonants() {
                 </div>
                 <FontSamples letter={selected.letter} />
               </div>
-              <button onClick={() => setSelected(null)} className="text-2xl opacity-60 hover:opacity-100">✕</button>
+              <button onClick={() => setSelected(null)} className="btn-ghost h-9 w-9 p-0 text-base">×</button>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
               <TraceSvg key={selected.id} letter={selected.letter} />
@@ -376,9 +376,9 @@ function Vowels() {
     </div>
 
     {selected && (
-      <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelected(null)}>
-        <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-start justify-between p-5 border-b border-black/10 dark:border-white/10">
+      <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/55 p-4" onClick={() => setSelected(null)}>
+        <div className="w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden rounded-lg border" style={{ background: "var(--surface-solid)", borderColor: "var(--duo-line)", boxShadow: "var(--shadow-soft)" }} onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-start justify-between p-5 border-b" style={{ borderColor: "var(--duo-line)" }}>
             <div className="flex-1">
               <div className="thai-big text-5xl leading-none mb-2">{selected.display}</div>
               <div className="flex flex-wrap items-center gap-2">
@@ -395,7 +395,7 @@ function Vowels() {
               </div>
               <FontSamples letter={selected.display} />
             </div>
-            <button onClick={() => setSelected(null)} className="text-2xl opacity-60 hover:opacity-100">✕</button>
+            <button onClick={() => setSelected(null)} className="btn-ghost h-9 w-9 p-0 text-base">×</button>
           </div>
           <div className="flex-1 overflow-y-auto p-5">
             <TraceSvg key={selected.id} letter={selected.display} strokeKey={`v:${selected.id}`} />
