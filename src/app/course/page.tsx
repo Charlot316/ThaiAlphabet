@@ -1,5 +1,12 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import PronounceButton from "@/components/PronounceButton";
 import TraceSvg from "@/components/TraceSvg";
 import {
@@ -1059,6 +1066,18 @@ function MatchCard({
     setPickedRight(next);
   };
 
+  const handlePointerPress = (event: ReactPointerEvent<HTMLButtonElement>, press: () => void) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.preventDefault();
+    press();
+  };
+
+  const handleKeyboardPress = (event: ReactKeyboardEvent<HTMLButtonElement>, press: () => void) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    press();
+  };
+
   useEffect(() => {
     if (matchedLeft.size === items.length && !completedRef.current) {
       completedRef.current = true;
@@ -1087,7 +1106,13 @@ function MatchCard({
             const cls = ok ? "opt opt-correct" : isPicked ? "opt opt-selected" : "opt";
             return (
               <li key={`L-${it.id}`}>
-                <button onClick={() => onLeft(it.id)} disabled={ok} className={`${cls} flex min-h-[72px] w-full items-center justify-center`}>
+                <button
+                  onPointerDown={(event) => handlePointerPress(event, () => onLeft(it.id))}
+                  onKeyDown={(event) => handleKeyboardPress(event, () => onLeft(it.id))}
+                  disabled={ok}
+                  className={`${cls} flex min-h-[72px] w-full items-center justify-center`}
+                  style={{ touchAction: "none", userSelect: "none" }}
+                >
                   <span className="thai-big text-3xl leading-none">{it.front}</span>
                 </button>
               </li>
@@ -1101,7 +1126,13 @@ function MatchCard({
             const cls = ok ? "opt opt-correct" : isPicked ? "opt opt-selected" : "opt";
             return (
               <li key={`R-${it.id}`}>
-                <button onClick={() => onRight(it.id)} disabled={ok} className={`${cls} flex min-h-[72px] w-full items-center justify-center`}>
+                <button
+                  onPointerDown={(event) => handlePointerPress(event, () => onRight(it.id))}
+                  onKeyDown={(event) => handleKeyboardPress(event, () => onRight(it.id))}
+                  disabled={ok}
+                  className={`${cls} flex min-h-[72px] w-full items-center justify-center`}
+                  style={{ touchAction: "none", userSelect: "none" }}
+                >
                   <span className="font-mono text-lg leading-none">{displayRoman(it.roman)}</span>
                 </button>
               </li>
@@ -1163,7 +1194,7 @@ function MemoryCard({
             }}
             className="btn-ghost mt-5 px-5 text-xs"
           >
-            🔊 偷听一下（会按&ldquo;模糊&rdquo;封顶）
+            🔊 偷听一下（&ldquo;认识&rdquo;会被降为&ldquo;模糊&rdquo;）
           </button>
         )}
         {submitted && (
@@ -1181,7 +1212,9 @@ function MemoryCard({
         <div className="grid grid-cols-3 gap-2">
           <button onClick={() => onGrade(1, peeked)} className="btn-red text-sm">不认识</button>
           <button onClick={() => onGrade(2, peeked)} className="btn-orange text-sm">模糊</button>
-          <button onClick={() => onGrade(3, peeked)} className="btn-primary text-sm">认识 ✓</button>
+          <button onClick={() => onGrade(3, peeked)} className="btn-primary text-sm" disabled={peeked}>
+            {peeked ? "认识 (已封顶)" : "认识 ✓"}
+          </button>
         </div>
       ) : (
         <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>

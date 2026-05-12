@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { StudyItem, buildStudyItems, displayRoman, shuffleStrong } from "@/lib/study";
 import {
   feedbackCombo,
@@ -360,6 +367,18 @@ export default function EndlessMatchPage() {
     setPickedRight(next);
   }
 
+  function handlePointerPress(event: ReactPointerEvent<HTMLButtonElement>, press: () => void) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.preventDefault();
+    press();
+  }
+
+  function handleKeyboardPress(event: ReactKeyboardEvent<HTMLButtonElement>, press: () => void) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    press();
+  }
+
   function slotClass(state: "idle" | "picked" | "ok" | "bad" | "empty"): string {
     if (state === "empty") return "opt opacity-0 pointer-events-none";
     if (state === "ok") return "opt opt-correct";
@@ -412,13 +431,16 @@ export default function EndlessMatchPage() {
             return (
               <li key={`L-${idx}-${it?.id ?? "empty"}`}>
                 <button
-                  onClick={() => onLeft(idx)}
+                  onPointerDown={(event) => handlePointerPress(event, () => onLeft(idx))}
+                  onKeyDown={(event) => handleKeyboardPress(event, () => onLeft(idx))}
                   disabled={!it || isFading}
                   className={`${slotClass(state)} flex min-h-[72px] w-full items-center justify-center`}
                   style={{
                     opacity: isFading ? 0 : 1,
                     transform: isFading ? "scale(0.88)" : "scale(1)",
                     transition: "opacity 0.7s ease-out, transform 0.7s ease-out",
+                    touchAction: "none",
+                    userSelect: "none",
                   }}
                 >
                   <span className="thai-big text-3xl leading-none">{it?.front ?? ""}</span>
@@ -439,13 +461,16 @@ export default function EndlessMatchPage() {
             return (
               <li key={`R-${idx}-${it?.id ?? "empty"}`}>
                 <button
-                  onClick={() => onRight(idx)}
+                  onPointerDown={(event) => handlePointerPress(event, () => onRight(idx))}
+                  onKeyDown={(event) => handleKeyboardPress(event, () => onRight(idx))}
                   disabled={!it || isFading}
                   className={`${slotClass(state)} flex min-h-[72px] w-full items-center justify-center`}
                   style={{
                     opacity: isFading ? 0 : 1,
                     transform: isFading ? "scale(0.88)" : "scale(1)",
                     transition: "opacity 0.7s ease-out, transform 0.7s ease-out",
+                    touchAction: "none",
+                    userSelect: "none",
                   }}
                 >
                   <span className="font-mono text-lg leading-none">{it ? displayRoman(it.roman) : ""}</span>
