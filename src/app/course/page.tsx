@@ -1028,6 +1028,7 @@ function MatchCard({
       const newStreak = streak + 1;
       setStreak(newStreak);
       setFlash("ok");
+      speak(leftItem.speak);
       if (newStreak >= 2) feedbackCombo(newStreak);
       else feedbackMatch();
       setTimeout(() => setFlash(null), 250);

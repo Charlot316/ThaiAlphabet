@@ -241,9 +241,9 @@ export default function EndlessMatchPage() {
       }
       setFlash("ok");
       setFlashSlot({ left: leftIdx, right: rightIdx });
+      speak(leftItem.speak);
       if (newStreak >= 3) feedbackCombo(newStreak);
       else feedbackMatch();
-      speak(leftItem.speak);
       markActive();
       recordOutcome(leftItem.id, "correct", { streak: newStreak });
 
