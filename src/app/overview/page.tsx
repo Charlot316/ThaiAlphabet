@@ -35,13 +35,15 @@ export default function OverviewPage() {
 }
 
 function classTag(cls: string) {
-  if (cls === "mid") return <span className="chip chip-mid">中</span>;
-  if (cls === "high") return <span className="chip chip-high">高</span>;
-  return <span className="chip chip-low">低</span>;
+  if (cls === "mid") return <span className="chip chip-mid h-9 min-w-9 justify-center px-2">中</span>;
+  if (cls === "high") return <span className="chip chip-high h-9 min-w-9 justify-center px-2">高</span>;
+  return <span className="chip chip-low h-9 min-w-9 justify-center px-2">低</span>;
 }
 
 function vowelLengthTag(length: Vowel["length"]) {
-  return length === "long" ? <span className="chip chip-blue">长</span> : <span className="chip chip-yellow">短</span>;
+  return length === "long"
+    ? <span className="chip chip-blue h-9 min-w-9 justify-center px-2">长</span>
+    : <span className="chip chip-yellow h-9 min-w-9 justify-center px-2">短</span>;
 }
 
 function Consonants() {
@@ -204,7 +206,7 @@ function ConsonantCard({
 }) {
   const pct = Math.round((value / MASTERY_TARGET) * 100);
   return (
-    <li className="card p-3 cursor-pointer transition-transform hover:scale-105" onClick={() => onSelect(c)}>
+    <li className="card flex min-h-[190px] cursor-pointer flex-col p-3 transition-transform hover:scale-[1.02]" onClick={() => onSelect(c)}>
       <div className="mb-2">
         <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
           <span>熟练度</span>
@@ -229,22 +231,32 @@ function ConsonantCard({
           <div className="progress-fill" style={{ width: `${pct}%` }} />
         </div>
       </div>
-      <div className="flex items-start justify-between">
-        <div className="thai-big text-3xl leading-none">{c.letter}</div>
-        <div className="flex items-center gap-1">
+      <div className="grid grid-cols-[minmax(2.5rem,1fr)_auto] items-center gap-2">
+        <div className="thai-big min-w-0 text-3xl leading-none">{c.letter}</div>
+        <div className="flex h-9 shrink-0 items-center gap-1">
           {classTag(c.class)}
-          <PronounceButton text={consonantSpeak(c)} />
+          <PronounceButton text={consonantSpeak(c)} className="h-9 min-w-14 px-3 py-0" />
         </div>
       </div>
-      <div className="mt-2 text-xs">
-        <div className="thai-big">{c.name}</div>
-        <div className="opacity-70 mt-0.5">{c.meaning}</div>
-        <div className="mt-1">
-          初: <b>{displayRoman(c.romanInitial)}</b> · 尾: <b>{c.finalSound === "none" ? "无" : c.finalSound}</b>
+      <div className="mt-2 grid gap-1 text-xs leading-tight">
+        <div className="grid grid-cols-[2.1rem_1fr] items-baseline gap-1">
+          <span className="opacity-50">名称</span>
+          <span className="thai-big min-w-0 truncate">{c.name}</span>
+        </div>
+        <div className="grid grid-cols-[2.1rem_1fr] items-baseline gap-1">
+          <span className="opacity-50">中文</span>
+          <span className="min-w-0 truncate opacity-70">{c.meaning}</span>
+        </div>
+        <div className="grid grid-cols-[2.1rem_1fr] items-baseline gap-1">
+          <span className="opacity-50">读音</span>
+          <span className="min-w-0">
+            初: <b>{displayRoman(c.romanInitial)}</b> · 尾: <b>{c.finalSound === "none" ? "无" : c.finalSound}</b>
+          </span>
           {c.obsolete && <span className="ml-1 opacity-60">已废</span>}
         </div>
-        <div className="mt-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
-          🔊 应念: {consonantPhonetic(c)}
+        <div className="grid grid-cols-[2.1rem_1fr] items-baseline gap-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
+          <span className="opacity-60">应念</span>
+          <span className="min-w-0 truncate">{consonantPhonetic(c)}</span>
         </div>
       </div>
     </li>
@@ -406,7 +418,7 @@ function VowelCard({
 }) {
   const pct = Math.round((value / MASTERY_TARGET) * 100);
   return (
-    <li className="card p-3 cursor-pointer transition-transform hover:scale-105" onClick={() => onSelect(v)}>
+    <li className="card flex min-h-[190px] cursor-pointer flex-col p-3 transition-transform hover:scale-[1.02]" onClick={() => onSelect(v)}>
       <div className="mb-2">
         <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
           <span>熟练度</span>
@@ -431,21 +443,28 @@ function VowelCard({
           <div className="progress-fill" style={{ width: `${pct}%` }} />
         </div>
       </div>
-      <div className="flex items-center justify-between">
-        <div className="thai-big text-2xl">{v.display}</div>
-        <div className="flex items-center gap-1">
+      <div className="grid grid-cols-[minmax(2.5rem,1fr)_auto] items-center gap-2">
+        <div className="thai-big min-w-0 truncate text-2xl leading-none">{v.display}</div>
+        <div className="flex h-9 shrink-0 items-center gap-1">
           {vowelLengthTag(v.length)}
-          <PronounceButton text={vowelSpeak(v)} />
+          <PronounceButton text={vowelSpeak(v)} className="h-9 min-w-14 px-3 py-0" />
         </div>
       </div>
-      <div className="mt-1 text-xs">
-        <div>罗马音: <b>{v.roman}</b></div>
-        <div className="opacity-70">
-          {v.category === "diphthong" ? "复合元音" : v.category === "special" ? "特殊元音" : "单元音"}
-          {v.notes ? ` · ${v.notes}` : ""}
+      <div className="mt-2 grid gap-1 text-xs leading-tight">
+        <div className="grid grid-cols-[2.6rem_1fr] items-baseline gap-1">
+          <span className="opacity-50">罗马音</span>
+          <span className="min-w-0 truncate"><b>{v.roman}</b></span>
         </div>
-        <div className="mt-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
-          🔊 应念: {vowelPhonetic(v)}
+        <div className="grid grid-cols-[2.6rem_1fr] items-baseline gap-1">
+          <span className="opacity-50">类型</span>
+          <span className="min-w-0 truncate opacity-70">
+            {v.category === "diphthong" ? "复合元音" : v.category === "special" ? "特殊元音" : "单元音"}
+            {v.notes ? ` · ${v.notes}` : ""}
+          </span>
+        </div>
+        <div className="grid grid-cols-[2.6rem_1fr] items-baseline gap-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
+          <span className="opacity-60">应念</span>
+          <span className="min-w-0 truncate">{vowelPhonetic(v)}</span>
         </div>
       </div>
     </li>
