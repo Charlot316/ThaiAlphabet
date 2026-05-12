@@ -32,6 +32,12 @@ interface MemoryItem {
   pool: "consonant" | "vowel";
 }
 
+interface ReviewState {
+  item: MemoryItem;
+  outcome: Outcome;
+  pendingCorrect: boolean;
+}
+
 function buildAllItems(): MemoryItem[] {
   const cons: MemoryItem[] = CONSONANTS.filter((c) => !c.obsolete).map((c) => ({
     id: `c:${c.id}`,
@@ -57,6 +63,7 @@ export default function SrsPage() {
   const itemById = useMemo(() => Object.fromEntries(items.map((i) => [i.id, i])), [items]);
   const [pool, setPool] = useState<Pool>("consonant");
   const [peeked, setPeeked] = useState(false);
+  const [review, setReview] = useState<ReviewState | null>(null);
   const store = useMasteryStore();
 
   // 候选：本池所有字母；优先级 = 已到期 → 没碰过 → 按 score 升序
@@ -72,15 +79,37 @@ export default function SrsPage() {
   }, [items, pool, store, itemById]);
 
   const item = queue[0];
+  const activeItem = review?.item ?? item;
 
   function grade(out: Outcome) {
-    if (!item) return;
+    if (!item || review) return;
     // 偷听过 → "correct" 降级为 "hard"
     const effective: Outcome = peeked && out === "correct" ? "hard" : out;
-    recordOutcome(item.id, effective);
-    if (effective === "correct") feedbackCorrect();
-    else if (effective === "hard") feedbackTap();
-    else feedbackWrong();
+    speak(item.speak);
+    if (effective === "correct") {
+      feedbackCorrect();
+      setReview({ item, outcome: effective, pendingCorrect: true });
+    } else {
+      recordOutcome(item.id, effective);
+      if (effective === "hard") feedbackTap();
+      else feedbackWrong();
+      setReview({ item, outcome: effective, pendingCorrect: false });
+    }
+    setPeeked(false);
+  }
+
+  function continueReview() {
+    if (!review) return;
+    if (review.pendingCorrect) recordOutcome(review.item.id, "correct");
+    setReview(null);
+    setPeeked(false);
+  }
+
+  function markMistaken() {
+    if (!review?.pendingCorrect) return;
+    recordOutcome(review.item.id, "wrong");
+    feedbackWrong();
+    setReview(null);
     setPeeked(false);
   }
 
@@ -93,8 +122,8 @@ export default function SrsPage() {
     (it) => (pool === "both" || it.pool === pool) && deriveScore(store[it.id]) >= 60
   ).length;
 
-  const score = item ? deriveScore(getRecord(item.id)) : 0;
-  const record = item ? getRecord(item.id) : null;
+  const score = activeItem ? deriveScore(getRecord(activeItem.id)) : 0;
+  const record = activeItem ? getRecord(activeItem.id) : null;
 
   return (
     <div className="space-y-4">
@@ -102,7 +131,11 @@ export default function SrsPage() {
         {(["consonant", "vowel", "both"] as Pool[]).map((p) => (
           <button
             key={p}
-            onClick={() => setPool(p)}
+            onClick={() => {
+              setPool(p);
+              setPeeked(false);
+              setReview(null);
+            }}
             className={pool === p ? "btn-primary px-4" : "btn-ghost px-4"}
           >
             {p === "consonant" ? "辅音" : p === "vowel" ? "元音" : "全部"}
@@ -131,7 +164,7 @@ export default function SrsPage() {
         </div>
       </div>
 
-      {!item ? (
+      {!activeItem ? (
         <div className="card-soft animate-pop p-8 text-center">
           <div className="text-6xl">🎉</div>
           <div className="mt-3 text-lg font-extrabold" style={{ color: "var(--duo-green)" }}>
@@ -143,25 +176,28 @@ export default function SrsPage() {
         <>
           <div className="card-soft animate-pop flex flex-col items-center p-8">
             <div className="chip chip-low">记忆 · 不偷看答案</div>
-            <div className="thai-big mt-4 text-8xl leading-none">{item.front}</div>
-            {!peeked ? (
+            <div className="thai-big mt-4 text-8xl leading-none">{activeItem.front}</div>
+            {!peeked && !review ? (
               <button
                 className="btn-ghost mt-5 px-5 text-xs"
                 onClick={() => {
                   setPeeked(true);
                   feedbackReveal();
-                  speak(item.speak);
+                  speak(activeItem.speak);
                 }}
               >
                 🔊 偷听一下（&ldquo;认识&rdquo; 会被降为 &ldquo;模糊&rdquo;）
               </button>
             ) : (
               <div className="mt-5 space-y-1 text-center">
-                <div className="font-mono text-sm" style={{ color: "var(--duo-blue)" }}>
-                  🔊 应念: {item.phonetic}
+                <div className="text-2xl font-extrabold" style={{ color: "var(--duo-blue)" }}>
+                  {activeItem.phonetic}
+                </div>
+                <div className="text-sm opacity-80">
+                  {activeItem.back}
                 </div>
                 <div>
-                  <PronounceButton text={item.speak} label="🔊 再听" />
+                  <PronounceButton text={activeItem.speak} label="🔊 再听" />
                 </div>
               </div>
             )}
@@ -175,27 +211,47 @@ export default function SrsPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <button onClick={() => grade("wrong")} className="btn-red">
-              不认识
-            </button>
-            <button onClick={() => grade("hard")} className="btn-orange">
-              模糊
-            </button>
-            <button
-              onClick={() => grade("correct")}
-              className="btn-primary"
-              disabled={peeked}
-            >
-              {peeked ? "认识 (已封顶)" : "认识 ✓"}
-            </button>
-          </div>
-          {peeked && (
-            <div
-              className="mt-3 rounded-2xl px-4 py-2 text-center text-sm font-bold animate-pop"
-              style={{ background: "rgba(28,176,246,0.1)", color: "var(--duo-blue)" }}
-            >
-              {item.back}
+          {!review ? (
+            <div className="grid grid-cols-3 gap-3">
+              <button onClick={() => grade("wrong")} className="btn-red">
+                不认识
+              </button>
+              <button onClick={() => grade("hard")} className="btn-orange">
+                模糊
+              </button>
+              <button
+                onClick={() => grade("correct")}
+                className="btn-primary"
+                disabled={peeked}
+              >
+                {peeked ? "认识 (已封顶)" : "认识 ✓"}
+              </button>
+            </div>
+          ) : (
+            <div className={`feedback ${review.outcome === "correct" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-base">
+                    {review.outcome === "correct" ? "先看答案，确认一下" : "答案在上面，过一遍再继续"}
+                  </div>
+                  <div className="mt-1 text-xs opacity-70">
+                    {review.outcome === "correct" ? "如果刚刚其实认错了，可以在这里补救。" : "这次已经按当前选择记录。"}
+                  </div>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {review.pendingCorrect && (
+                    <button onClick={markMistaken} className="btn-ghost px-4 text-xs">
+                      认错了
+                    </button>
+                  )}
+                  <button
+                    onClick={continueReview}
+                    className={review.outcome === "correct" ? "btn-primary px-5" : "btn-red px-5"}
+                  >
+                    继续
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </>
