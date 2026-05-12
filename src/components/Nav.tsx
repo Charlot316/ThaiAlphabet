@@ -18,9 +18,9 @@ export default function Nav() {
   return (
     <>
       <header
-        className="sticky top-0 z-20 backdrop-blur"
+        className="sticky top-0 z-30"
         style={{
-          background: "color-mix(in srgb, var(--duo-bg) 88%, transparent)",
+          background: "var(--duo-bg)",
           borderBottom: "2px solid var(--duo-line)",
         }}
       >
@@ -49,9 +49,9 @@ export default function Nav() {
       </header>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-20 backdrop-blur"
+        className="fixed bottom-0 left-0 right-0 z-30"
         style={{
-          background: "color-mix(in srgb, var(--duo-card) 92%, transparent)",
+          background: "var(--duo-card)",
           borderTop: "2px solid var(--duo-line)",
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
