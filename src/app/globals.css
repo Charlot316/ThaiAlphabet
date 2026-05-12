@@ -13,30 +13,30 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
-  --duo-green: #08795f;
-  --duo-green-d: #075c49;
-  --duo-green-shadow: rgba(8, 121, 95, 0.12);
-  --duo-blue: #2563eb;
-  --duo-blue-d: #1d4ed8;
-  --duo-purple: #6d5bd0;
-  --duo-purple-d: #5140a8;
-  --duo-orange: #c76619;
-  --duo-orange-d: #9b4a10;
-  --duo-yellow: #9a6a00;
-  --duo-red: #d83a42;
-  --duo-red-d: #b4232b;
-  --duo-bg: #f7f7f5;
-  --duo-card: #ffffff;
-  --duo-line: rgba(26, 26, 26, 0.1);
-  --duo-line-d: rgba(26, 26, 26, 0.18);
-  --duo-text: #1f1f1d;
-  --duo-muted: #706f6a;
-  --surface-solid: #ffffff;
-  --surface-subtle: #f1f1ef;
-  --surface-pressed: #edf7f3;
-  --shadow-soft: 0 1px 2px rgba(31, 31, 29, 0.04), 0 12px 28px rgba(31, 31, 29, 0.04);
-  --shadow-small: 0 1px 2px rgba(31, 31, 29, 0.04);
+  color-scheme: dark;
+  --duo-green: #5ee0b5;
+  --duo-green-d: #8df4cf;
+  --duo-green-shadow: rgba(94, 224, 181, 0.16);
+  --duo-blue: #86b6ff;
+  --duo-blue-d: #aacbff;
+  --duo-purple: #b9a3ff;
+  --duo-purple-d: #d1c3ff;
+  --duo-orange: #f6b86a;
+  --duo-orange-d: #ffd196;
+  --duo-yellow: #ebcf78;
+  --duo-red: #ff7485;
+  --duo-red-d: #ffa0aa;
+  --duo-bg: #06100e;
+  --duo-card: #0d1715;
+  --duo-line: rgba(203, 232, 222, 0.1);
+  --duo-line-d: rgba(203, 232, 222, 0.18);
+  --duo-text: #eff8f4;
+  --duo-muted: #91a79d;
+  --surface-solid: #101c19;
+  --surface-subtle: #14211e;
+  --surface-pressed: rgba(94, 224, 181, 0.12);
+  --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 18px 44px rgba(0, 0, 0, 0.28);
+  --shadow-small: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 10px 28px rgba(0, 0, 0, 0.18);
 }
 
 html, body {
@@ -50,7 +50,7 @@ html, body {
 
 body {
   background-color: var(--duo-bg);
-  background-image: none;
+  background-image: linear-gradient(180deg, #0b1815 0%, #06100e 42%, #040a09 100%);
   color: var(--duo-text);
   font-family: "Noto Sans SC", "Inter", "Droid Sans Thai", "Noto Sans Thai Looped", "Noto Sans Thai",
     ui-sans-serif, system-ui, -apple-system, "Segoe UI",
@@ -92,7 +92,7 @@ body {
   .btn-primary {
     @apply btn;
     background: var(--duo-green);
-    color: #fff;
+    color: #06100e;
     box-shadow: none;
   }
 

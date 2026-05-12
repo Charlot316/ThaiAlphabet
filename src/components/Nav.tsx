@@ -30,7 +30,7 @@ export default function Nav() {
       <header
         className="sticky top-0 z-30"
         style={{
-          background: "rgba(255, 255, 255, 0.92)",
+          background: "color-mix(in srgb, var(--duo-bg) 88%, transparent)",
           borderBottom: "1px solid var(--duo-line)",
           backdropFilter: "blur(14px)",
         }}
@@ -42,7 +42,7 @@ export default function Nav() {
               style={{
                 background: "var(--surface-solid)",
                 border: "1px solid var(--duo-line)",
-                color: "var(--duo-green-d)",
+                color: "var(--duo-green)",
               }}
             >
               ก
@@ -73,7 +73,7 @@ export default function Nav() {
         style={{
           background: "color-mix(in srgb, var(--duo-card) 94%, var(--duo-bg))",
           borderTop: "1px solid var(--duo-line)",
-          boxShadow: "0 -1px 2px rgba(31, 31, 29, 0.03)",
+          boxShadow: "0 -14px 36px rgba(0, 0, 0, 0.22)",
           backdropFilter: "blur(14px)",
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
