@@ -14,29 +14,29 @@
 
 :root {
   color-scheme: dark;
-  --duo-green: #5ee0b5;
-  --duo-green-d: #8df4cf;
-  --duo-green-shadow: rgba(94, 224, 181, 0.16);
-  --duo-blue: #86b6ff;
-  --duo-blue-d: #aacbff;
-  --duo-purple: #b9a3ff;
-  --duo-purple-d: #d1c3ff;
-  --duo-orange: #f6b86a;
-  --duo-orange-d: #ffd196;
-  --duo-yellow: #ebcf78;
-  --duo-red: #ff7485;
-  --duo-red-d: #ffa0aa;
-  --duo-bg: #06100e;
-  --duo-card: #0d1715;
-  --duo-line: rgba(203, 232, 222, 0.1);
-  --duo-line-d: rgba(203, 232, 222, 0.18);
-  --duo-text: #eff8f4;
-  --duo-muted: #91a79d;
-  --surface-solid: #101c19;
-  --surface-subtle: #14211e;
-  --surface-pressed: rgba(94, 224, 181, 0.12);
-  --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 18px 44px rgba(0, 0, 0, 0.28);
-  --shadow-small: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 10px 28px rgba(0, 0, 0, 0.18);
+  --duo-green: #5ddcf2;
+  --duo-green-d: #b9f5ff;
+  --duo-green-shadow: rgba(93, 220, 242, 0.16);
+  --duo-blue: #8bbcff;
+  --duo-blue-d: #c0dcff;
+  --duo-purple: #b7a8ff;
+  --duo-purple-d: #d4ccff;
+  --duo-orange: #f1b36d;
+  --duo-orange-d: #ffd5a2;
+  --duo-yellow: #ecd47a;
+  --duo-red: #ff7f92;
+  --duo-red-d: #ffb0ba;
+  --duo-bg: #061116;
+  --duo-card: #0d1a20;
+  --duo-line: rgba(204, 230, 238, 0.11);
+  --duo-line-d: rgba(204, 230, 238, 0.2);
+  --duo-text: #eff8fa;
+  --duo-muted: #91aab3;
+  --surface-solid: #101f26;
+  --surface-subtle: #14262e;
+  --surface-pressed: rgba(93, 220, 242, 0.11);
+  --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 44px rgba(0, 8, 13, 0.3);
+  --shadow-small: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 28px rgba(0, 8, 13, 0.2);
 }
 
 html, body {
@@ -50,7 +50,7 @@ html, body {
 
 body {
   background-color: var(--duo-bg);
-  background-image: linear-gradient(180deg, #0b1815 0%, #06100e 42%, #040a09 100%);
+  background-image: linear-gradient(180deg, #0b1921 0%, #061116 44%, #040a0d 100%);
   color: var(--duo-text);
   font-family: "Noto Sans SC", "Inter", "Droid Sans Thai", "Noto Sans Thai Looped", "Noto Sans Thai",
     ui-sans-serif, system-ui, -apple-system, "Segoe UI",
