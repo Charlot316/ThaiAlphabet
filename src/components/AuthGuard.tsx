@@ -49,7 +49,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 function LoginScreen() {
-  const [username, setUsername] = useState("charlot");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
