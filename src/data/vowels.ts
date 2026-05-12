@@ -37,10 +37,10 @@ export const VOWELS: Vowel[] = [
   { id: "ua-long", form: `${C}ัว`, display: `${C}ัว`, roman: "uua", length: "long", category: "diphthong" },
 
   // 特殊元音
-  { id: "am", form: `${C}ำ`, display: `${C}ำ`, roman: "am", length: "long", category: "special", notes: "等价于 a + m 尾" },
-  { id: "ai-maimuan", form: `ใ${C}`, display: `ใ${C}`, roman: "ai", length: "long", category: "special", notes: "ไม้ม้วน, 仅 20 个词" },
-  { id: "ai-maimalai", form: `ไ${C}`, display: `ไ${C}`, roman: "ai", length: "long", category: "special", notes: "ไม้มลาย" },
-  { id: "ao", form: `เ${C}า`, display: `เ${C}า`, roman: "ao", length: "long", category: "special" },
+  { id: "am", form: `${C}ำ`, display: `${C}ำ`, roman: "am", length: "short", category: "special", notes: "สระเกิน：อะ + ม" },
+  { id: "ai-maimuan", form: `ใ${C}`, display: `ใ${C}`, roman: "ai", length: "short", category: "special", notes: "ไม้ม้วน, สระเกิน：อะ + ย，仅 20 个词" },
+  { id: "ai-maimalai", form: `ไ${C}`, display: `ไ${C}`, roman: "ai", length: "short", category: "special", notes: "ไม้มลาย, สระเกิน：อะ + ย" },
+  { id: "ao", form: `เ${C}า`, display: `เ${C}า`, roman: "ao", length: "short", category: "special", notes: "สระเกิน：อะ + ว" },
   { id: "rue", form: "ฤ", display: "ฤ", roman: "rue", length: "short", category: "special", notes: "梵文借字" },
   { id: "rue-long", form: "ฤๅ", display: "ฤๅ", roman: "ruee", length: "long", category: "special" },
   { id: "lue", form: "ฦ", display: "ฦ", roman: "lue", length: "short", category: "special", notes: "已废" },
