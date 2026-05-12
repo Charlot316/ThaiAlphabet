@@ -319,6 +319,7 @@ export default function CoursePage() {
   const [feedback, setFeedback] = useState<"ok" | "bad" | null>(null);
   const [praise, setPraise] = useState("");
   const [correctCount, setCorrectCount] = useState(0);
+  const [pendingMemoryCorrect, setPendingMemoryCorrect] = useState(false);
 
   const current = questions[index];
   const complete = questions.length > 0 && index >= questions.length;
@@ -352,6 +353,7 @@ export default function CoursePage() {
     setFeedback(null);
     setPraise("");
     setCorrectCount(0);
+    setPendingMemoryCorrect(false);
   }
 
   useEffect(() => {
@@ -435,6 +437,7 @@ export default function CoursePage() {
     setPicked(null);
     setSubmitted(false);
     setFeedback(null);
+    setPendingMemoryCorrect(false);
     setIndex((v) => v + 1);
   }
 
@@ -465,25 +468,46 @@ export default function CoursePage() {
   function answerMemory(grade: number, peeked: boolean) {
     if (!current || submitted) return;
     setSubmitted(true);
+    speak(current.item.speak);
     const effective = peeked ? Math.min(grade, 2) : grade;
     const outcome = effective >= 3 ? "correct" : effective === 2 ? "hard" : "wrong";
-    recordOutcome(current.item.id, outcome);
-    setProgress(loadMastery());
     if (outcome === "correct") {
-      setCorrectCount((v) => v + 1);
       setFeedback("ok");
       setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
-      markActive();
+      setPendingMemoryCorrect(true);
       feedbackCorrect();
     } else if (outcome === "hard") {
+      recordOutcome(current.item.id, outcome);
+      setProgress(loadMastery());
       setFeedback("bad");
       feedbackTap();
       queueReplay(current);
     } else {
+      recordOutcome(current.item.id, outcome);
+      setProgress(loadMastery());
       setFeedback("bad");
       feedbackWrong();
       queueReplay(current);
     }
+  }
+
+  function confirmMemoryAnswer() {
+    if (current?.kind === "memory" && submitted && pendingMemoryCorrect) {
+      recordOutcome(current.item.id, "correct");
+      setProgress(loadMastery());
+      setCorrectCount((v) => v + 1);
+      markActive();
+    }
+    next();
+  }
+
+  function markMemoryMistaken() {
+    if (current?.kind !== "memory" || !submitted || !pendingMemoryCorrect) return;
+    recordOutcome(current.item.id, "wrong");
+    setProgress(loadMastery());
+    queueReplay(current);
+    feedbackWrong();
+    next();
   }
 
   function completeMatch() {
@@ -626,6 +650,9 @@ export default function CoursePage() {
               onAnswerLook={answerLook}
               onCompleteMatch={completeMatch}
               onNext={next}
+              onMemoryNext={confirmMemoryAnswer}
+              onMemoryMistaken={markMemoryMistaken}
+              canMarkMemoryMistaken={pendingMemoryCorrect}
               onWrote={markWrote}
               romanGroups={romanGroups}
             />
@@ -656,6 +683,9 @@ function QuestionCard({
   onAnswerLook,
   onCompleteMatch,
   onNext,
+  onMemoryNext,
+  onMemoryMistaken,
+  canMarkMemoryMistaken,
   onWrote,
   romanGroups,
 }: {
@@ -675,6 +705,9 @@ function QuestionCard({
   onAnswerLook: (correct: boolean) => void;
   onCompleteMatch: () => void;
   onNext: () => void;
+  onMemoryNext: () => void;
+  onMemoryMistaken: () => void;
+  canMarkMemoryMistaken: boolean;
   onWrote: () => void;
   romanGroups: Record<string, StudyItem[]>;
 }) {
@@ -811,7 +844,9 @@ function QuestionCard({
         feedback={feedback}
         praise={praise}
         onGrade={onAnswerMemory}
-        onNext={onNext}
+        onNext={onMemoryNext}
+        onMistaken={onMemoryMistaken}
+        canMarkMistaken={canMarkMemoryMistaken}
       />
     );
   }
@@ -1095,6 +1130,8 @@ function MemoryCard({
   praise,
   onGrade,
   onNext,
+  onMistaken,
+  canMarkMistaken,
 }: {
   question: Question;
   submitted: boolean;
@@ -1102,6 +1139,8 @@ function MemoryCard({
   praise: string;
   onGrade: (grade: number, peeked: boolean) => void;
   onNext: () => void;
+  onMistaken: () => void;
+  canMarkMistaken: boolean;
 }) {
   const [peeked, setPeeked] = useState(false);
   // 双保险：题目变化时显式 reset peeked。即便 React 复用了 instance（例如
@@ -1148,7 +1187,14 @@ function MemoryCard({
         <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
           <div className="flex items-center justify-between gap-3">
             <div className="text-base">{feedback === "ok" ? `${praise || "答对了！"}` : "再试试看！"}</div>
-            <button onClick={onNext} className={feedback === "ok" ? "btn-primary px-5" : "btn-red px-5"}>继续</button>
+            <div className="flex flex-wrap justify-end gap-2">
+              {canMarkMistaken && (
+                <button onClick={onMistaken} className="btn-ghost px-4 text-xs">
+                  认错了
+                </button>
+              )}
+              <button onClick={onNext} className={feedback === "ok" ? "btn-primary px-5" : "btn-red px-5"}>继续</button>
+            </div>
           </div>
         </div>
       )}
