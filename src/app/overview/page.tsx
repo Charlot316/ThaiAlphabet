@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { CONSONANTS, FINAL_GROUPS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import { Consonant, Vowel } from "@/data/types";
@@ -11,6 +12,13 @@ import { consonantPhonetic, consonantSpeak, displayRoman, vowelPhonetic, vowelSp
 import { speak } from "@/lib/tts";
 
 type Tab = "consonant" | "vowel" | "tone";
+
+function ModalPortal({ children }: { children: ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
+}
 
 export default function OverviewPage() {
   const [tab, setTab] = useState<Tab>("consonant");
@@ -164,32 +172,34 @@ function Consonants() {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/55 p-4" onClick={() => setSelected(null)}>
-          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden rounded-lg border" style={{ background: "var(--surface-solid)", borderColor: "var(--duo-line)", boxShadow: "var(--shadow-soft)" }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between p-5 border-b" style={{ borderColor: "var(--duo-line)" }}>
-              <div className="flex-1">
-                <div className="thai-big text-5xl leading-none mb-2">{selected.letter}</div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {classTag(selected.class)}
-                  <PronounceButton text={consonantSpeak(selected)} />
+        <ModalPortal>
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4" onClick={() => setSelected(null)}>
+            <div className="w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden rounded-lg border" style={{ background: "var(--surface-solid)", borderColor: "var(--duo-line)", boxShadow: "var(--shadow-soft)" }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between p-5 border-b" style={{ borderColor: "var(--duo-line)" }}>
+                <div className="flex-1">
+                  <div className="thai-big text-5xl leading-none mb-2">{selected.letter}</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {classTag(selected.class)}
+                    <PronounceButton text={consonantSpeak(selected)} />
+                  </div>
+                  <div className="thai-big mt-2 text-lg opacity-80">{selected.name}</div>
+                  <div className="mt-1 text-sm opacity-60">{selected.meaning}</div>
+                  <div className="mt-2 text-xs leading-relaxed">
+                    初: <b>{displayRoman(selected.romanInitial)}</b> · 尾: <b>{selected.finalSound === "none" ? "无" : selected.finalSound}</b>
+                    <br />
+                    <span style={{ color: "var(--duo-blue)" }}>🔊 应念: {consonantPhonetic(selected)}</span>
+                    {selected.obsolete && <span className="ml-2 opacity-60">已废</span>}
+                  </div>
+                  <FontSamples letter={selected.letter} />
                 </div>
-                <div className="thai-big mt-2 text-lg opacity-80">{selected.name}</div>
-                <div className="mt-1 text-sm opacity-60">{selected.meaning}</div>
-                <div className="mt-2 text-xs leading-relaxed">
-                  初: <b>{displayRoman(selected.romanInitial)}</b> · 尾: <b>{selected.finalSound === "none" ? "无" : selected.finalSound}</b>
-                  <br />
-                  <span style={{ color: "var(--duo-blue)" }}>🔊 应念: {consonantPhonetic(selected)}</span>
-                  {selected.obsolete && <span className="ml-2 opacity-60">已废</span>}
-                </div>
-                <FontSamples letter={selected.letter} />
+                <button onClick={() => setSelected(null)} className="btn-ghost h-9 w-9 p-0 text-base">×</button>
               </div>
-              <button onClick={() => setSelected(null)} className="btn-ghost h-9 w-9 p-0 text-base">×</button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5">
-              <TraceSvg key={selected.id} letter={selected.letter} />
+              <div className="flex-1 overflow-y-auto p-5">
+                <TraceSvg key={selected.id} letter={selected.letter} />
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </>
   );
@@ -376,32 +386,34 @@ function Vowels() {
     </div>
 
     {selected && (
-      <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/55 p-4" onClick={() => setSelected(null)}>
-        <div className="w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden rounded-lg border" style={{ background: "var(--surface-solid)", borderColor: "var(--duo-line)", boxShadow: "var(--shadow-soft)" }} onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-start justify-between p-5 border-b" style={{ borderColor: "var(--duo-line)" }}>
-            <div className="flex-1">
-              <div className="thai-big text-5xl leading-none mb-2">{selected.display}</div>
-              <div className="flex flex-wrap items-center gap-2">
-                {vowelLengthTag(selected.length)}
-                <PronounceButton text={vowelSpeak(selected)} />
+      <ModalPortal>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4" onClick={() => setSelected(null)}>
+          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden rounded-lg border" style={{ background: "var(--surface-solid)", borderColor: "var(--duo-line)", boxShadow: "var(--shadow-soft)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between p-5 border-b" style={{ borderColor: "var(--duo-line)" }}>
+              <div className="flex-1">
+                <div className="thai-big text-5xl leading-none mb-2">{selected.display}</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {vowelLengthTag(selected.length)}
+                  <PronounceButton text={vowelSpeak(selected)} />
+                </div>
+                <div className="mt-2 text-sm opacity-70">罗马音: <b>{selected.roman}</b></div>
+                <div className="text-sm opacity-60">
+                  {selected.category === "diphthong" ? "复合元音" : selected.category === "special" ? "特殊元音" : "单元音"}
+                  {selected.notes ? ` · ${selected.notes}` : ""}
+                </div>
+                <div className="mt-1 font-mono text-xs" style={{ color: "var(--duo-blue)" }}>
+                  🔊 应念: {vowelPhonetic(selected)}
+                </div>
+                <FontSamples letter={selected.display} />
               </div>
-              <div className="mt-2 text-sm opacity-70">罗马音: <b>{selected.roman}</b></div>
-              <div className="text-sm opacity-60">
-                {selected.category === "diphthong" ? "复合元音" : selected.category === "special" ? "特殊元音" : "单元音"}
-                {selected.notes ? ` · ${selected.notes}` : ""}
-              </div>
-              <div className="mt-1 font-mono text-xs" style={{ color: "var(--duo-blue)" }}>
-                🔊 应念: {vowelPhonetic(selected)}
-              </div>
-              <FontSamples letter={selected.display} />
+              <button onClick={() => setSelected(null)} className="btn-ghost h-9 w-9 p-0 text-base">×</button>
             </div>
-            <button onClick={() => setSelected(null)} className="btn-ghost h-9 w-9 p-0 text-base">×</button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-5">
-            <TraceSvg key={selected.id} letter={selected.display} strokeKey={`v:${selected.id}`} />
+            <div className="flex-1 overflow-y-auto p-5">
+              <TraceSvg key={selected.id} letter={selected.display} strokeKey={`v:${selected.id}`} />
+            </div>
           </div>
         </div>
-      </div>
+      </ModalPortal>
     )}
     </>
   );
