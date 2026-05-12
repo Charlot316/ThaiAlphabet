@@ -400,10 +400,6 @@ export default function EndlessMatchPage() {
         </div>
       </div>
 
-      <div className="card-soft p-3 text-center text-xs opacity-70">
-        无尽配对 · 配对一对换一对 · 总会有 ≥ {MIN_MATCHABLE} 对能立即配上
-      </div>
-
       <div className="grid grid-cols-2 gap-3">
         <ul className="space-y-2">
           {board.leftSlots.map((it, idx) => {
