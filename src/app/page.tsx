@@ -48,7 +48,7 @@ export default function Home() {
 
       <HeroStatusBar />
 
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {MODES.map((m) => {
           const c = COLOR_MAP[m.color];
           const textColor = m.color === "yellow" ? "#5b4500" : "#fff";
@@ -56,29 +56,31 @@ export default function Home() {
             <li key={m.href}>
               <Link
                 href={m.href}
-                className="block rounded-3xl p-4 transition-transform active:translate-y-[2px]"
+                className="block h-full rounded-3xl p-4 transition-transform hover:scale-[1.01] active:translate-y-[2px]"
                 style={{
                   background: c.bg,
                   boxShadow: `0 5px 0 ${c.shadow}`,
                   color: textColor,
                 }}
               >
-                <div className="flex items-start gap-3">
+                <div className="grid min-h-[7rem] grid-cols-[3rem_1fr] grid-rows-[auto_1fr_auto] gap-x-3">
                   <div
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl"
+                    className="row-span-3 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl"
                     style={{ background: c.emojiBg }}
                   >
                     {m.emoji}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-base font-extrabold leading-tight">{m.title}</div>
-                    <div className="mt-0.5 text-xs opacity-90">{m.desc}</div>
-                    <div
-                      className="thai-big mt-2 inline-block rounded-lg px-2 py-0.5 text-sm"
+                  <div className="min-w-0 text-base font-extrabold leading-tight">{m.title}</div>
+                  <div className="mt-1 min-w-0 max-w-[13rem] text-xs leading-snug opacity-90">
+                    {m.desc}
+                  </div>
+                  <div className="mt-3 min-w-0">
+                    <span
+                      className="thai-big inline-flex max-w-full items-center rounded-lg px-2 py-0.5 text-sm leading-none"
                       style={{ background: c.emojiBg }}
                     >
-                      {m.preview}
-                    </div>
+                      <span className="truncate">{m.preview}</span>
+                    </span>
                   </div>
                 </div>
               </Link>
