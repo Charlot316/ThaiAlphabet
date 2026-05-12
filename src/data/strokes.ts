@@ -6409,14 +6409,19 @@ function cloneStroke(stroke: Stroke): Stroke {
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 type TargetBox = { x: number; y: number; w: number; h: number };
 
+type SlotComponentBox = Omit<TargetBox, "x" | "w"> & {
+  wScale: number;
+  maxW?: number;
+};
+
 // Layout reference (vertical bands in the 100x100 slot):
-//   y= 0..20  → marks above (◌ิ ◌ี ◌ึ ◌ื ◌ั ◌ํ)
-//   y=20..80  → consonant body / placeholder, side-by-side vowels
-//   y=80..100 → marks below (◌ุ ◌ู)
-// Marks must end before y=20 / start after y=80 so they don't overlap
-// the placeholder ring.
-const SLOT_COMPONENT_BOX: Record<string, Omit<TargetBox, "x" | "w"> & { wScale: number }> = {
-  "v:placeholder": { y: 22, h: 56, wScale: 0.72 },
+//   y≈15..38 → marks above (◌ิ ◌ี ◌ึ ◌ื ◌ั ◌ํ)
+//   y≈38..62 → placeholder ring / consonant reference point
+//   y≈62..84 → marks below (◌ุ ◌ู)
+// Overlay marks share the placeholder slot, so the visual relationship should
+// be tuned here instead of by adding extra horizontal spacing.
+const SLOT_COMPONENT_BOX: Record<string, SlotComponentBox> = {
+  "v:placeholder": { y: 38, h: 24, wScale: 0.72, maxW: 24 },
 
   // Side-by-side full-height characters
   "v:e-long": { y: 22, h: 56, wScale: 0.5 },
@@ -6433,24 +6438,26 @@ const SLOT_COMPONENT_BOX: Record<string, Omit<TargetBox, "x" | "w"> & { wScale: 
   "v:a-short": { y: 30, h: 40, wScale: 0.5 },
   "v:a-long": { y: 22, h: 50, wScale: 0.5 },
 
-  // Marks above (must end at y<=20)
-  "v:i-short": { y: 4, h: 14, wScale: 0.32 },
-  "v:i-long": { y: 2, h: 16, wScale: 0.32 },
-  "v:ue-short": { y: 2, h: 16, wScale: 0.36 },
-  "v:ue-long": { y: 2, h: 16, wScale: 0.36 },
-  "v:mai-han-akat": { y: 4, h: 14, wScale: 0.28 },
-  "v:mai-kham-mark": { y: 2, h: 14, wScale: 0.18 },
+  // Marks above
+  "v:i-short": { y: 18, h: 20, wScale: 0.9, maxW: 30 },
+  "v:i-long": { y: 15, h: 24, wScale: 0.9, maxW: 32 },
+  "v:ue-short": { y: 15, h: 24, wScale: 0.96, maxW: 34 },
+  "v:ue-long": { y: 15, h: 24, wScale: 0.96, maxW: 34 },
+  "v:mai-han-akat": { y: 19, h: 20, wScale: 0.78, maxW: 28 },
+  "v:mai-kham-mark": { y: 18, h: 18, wScale: 0.45, maxW: 18 },
 
-  // Marks below (must start at y>=80)
-  "v:u-short": { y: 84, h: 12, wScale: 0.26 },
-  "v:u-long": { y: 82, h: 14, wScale: 0.32 },
+  // Marks below
+  "v:u-short": { y: 64, h: 18, wScale: 0.5, maxW: 20 },
+  "v:u-long": { y: 63, h: 20, wScale: 0.58, maxW: 22 },
 };
 
 function componentSlotTarget(componentKey: string, index: number, count: number): TargetBox {
   const slotW = 100 / count;
   const slotX = slotW * index;
   const box = SLOT_COMPONENT_BOX[componentKey] ?? { y: 32, h: 36, wScale: 0.75 };
-  const w = Math.max(6, slotW * box.wScale);
+  const scaledW = slotW * box.wScale;
+  const cappedW = box.maxW ? Math.min(scaledW, box.maxW) : scaledW;
+  const w = Math.max(6, cappedW);
   return {
     x: slotX + (slotW - w) / 2,
     y: box.y,
