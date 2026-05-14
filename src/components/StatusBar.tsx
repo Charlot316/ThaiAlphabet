@@ -29,9 +29,9 @@ export function HeroStatusBar() {
         <div
           className="flex h-10 w-10 items-center justify-center rounded-lg border"
           style={{
-            background: "var(--surface-subtle)",
+            background: "rgba(40, 215, 244, 0.09)",
             color: s.streak > 0 ? "var(--duo-green-d)" : "var(--duo-muted)",
-            borderColor: "var(--duo-line)",
+            borderColor: "rgba(40, 215, 244, 0.2)",
           }}
         >
           <Flame size={19} strokeWidth={2.3} />

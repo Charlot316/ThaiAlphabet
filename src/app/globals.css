@@ -14,29 +14,35 @@
 
 :root {
   color-scheme: dark;
-  --duo-green: #5ddcf2;
-  --duo-green-d: #b9f5ff;
-  --duo-green-shadow: rgba(93, 220, 242, 0.16);
-  --duo-blue: #8bbcff;
-  --duo-blue-d: #c0dcff;
-  --duo-purple: #b7a8ff;
+  --duo-green: #28d7f4;
+  --duo-green-d: #97f2ff;
+  --duo-green-shadow: rgba(40, 215, 244, 0.18);
+  --duo-blue: #80b8ff;
+  --duo-blue-d: #bddbff;
+  --duo-purple: #aa9cff;
   --duo-purple-d: #d4ccff;
-  --duo-orange: #f1b36d;
-  --duo-orange-d: #ffd5a2;
-  --duo-yellow: #ecd47a;
-  --duo-red: #ff7f92;
-  --duo-red-d: #ffb0ba;
-  --duo-bg: #061116;
-  --duo-card: #0d1a20;
-  --duo-line: rgba(204, 230, 238, 0.11);
-  --duo-line-d: rgba(204, 230, 238, 0.2);
-  --duo-text: #eff8fa;
-  --duo-muted: #91aab3;
-  --surface-solid: #101f26;
-  --surface-subtle: #14262e;
-  --surface-pressed: rgba(93, 220, 242, 0.11);
-  --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 44px rgba(0, 8, 13, 0.3);
-  --shadow-small: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 28px rgba(0, 8, 13, 0.2);
+  --duo-orange: #f5ad4e;
+  --duo-orange-d: #ffd08a;
+  --duo-yellow: #f4cf5b;
+  --duo-red: #ff6578;
+  --duo-red-d: #ffa0ad;
+  --duo-bg: #020a0f;
+  --duo-card: #06141c;
+  --duo-line: rgba(130, 220, 245, 0.14);
+  --duo-line-d: rgba(130, 220, 245, 0.28);
+  --duo-text: #f3fbff;
+  --duo-muted: #8ea7b5;
+  --surface-solid: #081720;
+  --surface-subtle: #0b1d27;
+  --surface-pressed: rgba(40, 215, 244, 0.12);
+  --shadow-soft:
+    0 1px 0 rgba(255, 255, 255, 0.055) inset,
+    0 22px 50px rgba(0, 9, 16, 0.32),
+    0 0 42px rgba(23, 182, 216, 0.045);
+  --shadow-small:
+    0 1px 0 rgba(255, 255, 255, 0.045) inset,
+    0 12px 28px rgba(0, 9, 16, 0.24);
+  --shadow-cyan: 0 0 0 1px rgba(40, 215, 244, 0.28), 0 0 28px rgba(40, 215, 244, 0.14);
 }
 
 html, body {
@@ -50,13 +56,29 @@ html, body {
 
 body {
   background-color: var(--duo-bg);
-  background-image: linear-gradient(180deg, #0b1921 0%, #061116 44%, #040a0d 100%);
+  background-image:
+    radial-gradient(circle at 18% -8%, rgba(40, 215, 244, 0.16), transparent 34rem),
+    radial-gradient(circle at 78% 8%, rgba(59, 130, 246, 0.1), transparent 30rem),
+    linear-gradient(180deg, #04121a 0%, #020a0f 42%, #01070b 100%);
   color: var(--duo-text);
   font-family: "Noto Sans SC", "Inter", "Droid Sans Thai", "Noto Sans Thai Looped", "Noto Sans Thai",
     ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     "Helvetica Neue", "Leelawadee UI", "Tahoma", sans-serif;
   font-weight: 500;
   letter-spacing: 0;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(130, 220, 245, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(130, 220, 245, 0.03) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.5), transparent 72%);
 }
 
 .thai-big {
@@ -83,7 +105,7 @@ body {
     letter-spacing: 0;
   }
   .btn:hover:not(:disabled) {
-    transform: none;
+    transform: translateY(-1px);
   }
   .btn:disabled {
     @apply cursor-not-allowed opacity-45;
@@ -91,16 +113,17 @@ body {
 
   .btn-primary {
     @apply btn;
-    background: var(--duo-green);
-    color: #06100e;
-    box-shadow: none;
+    background: linear-gradient(180deg, #49e3fa 0%, var(--duo-green) 100%);
+    color: #021016;
+    border-color: rgba(151, 242, 255, 0.42);
+    box-shadow: var(--shadow-cyan);
   }
 
   .btn-blue {
     @apply btn;
-    background: color-mix(in srgb, var(--duo-blue) 7%, var(--duo-card));
+    background: color-mix(in srgb, var(--duo-blue) 9%, var(--duo-card));
     color: var(--duo-blue-d);
-    border-color: color-mix(in srgb, var(--duo-blue) 18%, transparent);
+    border-color: color-mix(in srgb, var(--duo-blue) 24%, transparent);
   }
 
   .btn-purple {
@@ -112,26 +135,29 @@ body {
 
   .btn-orange {
     @apply btn;
-    background: color-mix(in srgb, var(--duo-orange) 8%, var(--duo-card));
+    background: color-mix(in srgb, var(--duo-orange) 10%, var(--duo-card));
     color: var(--duo-orange-d);
     border-color: color-mix(in srgb, var(--duo-orange) 18%, transparent);
   }
 
   .btn-red {
     @apply btn;
-    background: color-mix(in srgb, var(--duo-red) 7%, var(--duo-card));
+    background: color-mix(in srgb, var(--duo-red) 10%, var(--duo-card));
     color: var(--duo-red-d);
     border-color: color-mix(in srgb, var(--duo-red) 18%, transparent);
   }
 
   .btn-ghost {
     @apply btn;
-    background: var(--surface-subtle);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)), var(--surface-subtle);
     color: var(--duo-text);
     border-color: var(--duo-line);
     box-shadow: none;
   }
-  .btn-ghost:hover:not(:disabled) { background: var(--surface-pressed); }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--surface-pressed);
+    border-color: var(--duo-line-d);
+  }
 
   /* 选项按钮（答题时使用） */
   .opt {
@@ -140,10 +166,12 @@ body {
     min-width: 0;
     max-width: 100%;
     overflow-wrap: anywhere;
-    background: var(--duo-card);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.006)),
+      var(--duo-card);
     color: var(--duo-text);
     border: 1px solid var(--duo-line);
-    box-shadow: none;
+    box-shadow: var(--shadow-small);
   }
   .opt:hover:not(:disabled) {
     border-color: var(--duo-line-d);
@@ -151,14 +179,16 @@ body {
   }
 
   .opt-selected {
-    border-color: var(--duo-blue) !important;
-    background: color-mix(in srgb, var(--duo-blue) 13%, var(--duo-card));
-    color: var(--duo-blue);
+    border-color: var(--duo-green) !important;
+    background: color-mix(in srgb, var(--duo-green) 13%, var(--duo-card));
+    color: var(--duo-green-d);
+    box-shadow: var(--shadow-cyan);
   }
   .opt-correct {
     border-color: var(--duo-green) !important;
-    background: color-mix(in srgb, var(--duo-green) 15%, var(--duo-card));
+    background: color-mix(in srgb, var(--duo-green) 12%, var(--duo-card));
     color: var(--duo-green-d);
+    box-shadow: var(--shadow-cyan);
   }
   .opt-wrong {
     border-color: var(--duo-red) !important;
@@ -170,13 +200,17 @@ body {
   /* 卡片 */
   .card {
     @apply rounded-lg p-4;
-    background: var(--duo-card);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008)),
+      var(--duo-card);
     border: 1px solid var(--duo-line);
     box-shadow: none;
   }
   .card-soft {
     @apply rounded-lg p-4;
-    background: var(--duo-card);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.01)),
+      color-mix(in srgb, var(--duo-card) 92%, #0b2734);
     border: 1px solid var(--duo-line);
     box-shadow: var(--shadow-soft);
     backdrop-filter: none;
@@ -201,12 +235,12 @@ body {
   /* 进度条 */
   .progress-track {
     @apply relative h-2 w-full overflow-hidden rounded-full;
-    background: var(--duo-line);
+    background: rgba(130, 220, 245, 0.12);
   }
   .progress-fill {
     @apply h-full rounded-full transition-[width] duration-500;
-    background: var(--duo-green);
-    box-shadow: none;
+    background: linear-gradient(90deg, var(--duo-green), #61f4ff);
+    box-shadow: 0 0 18px rgba(40, 215, 244, 0.28);
   }
 
   /* 顶部状态条徽章 */
@@ -231,7 +265,7 @@ body {
     flex-shrink: 0;
   }
   .feedback-ok {
-    background: color-mix(in srgb, var(--duo-green) 13%, var(--duo-card));
+    background: color-mix(in srgb, var(--duo-green) 11%, var(--duo-card));
     color: var(--duo-green-d);
     border: 1px solid color-mix(in srgb, var(--duo-green) 35%, transparent);
   }

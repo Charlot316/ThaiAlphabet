@@ -306,14 +306,18 @@ export default function TraceSvg({
 
   return (
     <div className="space-y-2">
-      <div className="card-soft mx-auto max-w-[18rem] overflow-hidden p-2 sm:max-w-[20rem]">
+      <div
+        className="card-soft mx-auto max-w-[20rem] overflow-hidden p-2 sm:max-w-[24rem]"
+        style={{ borderColor: "rgba(130, 220, 245, 0.22)" }}
+      >
         <svg
           ref={svgRef}
           viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
           className="block w-full select-none touch-none"
           style={{
             aspectRatio: `${vb.w} / ${vb.h}`,
-            background: "white",
+            background: "linear-gradient(180deg, #ffffff 0%, #f8fbfc 100%)",
+            borderRadius: "0.375rem",
             touchAction: "none",
             overscrollBehavior: "contain",
             WebkitUserSelect: "none",
@@ -427,7 +431,7 @@ export default function TraceSvg({
         <span className="w-10 text-right font-mono text-xs opacity-70">
           {totalAll > 0 ? Math.round((doneAll / totalAll) * 100) : 0}%
         </span>
-        <button onClick={reset} className="btn-orange px-3 text-xs">
+        <button onClick={reset} className="btn-ghost px-3 text-xs" title="重置">
           🔄
         </button>
       </div>

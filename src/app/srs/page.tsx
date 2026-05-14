@@ -126,8 +126,8 @@ export default function SrsPage() {
   const record = activeItem ? getRecord(activeItem.id) : null;
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-2">
+    <div className="space-y-5">
+      <div className="grid grid-cols-3 rounded-lg border p-1" style={{ background: "var(--duo-card)", borderColor: "var(--duo-line)" }}>
         {(["consonant", "vowel", "both"] as Pool[]).map((p) => (
           <button
             key={p}
@@ -136,29 +136,39 @@ export default function SrsPage() {
               setPeeked(false);
               setReview(null);
             }}
-            className={pool === p ? "btn-primary px-4" : "btn-ghost px-4"}
+            className="btn-ghost px-4"
+            style={
+              pool === p
+                ? {
+                    background: "rgba(40, 215, 244, 0.1)",
+                    borderColor: "rgba(40, 215, 244, 0.26)",
+                    color: "var(--duo-green-d)",
+                    boxShadow: "inset 0 -1px 0 var(--duo-green)",
+                  }
+                : { background: "transparent", borderColor: "transparent" }
+            }
           >
             {p === "consonant" ? "辅音" : p === "vowel" ? "元音" : "全部"}
           </button>
         ))}
       </div>
 
-      <div className="card-soft grid grid-cols-3 gap-2 p-3 text-center text-xs">
+      <div className="card-soft grid grid-cols-3 gap-2 p-4 text-center text-xs">
         <div>
           <div className="opacity-70">到期</div>
-          <div className="text-base font-extrabold" style={{ color: "var(--duo-orange)" }}>
+          <div className="mt-1 text-xl font-extrabold" style={{ color: "var(--duo-orange)" }}>
             {dueCount}
           </div>
         </div>
         <div>
           <div className="opacity-70">已掌握</div>
-          <div className="text-base font-extrabold" style={{ color: "var(--duo-green)" }}>
+          <div className="mt-1 text-xl font-extrabold" style={{ color: "var(--duo-green)" }}>
             {learnedCount} / {totalInPool}
           </div>
         </div>
         <div>
           <div className="opacity-70">本字熟练度</div>
-          <div className="text-base font-extrabold" style={{ color: "var(--duo-blue)" }}>
+          <div className="mt-1 text-xl font-extrabold" style={{ color: "var(--duo-blue)" }}>
             {score}
           </div>
         </div>
@@ -174,9 +184,15 @@ export default function SrsPage() {
         </div>
       ) : (
         <>
-          <div className="card-soft animate-pop flex flex-col items-center p-8">
+          <div
+            className="card-soft animate-pop flex min-h-[22rem] flex-col items-center justify-center p-8 text-center"
+            style={{
+              background:
+                "radial-gradient(circle at 50% 18%, rgba(40, 215, 244, 0.11), transparent 16rem), linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.008)), var(--duo-card)",
+            }}
+          >
             <div className="chip chip-low">记忆 · 不偷看答案</div>
-            <div className="thai-big mt-4 text-8xl leading-none">{activeItem.front}</div>
+            <div className="thai-big mt-5 text-8xl leading-none drop-shadow-[0_0_28px_rgba(40,215,244,0.12)]">{activeItem.front}</div>
             {!peeked && !review ? (
               <button
                 className="btn-ghost mt-5 px-5 text-xs"
@@ -202,7 +218,7 @@ export default function SrsPage() {
               </div>
             )}
             {record && record.attempts > 0 && (
-              <div className="mt-4 flex gap-3 text-[11px] opacity-70">
+              <div className="mt-5 flex flex-wrap justify-center gap-3 text-[11px] opacity-70">
                 <span>答过 {record.attempts}</span>
                 <span>对 {record.correct}</span>
                 {record.reps > 0 && <span>连对 {record.reps}</span>}
@@ -213,15 +229,15 @@ export default function SrsPage() {
 
           {!review ? (
             <div className="grid grid-cols-3 gap-3">
-              <button onClick={() => grade("wrong")} className="btn-red">
+              <button onClick={() => grade("wrong")} className="btn-red py-3">
                 不认识
               </button>
-              <button onClick={() => grade("hard")} className="btn-orange">
+              <button onClick={() => grade("hard")} className="btn-orange py-3">
                 模糊
               </button>
               <button
                 onClick={() => grade("correct")}
-                className="btn-primary"
+                className="btn-primary py-3"
                 disabled={peeked}
               >
                 {peeked ? "认识 (已封顶)" : "认识 ✓"}

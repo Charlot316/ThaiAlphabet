@@ -31,34 +31,54 @@ const MODES: ModeCard[] = [
 
 export default function Home() {
   return (
-    <div className="space-y-4">
-      <section className="card-soft p-5 sm:p-6">
+    <div className="space-y-5">
+      <section
+        className="card-soft relative overflow-hidden p-6 sm:p-7"
+        style={{
+          background:
+            "radial-gradient(circle at 78% 30%, rgba(40, 215, 244, 0.18), transparent 16rem), linear-gradient(135deg, rgba(13, 49, 66, 0.72), rgba(6, 20, 28, 0.96) 58%)",
+          borderColor: "rgba(130, 220, 245, 0.24)",
+        }}
+      >
+        <div
+          className="pointer-events-none absolute -right-10 bottom-0 hidden h-44 w-48 opacity-25 sm:block"
+          aria-hidden
+          style={{
+            background:
+              "linear-gradient(135deg, transparent 47%, rgba(40, 215, 244, 0.45) 48%, transparent 51%), radial-gradient(ellipse at 50% 100%, transparent 35%, rgba(40, 215, 244, 0.26) 36%, transparent 38%)",
+            clipPath: "polygon(50% 0, 60% 18%, 60% 35%, 72% 35%, 72% 100%, 20% 100%, 20% 45%, 34% 45%, 34% 20%)",
+          }}
+        />
         <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-          <div>
-            <div className="text-xs font-medium" style={{ color: "var(--duo-muted)" }}>
+          <div className="relative z-10">
+            <div className="text-xs font-semibold" style={{ color: "var(--duo-green-d)" }}>
               Thai Alphabet
             </div>
-            <h1 className="mt-2 text-2xl font-semibold leading-tight sm:text-3xl">
+            <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
               学习泰语字母
             </h1>
-            <p className="mt-2 max-w-xl text-sm leading-6" style={{ color: "var(--duo-muted)" }}>
-              用小课程推进熟练度，再用配对、记忆、速看和拼读把字形固定下来。
+            <p className="mt-3 max-w-xl text-sm leading-6" style={{ color: "color-mix(in srgb, var(--duo-text) 72%, var(--duo-muted))" }}>
+              从字母开始，掌握发音、书写和拼读，把泰语字形固定下来。
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 text-center text-xs md:min-w-72">
+          <div className="relative z-10 grid grid-cols-3 gap-2 text-center text-xs md:min-w-72">
             {[
               ["44", "辅音"],
               ["32", "元音"],
-              ["4", "声调"],
+              ["5", "声调"],
             ].map(([value, label]) => (
               <div
                 key={label}
                 className="rounded-lg border p-3"
-                style={{ borderColor: "var(--duo-line)", background: "var(--surface-subtle)" }}
+                style={{
+                  borderColor: "rgba(130, 220, 245, 0.18)",
+                  background: "rgba(6, 20, 28, 0.58)",
+                  boxShadow: "0 1px 0 rgba(255,255,255,0.045) inset",
+                }}
               >
-                <div className="text-lg font-semibold">{value}</div>
-                <div className="mt-0.5" style={{ color: "var(--duo-muted)" }}>{label}</div>
+                <div className="text-xl font-semibold">{value}</div>
+                <div className="mt-0.5" style={{ color: label === "元音" ? "var(--duo-green-d)" : "var(--duo-muted)" }}>{label}</div>
               </div>
             ))}
           </div>
@@ -67,6 +87,8 @@ export default function Home() {
 
       <HeroStatusBar />
 
+      <div className="text-sm font-semibold" style={{ color: "var(--duo-text)" }}>选择学习模式</div>
+
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {MODES.map((m) => {
           const Icon = m.icon;
@@ -74,21 +96,22 @@ export default function Home() {
             <Link
               key={m.href}
               href={m.href}
-              className="group block h-full rounded-lg border p-4 transition"
+              className="group block h-full rounded-lg border p-4 transition hover:-translate-y-0.5"
               style={{
-                background: "var(--duo-card)",
-                borderColor: m.primary ? "color-mix(in srgb, var(--duo-green) 28%, var(--duo-line))" : "var(--duo-line)",
-                boxShadow: "var(--shadow-small)",
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.008)), var(--duo-card)",
+                borderColor: m.primary ? "color-mix(in srgb, var(--duo-green) 42%, var(--duo-line))" : "var(--duo-line)",
+                boxShadow: m.primary ? "var(--shadow-cyan)" : "var(--shadow-small)",
               }}
             >
-              <div className="flex min-h-[8rem] flex-col justify-between gap-4">
+              <div className="flex min-h-[9.25rem] flex-col justify-between gap-4">
                 <div className="flex items-start justify-between gap-3">
                   <div
                     className="flex h-10 w-10 items-center justify-center rounded-lg border"
                     style={{
-                      background: m.primary ? "var(--surface-pressed)" : "var(--surface-subtle)",
-                      borderColor: "var(--duo-line)",
-                      color: m.primary ? "var(--duo-green-d)" : "var(--duo-muted)",
+                      background: m.primary ? "rgba(40, 215, 244, 0.13)" : "var(--surface-subtle)",
+                      borderColor: m.primary ? "rgba(40, 215, 244, 0.28)" : "var(--duo-line)",
+                      color: m.primary ? "var(--duo-green-d)" : "var(--duo-blue-d)",
                     }}
                   >
                     <Icon size={19} strokeWidth={2.1} />

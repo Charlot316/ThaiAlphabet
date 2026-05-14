@@ -388,30 +388,37 @@ export default function EndlessMatchPage() {
   }
 
   return (
-    <div className={`space-y-4 ${flash === "bad" ? "animate-shake" : ""}`}>
+    <div className={`space-y-5 ${flash === "bad" ? "animate-shake" : ""}`}>
+      <div>
+        <h1 className="text-lg font-semibold">无尽配对</h1>
+        <p className="mt-1 text-xs" style={{ color: "var(--duo-muted)" }}>
+          字母和读音配成一对，正确后会朗读字母。
+        </p>
+      </div>
+
       <div className="card-soft p-4">
-        <div className="grid grid-cols-4 items-center gap-2 text-center text-xs">
-          <div>
+        <div className="grid grid-cols-4 items-center gap-0 text-center text-xs">
+          <div className="border-r px-2" style={{ borderColor: "var(--duo-line)" }}>
             <div className="opacity-70">已配对</div>
-            <div className="text-lg font-extrabold" style={{ color: "var(--duo-green)" }}>
+            <div className="mt-1 text-2xl font-extrabold" style={{ color: "var(--duo-text)" }}>
               {totalMatched}
             </div>
           </div>
-          <div>
+          <div className="border-r px-2" style={{ borderColor: "var(--duo-line)" }}>
             <div className="opacity-70">连击</div>
-            <div className="text-lg font-extrabold" style={{ color: "var(--duo-orange)" }}>
+            <div className="mt-1 text-2xl font-extrabold" style={{ color: "var(--duo-orange)" }}>
               {streak}
             </div>
           </div>
-          <div>
+          <div className="border-r px-2" style={{ borderColor: "var(--duo-line)" }}>
             <div className="opacity-70">最高</div>
-            <div className="text-lg font-extrabold" style={{ color: "var(--duo-yellow)" }}>
+            <div className="mt-1 text-2xl font-extrabold" style={{ color: "var(--duo-text)" }}>
               {bestStreak}
             </div>
           </div>
-          <div>
+          <div className="px-2">
             <div className="opacity-70">失误</div>
-            <div className="text-lg font-extrabold" style={{ color: "var(--duo-red)" }}>
+            <div className="mt-1 text-2xl font-extrabold" style={{ color: "var(--duo-red)" }}>
               {totalMissed}
             </div>
           </div>
@@ -420,6 +427,7 @@ export default function EndlessMatchPage() {
 
       <div className="grid grid-cols-2 gap-3">
         <ul className="space-y-2">
+          <li className="pb-1 text-center text-xs font-semibold" style={{ color: "var(--duo-muted)" }}>字母</li>
           {board.leftSlots.map((it, idx) => {
             const isFading = fadingSlots?.left === idx;
             let state: "idle" | "picked" | "ok" | "bad" | "empty" = "idle";
@@ -434,7 +442,7 @@ export default function EndlessMatchPage() {
                   onPointerDown={(event) => handlePointerPress(event, () => onLeft(idx))}
                   onKeyDown={(event) => handleKeyboardPress(event, () => onLeft(idx))}
                   disabled={!it || isFading}
-                  className={`${slotClass(state)} flex min-h-[72px] w-full items-center justify-center`}
+                  className={`${slotClass(state)} flex min-h-[78px] w-full items-center justify-center`}
                   style={{
                     opacity: isFading ? 0 : 1,
                     transform: isFading ? "scale(0.88)" : "scale(1)",
@@ -443,13 +451,14 @@ export default function EndlessMatchPage() {
                     userSelect: "none",
                   }}
                 >
-                  <span className="thai-big text-3xl leading-none">{it?.front ?? ""}</span>
+                  <span className="thai-big text-4xl leading-none">{it?.front ?? ""}</span>
                 </button>
               </li>
             );
           })}
         </ul>
         <ul className="space-y-2">
+          <li className="pb-1 text-center text-xs font-semibold" style={{ color: "var(--duo-muted)" }}>读音</li>
           {board.rightSlots.map((it, idx) => {
             const isFading = fadingSlots?.right === idx;
             let state: "idle" | "picked" | "ok" | "bad" | "empty" = "idle";
@@ -464,7 +473,7 @@ export default function EndlessMatchPage() {
                   onPointerDown={(event) => handlePointerPress(event, () => onRight(idx))}
                   onKeyDown={(event) => handleKeyboardPress(event, () => onRight(idx))}
                   disabled={!it || isFading}
-                  className={`${slotClass(state)} flex min-h-[72px] w-full items-center justify-center`}
+                  className={`${slotClass(state)} flex min-h-[78px] w-full items-center justify-center`}
                   style={{
                     opacity: isFading ? 0 : 1,
                     transform: isFading ? "scale(0.88)" : "scale(1)",
@@ -473,7 +482,7 @@ export default function EndlessMatchPage() {
                     userSelect: "none",
                   }}
                 >
-                  <span className="font-mono text-lg leading-none">{it ? displayRoman(it.roman) : ""}</span>
+                  <span className="font-mono text-2xl leading-none">{it ? displayRoman(it.roman) : ""}</span>
                 </button>
               </li>
             );

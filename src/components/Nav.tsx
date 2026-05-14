@@ -30,19 +30,20 @@ export default function Nav() {
       <header
         className="sticky top-0 z-30"
         style={{
-          background: "color-mix(in srgb, var(--duo-bg) 88%, transparent)",
+          background: "color-mix(in srgb, var(--duo-bg) 78%, transparent)",
           borderBottom: "1px solid var(--duo-line)",
-          backdropFilter: "blur(14px)",
+          backdropFilter: "blur(18px)",
         }}
       >
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3 md:max-w-3xl lg:max-w-5xl xl:max-w-6xl">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3 md:max-w-3xl lg:max-w-5xl lg:px-6 xl:max-w-6xl">
           <Link href="/" className="flex items-center gap-2">
             <span
-              className="thai-big inline-flex h-9 w-9 items-center justify-center rounded-lg text-base font-semibold"
+              className="thai-big inline-flex h-9 w-9 items-center justify-center rounded-lg text-lg font-semibold"
               style={{
-                background: "var(--surface-solid)",
+                background: "linear-gradient(180deg, rgba(40, 215, 244, 0.1), rgba(40, 215, 244, 0.025)), var(--surface-solid)",
                 border: "1px solid var(--duo-line)",
-                color: "var(--duo-green)",
+                color: "var(--duo-text)",
+                boxShadow: "0 0 22px rgba(40, 215, 244, 0.08)",
               }}
             >
               ก
@@ -71,14 +72,14 @@ export default function Nav() {
       <nav
         className="fixed bottom-0 left-0 right-0 z-30"
         style={{
-          background: "color-mix(in srgb, var(--duo-card) 94%, var(--duo-bg))",
+          background: "color-mix(in srgb, var(--duo-bg) 82%, transparent)",
           borderTop: "1px solid var(--duo-line)",
-          boxShadow: "0 -14px 36px rgba(0, 0, 0, 0.22)",
-          backdropFilter: "blur(14px)",
+          boxShadow: "0 -18px 42px rgba(0, 6, 10, 0.42)",
+          backdropFilter: "blur(18px)",
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
-        <ul className="mx-auto grid max-w-2xl grid-cols-7 gap-1 px-2 py-2 md:max-w-3xl lg:max-w-5xl xl:max-w-6xl">
+        <ul className="mx-auto grid max-w-2xl grid-cols-7 gap-1 px-2 py-2 md:max-w-3xl lg:max-w-5xl lg:px-6 xl:max-w-6xl">
           {TABS.map((t) => {
             const active = pathname === t.href || (t.href !== "/" && pathname?.startsWith(t.href));
             const Icon = t.icon;
@@ -89,8 +90,9 @@ export default function Nav() {
                   className="flex h-14 flex-col items-center justify-center gap-1 rounded-lg transition"
                   style={{
                     color: active ? "var(--duo-green-d)" : "var(--duo-muted)",
-                    background: active ? "var(--surface-pressed)" : "transparent",
-                    border: "1px solid transparent",
+                    background: active ? "linear-gradient(180deg, rgba(40, 215, 244, 0.13), rgba(40, 215, 244, 0.055))" : "transparent",
+                    border: active ? "1px solid rgba(40, 215, 244, 0.18)" : "1px solid transparent",
+                    boxShadow: active ? "0 0 22px rgba(40, 215, 244, 0.08)" : "none",
                   }}
                 >
                   <Icon size={18} strokeWidth={active ? 2.5 : 2} aria-hidden />

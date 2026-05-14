@@ -24,12 +24,22 @@ export default function OverviewPage() {
   const [tab, setTab] = useState<Tab>("consonant");
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <div className="grid grid-cols-3 rounded-lg border p-1" style={{ background: "var(--duo-card)", borderColor: "var(--duo-line)" }}>
         {(["consonant", "vowel", "tone"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={tab === t ? "btn-primary px-4" : "btn-ghost px-4"}
+            className="btn-ghost px-4"
+            style={
+              tab === t
+                ? {
+                    background: "rgba(40, 215, 244, 0.1)",
+                    borderColor: "rgba(40, 215, 244, 0.26)",
+                    color: "var(--duo-green-d)",
+                    boxShadow: "inset 0 -1px 0 var(--duo-green)",
+                  }
+                : { background: "transparent", borderColor: "transparent" }
+            }
           >
             {t === "consonant" ? "辅音 (44)" : t === "vowel" ? "元音" : "声调"}
           </button>
@@ -43,15 +53,15 @@ export default function OverviewPage() {
 }
 
 function classTag(cls: string) {
-  if (cls === "mid") return <span className="chip chip-raised chip-mid h-9 min-w-9 justify-center px-2">中</span>;
-  if (cls === "high") return <span className="chip chip-raised chip-high h-9 min-w-9 justify-center px-2">高</span>;
-  return <span className="chip chip-raised chip-low h-9 min-w-9 justify-center px-2">低</span>;
+  if (cls === "mid") return <span className="chip chip-raised chip-mid h-7 min-w-7 justify-center px-2">中</span>;
+  if (cls === "high") return <span className="chip chip-raised chip-high h-7 min-w-7 justify-center px-2">高</span>;
+  return <span className="chip chip-raised chip-low h-7 min-w-7 justify-center px-2">低</span>;
 }
 
 function vowelLengthTag(length: Vowel["length"]) {
   return length === "long"
-    ? <span className="chip chip-raised chip-blue h-9 min-w-9 justify-center px-2">长</span>
-    : <span className="chip chip-raised chip-yellow h-9 min-w-9 justify-center px-2">短</span>;
+    ? <span className="chip chip-raised chip-blue h-7 min-w-7 justify-center px-2">长</span>
+    : <span className="chip chip-raised chip-yellow h-7 min-w-7 justify-center px-2">短</span>;
 }
 
 function Consonants() {
@@ -107,7 +117,7 @@ function Consonants() {
           {soundGroups.map(([sound, consonants]) => (
             <section key={sound} className="space-y-2">
               <h3 className="font-mono text-sm font-extrabold opacity-75">{sound}</h3>
-              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                 {consonants.map((c) => (
                   <ConsonantCard key={c.id} consonant={c} masteryValue={mastery[`c:${c.id}`] || 0} onSelect={setSelected} />
                 ))}
@@ -116,7 +126,7 @@ function Consonants() {
           ))}
         </div>
       ) : (
-      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {list.map((c) => (
           <ConsonantCard key={c.id} consonant={c} masteryValue={mastery[`c:${c.id}`] || 0} onSelect={setSelected} />
         ))}
@@ -216,8 +226,12 @@ function ConsonantCard({
 }) {
   const pct = Math.round((value / MASTERY_TARGET) * 100);
   return (
-    <li className="card flex min-h-[190px] cursor-pointer flex-col p-3 transition-transform hover:scale-[1.02]" onClick={() => onSelect(c)}>
-      <div className="mb-2">
+    <li
+      className="card group relative flex min-h-[138px] cursor-pointer flex-col p-3 transition hover:-translate-y-0.5"
+      onClick={() => onSelect(c)}
+      style={{ boxShadow: value > 0 ? "0 0 22px rgba(40, 215, 244, 0.045)" : undefined }}
+    >
+      <div className="mb-3">
         <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
           <span>熟练度</span>
           <div className="flex items-center gap-1">
@@ -241,32 +255,21 @@ function ConsonantCard({
           <div className="progress-fill" style={{ width: `${pct}%` }} />
         </div>
       </div>
-      <div className="grid grid-cols-[minmax(2.5rem,1fr)_auto] items-center gap-2">
-        <div className="thai-big min-w-0 text-3xl leading-none">{c.letter}</div>
-        <div className="flex h-10 shrink-0 items-start gap-1">
+      <div className="grid grid-cols-[1fr_auto] items-start gap-2">
+        <div className="thai-big min-w-0 text-4xl leading-none">{c.letter}</div>
+        <div className="flex shrink-0 items-start gap-1">
           {classTag(c.class)}
-          <PronounceButton text={consonantSpeak(c)} className="h-9 min-w-14 px-3 py-0" />
         </div>
       </div>
-      <div className="mt-2 grid gap-1 text-xs leading-tight">
-        <div className="grid grid-cols-[2.1rem_1fr] items-baseline gap-1">
-          <span className="opacity-50">名称</span>
-          <span className="thai-big min-w-0 truncate">{c.name}</span>
+      <div className="mt-auto pt-3">
+        <div className="min-w-0 truncate font-mono text-xs" style={{ color: "var(--duo-green-d)" }}>
+          {consonantPhonetic(c)}
         </div>
-        <div className="grid grid-cols-[2.1rem_1fr] items-baseline gap-1">
-          <span className="opacity-50">中文</span>
-          <span className="min-w-0 truncate opacity-70">{c.meaning}</span>
-        </div>
-        <div className="grid grid-cols-[2.1rem_1fr] items-baseline gap-1">
-          <span className="opacity-50">读音</span>
-          <span className="min-w-0">
-            初: <b>{displayRoman(c.romanInitial)}</b> · 尾: <b>{c.finalSound === "none" ? "无" : c.finalSound}</b>
-          </span>
-          {c.obsolete && <span className="ml-1 opacity-60">已废</span>}
-        </div>
-        <div className="grid grid-cols-[2.1rem_1fr] items-baseline gap-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
-          <span className="opacity-60">应念</span>
-          <span className="min-w-0 truncate">{consonantPhonetic(c)}</span>
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <div className="thai-big min-w-0 truncate text-xs" style={{ color: "var(--duo-muted)" }}>
+            {c.name}
+          </div>
+          <PronounceButton text={consonantSpeak(c)} className="h-8 min-w-10 px-2 py-0" />
         </div>
       </div>
     </li>
@@ -368,7 +371,7 @@ function Vowels() {
           {soundGroups.map(([sound, vowels]) => (
             <section key={sound} className="space-y-2">
               <h3 className="font-mono text-sm font-extrabold opacity-75">{sound}</h3>
-              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                 {vowels.map((v) => (
                   <VowelCard key={v.id} vowel={v} masteryValue={mastery[`v:${v.id}`] || 0} onSelect={setSelected} />
                 ))}
@@ -377,7 +380,7 @@ function Vowels() {
           ))}
         </div>
       ) : (
-        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {orderedVowels.map((v) => (
             <VowelCard key={v.id} vowel={v} masteryValue={mastery[`v:${v.id}`] || 0} onSelect={setSelected} />
           ))}
@@ -430,8 +433,8 @@ function VowelCard({
 }) {
   const pct = Math.round((value / MASTERY_TARGET) * 100);
   return (
-    <li className="card flex min-h-[190px] cursor-pointer flex-col p-3 transition-transform hover:scale-[1.02]" onClick={() => onSelect(v)}>
-      <div className="mb-2">
+    <li className="card group relative flex min-h-[138px] cursor-pointer flex-col p-3 transition hover:-translate-y-0.5" onClick={() => onSelect(v)}>
+      <div className="mb-3">
         <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
           <span>熟练度</span>
           <div className="flex items-center gap-1">
@@ -455,28 +458,21 @@ function VowelCard({
           <div className="progress-fill" style={{ width: `${pct}%` }} />
         </div>
       </div>
-      <div className="grid grid-cols-[minmax(2.5rem,1fr)_auto] items-center gap-2">
-        <div className="thai-big min-w-0 truncate text-2xl leading-none">{v.display}</div>
-        <div className="flex h-10 shrink-0 items-start gap-1">
+      <div className="grid grid-cols-[1fr_auto] items-start gap-2">
+        <div className="thai-big min-w-0 truncate text-3xl leading-none">{v.display}</div>
+        <div className="flex shrink-0 items-start gap-1">
           {vowelLengthTag(v.length)}
-          <PronounceButton text={vowelSpeak(v)} className="h-9 min-w-14 px-3 py-0" />
         </div>
       </div>
-      <div className="mt-2 grid gap-1 text-xs leading-tight">
-        <div className="grid grid-cols-[2.6rem_1fr] items-baseline gap-1">
-          <span className="opacity-50">罗马音</span>
-          <span className="min-w-0 truncate"><b>{v.roman}</b></span>
+      <div className="mt-auto pt-3">
+        <div className="min-w-0 truncate font-mono text-xs" style={{ color: "var(--duo-green-d)" }}>
+          {v.roman}
         </div>
-        <div className="grid grid-cols-[2.6rem_1fr] items-baseline gap-1">
-          <span className="opacity-50">类型</span>
-          <span className="min-w-0 truncate opacity-70">
-            {v.category === "diphthong" ? "复合元音" : v.category === "special" ? "特殊元音" : "单元音"}
-            {v.notes ? ` · ${v.notes}` : ""}
-          </span>
-        </div>
-        <div className="grid grid-cols-[2.6rem_1fr] items-baseline gap-1 font-mono text-[11px]" style={{ color: "var(--duo-blue)" }}>
-          <span className="opacity-60">应念</span>
-          <span className="min-w-0 truncate">{vowelPhonetic(v)}</span>
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <div className="min-w-0 truncate text-xs" style={{ color: "var(--duo-muted)" }}>
+            {v.category === "diphthong" ? "复合" : v.category === "special" ? "特殊" : "单元音"}
+          </div>
+          <PronounceButton text={vowelSpeak(v)} className="h-8 min-w-10 px-2 py-0" />
         </div>
       </div>
     </li>
