@@ -9,6 +9,26 @@ import {
 } from "react";
 import PronounceButton from "@/components/PronounceButton";
 import TraceSvg from "@/components/TraceSvg";
+import { CONSONANT_BY_ID } from "@/data/consonants";
+import { VOWEL_BY_ID } from "@/data/vowels";
+import {
+  CourseLesson,
+  CourseProgress,
+  MAIN_COURSE,
+  PRACTICE_MODES,
+  PracticeMode,
+  completeCourseLesson,
+  filterUnlockedItems,
+  homophoneGroups,
+  lessonStatus,
+  loadCourseProgress,
+  nextLesson,
+  resetCourseProgress,
+  shapeGroups,
+  studyItemsByIds,
+  unlockedItemIds,
+  vowelLengthGroups,
+} from "@/lib/curriculum";
 import {
   MASTERY_TARGET,
   MasteryProgress,
@@ -21,12 +41,11 @@ import {
 import {
   StudyItem,
   buildStudyItems,
-  consonantsByInitialSound,
   displayRoman,
   shuffleStrong,
   uniqueChoices,
-  SHAPE_CONFUSABLES,
 } from "@/lib/study";
+import { renderSyllableThai } from "@/lib/syllable";
 import { markActive } from "@/lib/stats";
 import { speak, warmupVoices } from "@/lib/tts";
 import {
@@ -40,9 +59,6 @@ import {
   feedbackWrong,
 } from "@/lib/feedback";
 
-const LAST_LESSON_KEY = "thai-alphabet:last-lesson:v1";
-const LESSON_SIZE = 6;
-
 type QuestionKind =
   | "sound"
   | "letter"
@@ -53,124 +69,35 @@ type QuestionKind =
   | "match"
   | "memory"
   | "class"
-  | "length";
+  | "length"
+  | "syllable-sound"
+  | "syllable-letter";
+
+interface SyllableChoice {
+  id: string;
+  front: string;
+  roman: string;
+  speak: string;
+  componentIds: string[];
+}
 
 interface Question {
   id: string;
   kind: QuestionKind;
   item: StudyItem;
   choices: StudyItem[];
+  syllable?: SyllableChoice;
+  syllableChoices?: SyllableChoice[];
 }
 
-function getLastLesson(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(window.localStorage.getItem(LAST_LESSON_KEY) || "[]") as string[];
-  } catch {
-    return [];
-  }
-}
-
-function rememberLesson(ids: string[]) {
-  window.localStorage.setItem(LAST_LESSON_KEY, JSON.stringify(ids));
-}
-
-function pickLessonItems(
-  items: StudyItem[],
-  progress: MasteryProgress
-): { items: StudyItem[]; title: string } {
-  const lastIds = new Set(getLastLesson());
-
-  // 按熟练度排序，找出最生疏的字母
-  const sortedByMastery = [...items].sort(
-    (a, b) => (progress[a.id] || 0) - (progress[b.id] || 0)
-  );
-  const weakestItem = sortedByMastery[0];
-
-  // 1. 抽选课程类型 (1:1:2 比例)
-  // 1 (日常) : 1 (同音) : 2 (形近) -> 总权重 4
-  const rand = Math.random() * 4;
-  let lessonType: "daily" | "homophone" | "shape" = "daily";
-  if (rand < 1) lessonType = "daily";
-  else if (rand < 2) lessonType = "homophone";
-  else lessonType = "shape";
-
-  // 2. 尝试执行专项逻辑
-  if (lessonType === "homophone") {
-    const bySound = consonantsByInitialSound();
-    const soundGroups: StudyItem[][] = [];
-    for (const sound in bySound) {
-      const ids = bySound[sound].map((id) => `c:${id}`);
-      if (ids.length > 1) {
-        const group = items.filter((item) => ids.includes(item.id));
-        if (group.length > 1) soundGroups.push(group);
-      }
-    }
-
-    // 找到包含最生疏字母的同音组
-    const targetGroups = soundGroups.filter((g) =>
-      g.some((it) => it.id === weakestItem.id)
-    );
-    const chosenGroup = targetGroups.length > 0 ? shuffleStrong(targetGroups)[0] : null;
-
-    if (chosenGroup) {
-      return prepareLesson(chosenGroup, "专项训练：同音字对比", items, progress);
-    }
-  }
-
-  if (lessonType === "shape") {
-    // 获取包含最生疏字母的所有形近组
-    const shapeGroups: StudyItem[][] = [];
-    for (const shapes of SHAPE_CONFUSABLES) {
-      const group = items.filter((item) => shapes.includes(item.front));
-      // 必须包含 weakestItem，且组内至少有 2 个成员
-      if (group.length > 1 && group.some((it) => it.id === weakestItem.id)) {
-        shapeGroups.push(group);
-      }
-    }
-
-    const chosenGroup = shapeGroups.length > 0 ? shuffleStrong(shapeGroups)[0] : null;
-    if (chosenGroup) {
-      return prepareLesson(chosenGroup, "专项训练：形近字对比", items, progress);
-    }
-  }
-
-  // 3. 兜底逻辑：日常练习
-  const fresh = sortedByMastery.filter((item) => !lastIds.has(item.id));
-  const source = fresh.length >= LESSON_SIZE ? fresh : sortedByMastery;
-  const lessonItems = source.slice(0, LESSON_SIZE);
-  rememberLesson(lessonItems.map((item) => item.id));
-  return { items: lessonItems, title: "日常练习" };
-}
-
-/**
- * 辅助函数：整理专项练习的项目，处理长度不足或超出的情况
- */
-function prepareLesson(
-  group: StudyItem[],
-  title: string,
-  allItems: StudyItem[],
-  progress: MasteryProgress
-): { items: StudyItem[]; title: string } {
-  let lessonItems = [...group];
-  if (lessonItems.length < LESSON_SIZE) {
-    const ids = new Set(lessonItems.map((it) => it.id));
-    // 补齐低熟练度的其它字
-    const extra = allItems
-      .filter((it) => !ids.has(it.id))
-      .sort((a, b) => (progress[a.id] || 0) - (progress[b.id] || 0))
-      .slice(0, LESSON_SIZE - lessonItems.length);
-    lessonItems = [...lessonItems, ...extra];
-  } else if (lessonItems.length > LESSON_SIZE) {
-    // 如果组太大，优先保留最生疏的，其余随机
-    const sorted = [...lessonItems].sort(
-      (a, b) => (progress[a.id] || 0) - (progress[b.id] || 0)
-    );
-    lessonItems = sorted.slice(0, LESSON_SIZE);
-  }
-
-  rememberLesson(lessonItems.map((item) => item.id));
-  return { items: shuffleStrong(lessonItems), title };
+interface ActiveSession {
+  title: string;
+  subtitle: string;
+  lessonId?: string;
+  mode: "lesson" | "practice";
+  kind: CourseLesson["kind"] | PracticeMode["id"];
+  items: StudyItem[];
+  choiceItems: StudyItem[];
 }
 
 type QuestionKindKey =
@@ -191,20 +118,22 @@ function makeQuestion(
   kind: QuestionKindKey,
   allItems: StudyItem[]
 ): Question {
+  const samePool = allItems.filter((option) => option.pool === item.pool);
+  const choicePool = samePool.length >= 2 ? samePool : allItems;
   switch (kind) {
     case "sound":
       return {
         id: `${item.id}:sound`,
         kind: "sound",
         item,
-        choices: uniqueChoices(item, allItems, 4, (o) => o.roman),
+        choices: uniqueChoices(item, choicePool, 4, (o) => o.roman),
       };
     case "letter":
       return {
         id: `${item.id}:letter`,
         kind: "letter",
         item,
-        choices: uniqueChoices(item, allItems, 4, (o) => o.roman),
+        choices: uniqueChoices(item, choicePool, 4, (o) => o.roman),
       };
     case "write1":
       return { id: `${item.id}:write:1`, kind: "write", item, choices: [item] };
@@ -217,14 +146,14 @@ function makeQuestion(
         id: `${item.id}:sound-blind`,
         kind: "sound-blind",
         item,
-        choices: uniqueChoices(item, allItems, 4, (o) => o.roman),
+        choices: uniqueChoices(item, choicePool, 4, (o) => o.roman),
       };
     case "letterBlind":
       return {
         id: `${item.id}:letter-blind`,
         kind: "letter-blind",
         item,
-        choices: uniqueChoices(item, allItems, 4, (o) => o.roman),
+        choices: uniqueChoices(item, choicePool, 4, (o) => o.roman),
       };
     case "class1":
     case "class2":
@@ -235,74 +164,145 @@ function makeQuestion(
   }
 }
 
-// 把 N 个 item × M 个题型打散：每个 item 内部题型先各自打乱，再用 round-robin
-// 跨 item 抽题，每"轮"内再打散。结果 = 每个 item 出现 M 次、每两道相邻题
-// 通常不同 item，且**题型**也是混合的。
-function buildShuffledHalf(
-  lessonItems: StudyItem[],
-  kinds: QuestionKindKey[],
-  allItems: StudyItem[]
-): Question[] {
-  const perItem = lessonItems.map((item) => {
-    // 过滤掉不适用于该 item 的题型
-    const validKinds = kinds.filter((k) => {
-      if (k.startsWith("class")) return item.id.startsWith("c:"); // 只有辅音有等级题
-      if (k.startsWith("length")) return item.id.startsWith("v:"); // 只有元音有长度题
-      return true;
-    });
-    return shuffleStrong(validKinds).map((k) => makeQuestion(item, k, allItems));
-  });
-
-  const result: Question[] = [];
-  const maxRounds = kinds.length;
-
-  for (let r = 0; r < maxRounds; r++) {
-    const round = perItem.map((qs) => qs[r]).filter((q): q is Question => Boolean(q));
-    const shuffled = shuffleStrong(round);
-    // 轮交界处避免连续两题同 item
-    const lastId = result[result.length - 1]?.item.id;
-    if (shuffled.length > 1 && shuffled[0]?.item.id === lastId) {
-      [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
-    }
-    result.push(...shuffled);
-  }
-  return result;
+function normalizeVowelRoman(roman: string): string {
+  return roman.replace("(open)", "");
 }
 
-function buildQuestions(lessonItems: StudyItem[], allItems: StudyItem[]): Question[] {
-  // 1) 介绍轮：每个音的 look 题。
-  const introRound = shuffleStrong(
-    lessonItems.map((item) => ({
-      id: `${item.id}:look`,
-      kind: "look" as const,
-      item,
-      choices: [item],
-    }))
-  );
-
-  // 2) 前半轮（带提示）：2次书写，2次选择 (sound/letter)，1次辅音等级判断/元音长度判断
-  const earlyHalf = buildShuffledHalf(
-    lessonItems,
-    ["sound", "letter", "write1", "write2", "class1", "length1"],
-    allItems
-  );
-
-  // 3) 后半轮（无提示）：2次盲选 (soundBlind/letterBlind)，1道记忆题，1次辅音等级判断/元音长度判断
-  const lateHalf = buildShuffledHalf(
-    lessonItems,
-    ["memory", "soundBlind", "letterBlind", "class2", "length2"],
-    allItems
-  );
-
-  // 4) 末尾大配对
-  const finalMatch: Question = {
-    id: `match:${Date.now()}`,
-    kind: "match",
-    item: lessonItems[0],
-    choices: lessonItems,
+function makeSyllableChoice(consonant: StudyItem, vowel: StudyItem): SyllableChoice | null {
+  if (!consonant.id.startsWith("c:") || !vowel.id.startsWith("v:")) return null;
+  const cData = CONSONANT_BY_ID[consonant.id.slice(2)];
+  const vData = VOWEL_BY_ID[vowel.id.slice(2)];
+  if (!cData || !vData || !vData.form.includes("◌")) return null;
+  const front = renderSyllableThai(cData, null, vData, null, "none");
+  const init = cData.romanInitial === "ʔ" ? "" : cData.romanInitial;
+  const roman = `${init}${normalizeVowelRoman(vData.roman)}`;
+  return {
+    id: `s:${consonant.id}:${vowel.id}`,
+    front,
+    roman,
+    speak: front,
+    componentIds: [consonant.id, vowel.id],
   };
+}
 
-  return [...introRound, ...earlyHalf, ...lateHalf, finalMatch];
+function buildSyllableBank(items: StudyItem[], limit = 8): SyllableChoice[] {
+  const consonants = items.filter((item) => item.pool === "consonant");
+  const vowels = items.filter((item) => item.pool === "vowel");
+  const seen = new Set<string>();
+  const out: SyllableChoice[] = [];
+  for (const consonant of shuffleStrong(consonants)) {
+    for (const vowel of shuffleStrong(vowels)) {
+      const syllable = makeSyllableChoice(consonant, vowel);
+      if (!syllable || seen.has(syllable.roman)) continue;
+      seen.add(syllable.roman);
+      out.push(syllable);
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
+
+function uniqueSyllableChoices(
+  correct: SyllableChoice,
+  allOptions: SyllableChoice[],
+  count: number
+): SyllableChoice[] {
+  const seen = new Set<string>([correct.roman]);
+  const result = [correct];
+  for (const option of shuffleStrong(allOptions)) {
+    if (result.length >= count) break;
+    if (seen.has(option.roman)) continue;
+    seen.add(option.roman);
+    result.push(option);
+  }
+  return shuffleStrong(result);
+}
+
+function makeSyllableQuestion(
+  syllable: SyllableChoice,
+  kind: "syllable-sound" | "syllable-letter",
+  bank: SyllableChoice[],
+  fallbackItem: StudyItem
+): Question {
+  return {
+    id: `${syllable.id}:${kind}`,
+    kind,
+    item: fallbackItem,
+    choices: [fallbackItem],
+    syllable,
+    syllableChoices: uniqueSyllableChoices(syllable, bank, 4),
+  };
+}
+
+function buildQuestions(session: ActiveSession): Question[] {
+  const lessonItems = session.items;
+  const choiceItems = session.choiceItems.length ? session.choiceItems : lessonItems;
+  const focusItems =
+    session.mode === "practice" && session.kind === "random"
+      ? lessonItems.slice(0, Math.min(6, lessonItems.length))
+      : lessonItems;
+
+  const introRound = focusItems.map((item) => ({
+    id: `${item.id}:look`,
+    kind: "look" as const,
+    item,
+    choices: [item],
+  }));
+
+  const pickRound = focusItems.map((item, idx) =>
+    makeQuestion(item, idx % 2 === 0 ? "sound" : "letter", choiceItems)
+  );
+
+  const memoryRound = shuffleStrong(focusItems)
+    .slice(0, Math.min(4, focusItems.length))
+    .map((item) => makeQuestion(item, "memory", choiceItems));
+
+  const writingRound =
+    session.kind === "homophone" || session.kind === "shape"
+      ? []
+      : shuffleStrong(focusItems)
+          .slice(0, Math.min(session.kind === "vowel-length" ? 0 : 2, focusItems.length))
+          .map((item) => makeQuestion(item, "write1", choiceItems));
+
+  const classOrLengthRound =
+    session.kind === "vowel-length"
+      ? focusItems
+          .filter((item) => item.pool === "vowel")
+          .slice(0, Math.min(4, focusItems.length))
+          .map((item) => makeQuestion(item, "length1", choiceItems))
+      : [];
+
+  const syllableBank = session.kind === "blend" || session.kind === "review"
+    ? buildSyllableBank(choiceItems, 10)
+    : [];
+  const syllableRound =
+    syllableBank.length >= 2
+      ? shuffleStrong(syllableBank)
+          .slice(0, Math.min(4, syllableBank.length))
+          .map((syllable, idx) =>
+            makeSyllableQuestion(
+              syllable,
+              idx % 2 === 0 ? "syllable-sound" : "syllable-letter",
+              syllableBank,
+              focusItems[0]
+            )
+          )
+      : [];
+
+  const finalMatch =
+    focusItems.length >= 2
+      ? [{
+          id: `match:${session.title}:${Date.now()}`,
+          kind: "match" as const,
+          item: focusItems[0],
+          choices: focusItems,
+        }]
+      : [];
+
+  return shuffleStrong([...introRound, ...pickRound]).concat(
+    shuffleStrong([...syllableRound, ...memoryRound, ...writingRound, ...classOrLengthRound]),
+    finalMatch
+  );
 }
 
 const PRAISE = ["太棒了！", "做得好！", "完美！", "继续保持！", "答对了！", "厉害👏"];
@@ -318,8 +318,12 @@ export default function CoursePage() {
     return groups;
   }, [allItems]);
   const [progress, setProgress] = useState<MasteryProgress>({});
+  const [courseProgress, setCourseProgress] = useState<CourseProgress>({
+    completedLessonIds: [],
+    updatedAt: 0,
+  });
+  const [session, setSession] = useState<ActiveSession | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [lessonTitle, setLessonTitle] = useState("正在生成课程...");
   const [index, setIndex] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -327,9 +331,15 @@ export default function CoursePage() {
   const [praise, setPraise] = useState("");
   const [correctCount, setCorrectCount] = useState(0);
   const [pendingMemoryCorrect, setPendingMemoryCorrect] = useState(false);
+  const completedRecordedRef = useRef<string | null>(null);
 
   const current = questions[index];
   const complete = questions.length > 0 && index >= questions.length;
+  const upcomingLesson = useMemo(() => nextLesson(courseProgress), [courseProgress]);
+  const unlockedCount = useMemo(
+    () => unlockedItemIds(courseProgress).size,
+    [courseProgress]
+  );
 
   useEffect(() => {
     warmupVoices();
@@ -337,23 +347,33 @@ export default function CoursePage() {
 
   // 完成时来一发庆祝音
   useEffect(() => {
-    if (complete) feedbackComplete();
-  }, [complete]);
+    if (!complete) return;
+    feedbackComplete();
+    if (session?.mode === "lesson" && session.lessonId && completedRecordedRef.current !== session.lessonId) {
+      completedRecordedRef.current = session.lessonId;
+      setCourseProgress(completeCourseLesson(session.lessonId));
+    }
+  }, [complete, session]);
 
   // 自动朗读：look / sound / write 进入题目时自动播放目标字母音
   useEffect(() => {
     if (!current) return;
     if (current.kind === "look" || current.kind === "sound" || current.kind === "write") {
       speak(current.item.speak);
+    } else if (
+      (current.kind === "syllable-sound" || current.kind === "syllable-letter") &&
+      current.syllable
+    ) {
+      speak(current.syllable.speak);
     }
   }, [current]);
 
   const lessonProgress = questions.length === 0 ? 0 : Math.min(100, (index / questions.length) * 100);
 
-  function startLesson(nextProgress = progress) {
-    const { items: pickedItems, title } = pickLessonItems(allItems, nextProgress);
-    setQuestions(buildQuestions(pickedItems, allItems));
-    setLessonTitle(title);
+  function beginSession(nextSession: ActiveSession) {
+    completedRecordedRef.current = null;
+    setSession(nextSession);
+    setQuestions(buildQuestions(nextSession));
     setIndex(0);
     setPicked(null);
     setSubmitted(false);
@@ -363,25 +383,101 @@ export default function CoursePage() {
     setPendingMemoryCorrect(false);
   }
 
+  function selectLessonItems(lesson: CourseLesson): StudyItem[] {
+    const raw = studyItemsByIds(allItems, lesson.itemIds);
+    if (lesson.kind !== "review") return raw;
+    return [...raw]
+      .sort((a, b) => (progress[a.id] || 0) - (progress[b.id] || 0))
+      .slice(0, Math.min(8, raw.length));
+  }
+
+  function startCourseLesson(lesson: CourseLesson) {
+    const status = lessonStatus(lesson, courseProgress);
+    if (status === "locked") return;
+    const choiceIds = unlockedItemIds(courseProgress, lesson.id);
+    const choiceItems = allItems.filter((item) => choiceIds.has(item.id));
+    const items = selectLessonItems(lesson);
+    beginSession({
+      title: lesson.title,
+      subtitle: lesson.subtitle,
+      lessonId: lesson.id,
+      mode: "lesson",
+      kind: lesson.kind,
+      items,
+      choiceItems,
+    });
+  }
+
+  function weakestGroup(groups: StudyItem[][]): StudyItem[] | null {
+    if (groups.length === 0) return null;
+    return [...groups].sort((a, b) => {
+      const aScore = a.reduce((sum, item) => sum + (progress[item.id] || 0), 0) / a.length;
+      const bScore = b.reduce((sum, item) => sum + (progress[item.id] || 0), 0) / b.length;
+      return aScore - bScore;
+    })[0];
+  }
+
+  function startPractice(mode: PracticeMode["id"]) {
+    const unlocked = filterUnlockedItems(allItems, courseProgress);
+    let items: StudyItem[] = [];
+    const title = PRACTICE_MODES.find((m) => m.id === mode)?.title ?? "专项练习";
+    let subtitle = PRACTICE_MODES.find((m) => m.id === mode)?.subtitle ?? "";
+
+    if (mode === "random") {
+      items = [...unlocked]
+        .sort((a, b) => (progress[a.id] || 0) - (progress[b.id] || 0))
+        .slice(0, Math.min(6, unlocked.length));
+    } else if (mode === "homophone") {
+      items = weakestGroup(homophoneGroups(unlocked)) ?? [];
+      if (items.length > 0) subtitle = `这一组都读 ${displayRoman(items[0].roman)}`;
+    } else if (mode === "shape") {
+      items = weakestGroup(shapeGroups(unlocked)) ?? [];
+    } else if (mode === "vowel-length") {
+      items = weakestGroup(vowelLengthGroups(unlocked)) ?? [];
+    }
+
+    if (items.length === 0) return;
+    beginSession({
+      title,
+      subtitle,
+      mode: "practice",
+      kind: mode,
+      items,
+      choiceItems: unlocked,
+    });
+  }
+
   useEffect(() => {
-    const stored = loadMastery();
-    setProgress(stored);
-    startLesson(stored);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setProgress(loadMastery());
+    setCourseProgress(loadCourseProgress());
   }, []);
 
   function gainMastery(itemId: string, amount: number) {
     setProgress(recordMastery(itemId, amount));
   }
 
+  function gainQuestionMastery(question: Question, amount: number) {
+    const ids = question.syllable?.componentIds ?? [question.item.id];
+    let next = progress;
+    for (const id of ids) next = recordMastery(id, amount);
+    setProgress(next);
+  }
+
+  function markQuestionWrong(question: Question) {
+    const ids = question.syllable?.componentIds ?? [question.item.id];
+    for (const id of ids) recordOutcome(id, "wrong");
+    setProgress(loadMastery());
+  }
+
   // 答错后把同题型的 replay 题压到队列后面（重新抽选项）。
   function queueReplay(question: Question) {
+    const replayPool = session?.choiceItems ?? allItems;
     const fresh: Question = {
       ...question,
       id: `${question.id}:retry:${Date.now()}`,
       choices:
         question.kind === "sound" || question.kind === "letter"
-          ? uniqueChoices(question.item, allItems, 4, (option) => option.roman)
+          ? uniqueChoices(question.item, replayPool, 4, (option) => option.roman)
           : question.choices,
     };
     setQuestions((qs) => [...qs, fresh]);
@@ -464,6 +560,28 @@ export default function CoursePage() {
       speak(current.item.speak);
     } else {
       setProgress(applyWrongAnswer(current.item.id, id));
+      setFeedback("bad");
+      feedbackWrong();
+      queueReplay(current);
+    }
+  }
+
+  function answerSyllable(id: string) {
+    if (!current || submitted || !current.syllable || !current.syllableChoices) return;
+    setPicked(id);
+    setSubmitted(true);
+    const pickedSyllable = current.syllableChoices.find((choice) => choice.id === id);
+    const ok = pickedSyllable?.roman === current.syllable.roman;
+    if (ok) {
+      gainQuestionMastery(current, 1);
+      setCorrectCount((v) => v + 1);
+      setFeedback("ok");
+      setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+      markActive();
+      feedbackCorrect();
+      speak(current.syllable.speak);
+    } else {
+      markQuestionWrong(current);
       setFeedback("bad");
       feedbackWrong();
       queueReplay(current);
@@ -566,17 +684,11 @@ export default function CoursePage() {
 
   function answerLook(correct: boolean) {
     if (!current) return;
-    if (correct) {
-      gainMastery(current.item.id, 1);
-      setCorrectCount((v) => v + 1);
-      markActive();
-      next();
-    } else {
-      setFeedback("bad");
-      feedbackWrong();
-      // look 轮答错不重排，但通过 feedback 让用户知道错了
-      setTimeout(() => setFeedback(null), 800);
-    }
+    if (!correct) return;
+    gainMastery(current.item.id, 1);
+    setCorrectCount((v) => v + 1);
+    markActive();
+    next();
   }
 
   function markWrote() {
@@ -589,11 +701,30 @@ export default function CoursePage() {
   }
 
   function resetProgress() {
+    if (!confirm("清空课程进度和所有熟练度？")) return;
     resetMastery();
-    window.localStorage.removeItem(LAST_LESSON_KEY);
+    resetCourseProgress();
     const empty = {};
     setProgress(empty);
-    startLesson(empty);
+    const reset = loadCourseProgress();
+    setCourseProgress(reset);
+    setSession(null);
+    setQuestions([]);
+  }
+
+  if (!session) {
+    return (
+      <CourseHome
+        progress={courseProgress}
+        mastery={progress}
+        unlockedCount={unlockedCount}
+        upcomingLesson={upcomingLesson}
+        allItems={allItems}
+        onStartLesson={startCourseLesson}
+        onStartPractice={startPractice}
+        onReset={resetProgress}
+      />
+    );
   }
 
   return (
@@ -601,8 +732,11 @@ export default function CoursePage() {
       {/* 进度条 + 重置 */}
       <div className="shrink-0">
         <div className="flex items-center justify-between gap-3 mb-1 px-1">
-          <div className="text-[10px] font-bold opacity-40 tracking-wider uppercase">
-            {lessonTitle}
+          <div className="min-w-0">
+            <div className="text-[10px] font-bold opacity-40 tracking-wider uppercase">
+              {session.mode === "lesson" ? "主线课程" : "专项练习"}
+            </div>
+            <div className="truncate text-sm font-semibold">{session.title}</div>
           </div>
           <div className="text-[10px] font-bold opacity-40">
             {index < questions.length ? `${index + 1} / ${questions.length}` : "完成"}
@@ -610,12 +744,11 @@ export default function CoursePage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={resetProgress}
-            className="text-xl opacity-50 hover:opacity-100"
-            aria-label="重置进度"
-            title="重置熟练度"
+            onClick={() => setSession(null)}
+            className="btn-ghost h-9 px-3 text-xs"
+            aria-label="返回课程列表"
           >
-            ✕
+            课程列表
           </button>
           <div className="progress-track flex-1">
             <div className="progress-fill" style={{ width: `${lessonProgress}%` }} />
@@ -634,9 +767,19 @@ export default function CoursePage() {
             <div className="mt-1 text-sm opacity-70">
               答对 {correctCount} / {questions.length}
             </div>
-            <button onClick={() => startLesson()} className="btn-primary mt-5 px-6">
-              再来一轮
-            </button>
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              {session.mode === "lesson" && upcomingLesson && (
+                <button onClick={() => startCourseLesson(upcomingLesson)} className="btn-primary px-6">
+                  下一课
+                </button>
+              )}
+              <button onClick={() => beginSession(session)} className="btn-ghost px-5">
+                复习本课
+              </button>
+              <button onClick={() => setSession(null)} className="btn-ghost px-5">
+                回到列表
+              </button>
+            </div>
           </section>
         ) : current ? (
           <div className="min-w-0 max-w-full overflow-x-hidden">
@@ -654,6 +797,7 @@ export default function CoursePage() {
               onAnswerMemory={answerMemory}
               onAnswerClass={answerClass}
               onAnswerLength={answerLength}
+              onAnswerSyllable={answerSyllable}
               onAnswerLook={answerLook}
               onCompleteMatch={completeMatch}
               onNext={next}
@@ -666,9 +810,190 @@ export default function CoursePage() {
           </div>
 
         ) : (
-          <section className="card-soft p-6 text-center text-sm opacity-70">正在生成课程...</section>
+          <section className="card-soft p-6 text-center text-sm opacity-70">请选择一节课程</section>
         )}
       </div>
+    </div>
+  );
+}
+
+function CourseHome({
+  progress,
+  mastery,
+  unlockedCount,
+  upcomingLesson,
+  allItems,
+  onStartLesson,
+  onStartPractice,
+  onReset,
+}: {
+  progress: CourseProgress;
+  mastery: MasteryProgress;
+  unlockedCount: number;
+  upcomingLesson: CourseLesson | null;
+  allItems: StudyItem[];
+  onStartLesson: (lesson: CourseLesson) => void;
+  onStartPractice: (mode: PracticeMode["id"]) => void;
+  onReset: () => void;
+}) {
+  const unlocked = filterUnlockedItems(allItems, progress);
+  const completed = progress.completedLessonIds.length;
+  const completionPct = Math.round((completed / MAIN_COURSE.length) * 100);
+  const masteredUnlocked = unlocked.filter((item) => (mastery[item.id] || 0) >= 60).length;
+  const practiceAvailability: Record<PracticeMode["id"], number> = {
+    random: unlocked.length,
+    homophone: homophoneGroups(unlocked).length,
+    shape: shapeGroups(unlocked).length,
+    "vowel-length": vowelLengthGroups(unlocked).length,
+  };
+
+  const units = MAIN_COURSE.reduce<Record<string, CourseLesson[]>>((acc, lesson) => {
+    acc[lesson.unit] = [...(acc[lesson.unit] ?? []), lesson];
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-5">
+      <section
+        className="card-soft overflow-hidden p-5 sm:p-6"
+        style={{
+          background:
+            "radial-gradient(circle at 82% 18%, rgba(40, 215, 244, 0.16), transparent 15rem), linear-gradient(135deg, rgba(9, 32, 44, 0.96), rgba(4, 14, 21, 0.96))",
+        }}
+      >
+        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0">
+            <div className="chip chip-blue">课程路径</div>
+            <h1 className="mt-3 text-2xl font-semibold sm:text-3xl">按顺序学完泰语字母</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: "var(--duo-muted)" }}>
+              每节课内容固定，只从已解锁的字母里出选项。完成主线以后，专项练习会继续帮你复习同音、形近和元音长短。
+            </p>
+          </div>
+          <div className="grid min-w-64 grid-cols-3 gap-2 text-center text-xs">
+            <div className="rounded-lg border p-3" style={{ borderColor: "var(--duo-line)", background: "rgba(255,255,255,0.025)" }}>
+              <div className="text-xl font-semibold" style={{ color: "var(--duo-green-d)" }}>{completed}</div>
+              <div className="mt-0.5 opacity-65">已完成</div>
+            </div>
+            <div className="rounded-lg border p-3" style={{ borderColor: "var(--duo-line)", background: "rgba(255,255,255,0.025)" }}>
+              <div className="text-xl font-semibold" style={{ color: "var(--duo-blue-d)" }}>{unlockedCount}</div>
+              <div className="mt-0.5 opacity-65">已解锁</div>
+            </div>
+            <div className="rounded-lg border p-3" style={{ borderColor: "var(--duo-line)", background: "rgba(255,255,255,0.025)" }}>
+              <div className="text-xl font-semibold" style={{ color: "var(--duo-orange-d)" }}>{masteredUnlocked}</div>
+              <div className="mt-0.5 opacity-65">较熟悉</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="progress-track h-2 flex-1">
+            <div className="progress-fill" style={{ width: `${completionPct}%` }} />
+          </div>
+          <div className="text-xs font-semibold" style={{ color: "var(--duo-muted)" }}>
+            {completionPct}% · {MAIN_COURSE.length} 节主线课
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          {upcomingLesson && (
+            <button onClick={() => onStartLesson(upcomingLesson)} className="btn-primary px-5">
+              继续：{upcomingLesson.title}
+            </button>
+          )}
+          <button onClick={() => onStartPractice("random")} className="btn-ghost px-5">
+            随机复习已学
+          </button>
+          <button onClick={onReset} className="btn-ghost px-4 text-xs">
+            重置课程
+          </button>
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">专项练习</h2>
+          <div className="text-xs" style={{ color: "var(--duo-muted)" }}>只抽已解锁内容</div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {PRACTICE_MODES.map((mode) => {
+            const disabled = practiceAvailability[mode.id] === 0;
+            return (
+              <button
+                key={mode.id}
+                onClick={() => onStartPractice(mode.id)}
+                disabled={disabled}
+                className="card group min-h-[9rem] p-4 text-left transition hover:-translate-y-0.5 disabled:opacity-45"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="font-semibold">{mode.title}</div>
+                  <span className="chip chip-blue">{practiceAvailability[mode.id]}</span>
+                </div>
+                <div className="mt-2 text-sm leading-5" style={{ color: "var(--duo-muted)" }}>
+                  {mode.subtitle}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-base font-semibold">主线课程</h2>
+        {Object.entries(units).map(([unit, lessons]) => (
+          <div key={unit} className="space-y-2">
+            <div className="px-1 text-xs font-semibold" style={{ color: "var(--duo-green-d)" }}>{unit}</div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {lessons.map((lesson) => {
+                const status = lessonStatus(lesson, progress);
+                const disabled = status === "locked";
+                const lessonItems = studyItemsByIds(allItems, lesson.itemIds);
+                const preview = lessonItems.slice(0, 8).map((item) => item.front).join(" ");
+                return (
+                  <button
+                    key={lesson.id}
+                    onClick={() => onStartLesson(lesson)}
+                    disabled={disabled}
+                    className="group grid min-h-[6.5rem] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border p-3 text-left transition hover:-translate-y-0.5 disabled:opacity-42"
+                    style={{
+                      background: status === "current"
+                        ? "color-mix(in srgb, var(--duo-green) 8%, var(--duo-card))"
+                        : "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.008)), var(--duo-card)",
+                      borderColor: status === "current" ? "rgba(40, 215, 244, 0.34)" : "var(--duo-line)",
+                      boxShadow: status === "current" ? "var(--shadow-cyan)" : "var(--shadow-small)",
+                    }}
+                  >
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-lg border text-sm font-semibold"
+                      style={{
+                        borderColor: status === "done" ? "rgba(40, 215, 244, 0.32)" : "var(--duo-line)",
+                        background: status === "done" ? "rgba(40, 215, 244, 0.1)" : "var(--surface-subtle)",
+                        color: status === "locked" ? "var(--duo-muted)" : "var(--duo-green-d)",
+                      }}
+                    >
+                      {status === "done" ? "✓" : status === "locked" ? "·" : lesson.id.slice(1)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">{lesson.title}</span>
+                        <span className={`chip ${lesson.kind === "consonant" ? "chip-high" : lesson.kind === "vowel" ? "chip-yellow" : lesson.kind === "blend" ? "chip-blue" : "chip-low"}`}>
+                          {lesson.kind === "consonant" ? "辅音" : lesson.kind === "vowel" ? "元音" : lesson.kind === "blend" ? "拼读" : "复习"}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs leading-5" style={{ color: "var(--duo-muted)" }}>{lesson.subtitle}</div>
+                      <div className="thai-big mt-2 truncate text-lg leading-none" style={{ color: status === "locked" ? "var(--duo-muted)" : "var(--duo-text)" }}>
+                        {preview}
+                      </div>
+                    </div>
+                    <div className="text-xs font-semibold" style={{ color: status === "current" ? "var(--duo-green-d)" : "var(--duo-muted)" }}>
+                      {status === "done" ? "复习" : status === "current" ? "开始" : "锁定"}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </section>
     </div>
   );
 }
@@ -687,6 +1012,7 @@ function QuestionCard({
   onAnswerMemory,
   onAnswerClass,
   onAnswerLength,
+  onAnswerSyllable,
   onAnswerLook,
   onCompleteMatch,
   onNext,
@@ -709,6 +1035,7 @@ function QuestionCard({
   onAnswerMemory: (grade: number, peeked: boolean) => void;
   onAnswerClass: (correct: boolean) => void;
   onAnswerLength: (correct: boolean) => void;
+  onAnswerSyllable: (id: string) => void;
   onAnswerLook: (correct: boolean) => void;
   onCompleteMatch: () => void;
   onNext: () => void;
@@ -752,24 +1079,9 @@ function QuestionCard({
           <PronounceButton text={question.item.speak} label="🔊 听一下" />
         </div>
 
-        {isConsonant ? (
-          <div className="mt-6 space-y-2">
-            <div className="text-[11px] opacity-60">请根据题面判断辅音等级：</div>
-            <div className="grid grid-cols-3 gap-2">
-              <button onClick={() => onAnswerLook(question.item.class === "mid")} className="btn-ghost border-2 py-3 text-xs">中辅音</button>
-              <button onClick={() => onAnswerLook(question.item.class === "high")} className="btn-ghost border-2 py-3 text-xs">高辅音</button>
-              <button onClick={() => onAnswerLook(question.item.class === "low")} className="btn-ghost border-2 py-3 text-xs">低辅音</button>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-6 space-y-2">
-            <div className="text-[11px] opacity-60">请根据题面判断元音长度：</div>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => onAnswerLook(question.item.length === "short")} className="btn-ghost border-2 py-3 text-sm">短元音</button>
-              <button onClick={() => onAnswerLook(question.item.length === "long")} className="btn-ghost border-2 py-3 text-sm">长元音</button>
-            </div>
-          </div>
-        )}
+        <button onClick={() => onAnswerLook(true)} className="btn-primary mt-6 px-8">
+          记住了，继续
+        </button>
 
         <div className="mt-5 text-xs opacity-50">
           熟练度 {mastery} / {MASTERY_TARGET}
@@ -854,6 +1166,21 @@ function QuestionCard({
         onNext={onMemoryNext}
         onMistaken={onMemoryMistaken}
         canMarkMistaken={canMarkMemoryMistaken}
+      />
+    );
+  }
+
+  if (question.kind === "syllable-sound" || question.kind === "syllable-letter") {
+    return (
+      <SyllableCard
+        key={question.id}
+        question={question}
+        picked={picked}
+        submitted={submitted}
+        feedback={feedback}
+        praise={praise}
+        onPick={onAnswerSyllable}
+        onNext={onNext}
       />
     );
   }
@@ -974,6 +1301,93 @@ function QuestionCard({
               onClick={onNext}
               className={correctAnswered ? "btn-primary px-5" : "btn-red px-5"}
             >
+              继续
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SyllableCard({
+  question,
+  picked,
+  submitted,
+  feedback,
+  praise,
+  onPick,
+  onNext,
+}: {
+  question: Question;
+  picked: string | null;
+  submitted: boolean;
+  feedback: "ok" | "bad" | null;
+  praise: string;
+  onPick: (id: string) => void;
+  onNext: () => void;
+}) {
+  const syllable = question.syllable;
+  const choices = question.syllableChoices ?? [];
+  if (!syllable) return null;
+  const asksSound = question.kind === "syllable-sound";
+  const prompt = asksSound ? "这个拼读读什么？" : `哪个拼读读 ${syllable.roman}？`;
+  const correctAnswered = submitted && choices.find((choice) => choice.id === picked)?.roman === syllable.roman;
+
+  return (
+    <section className="space-y-4">
+      <div className={`card-soft p-6 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
+        <div className="chip chip-blue">原辅音拼读</div>
+        <div className="mt-3 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>{prompt}</div>
+        {asksSound ? (
+          <div className="thai-big mt-5 text-8xl leading-none">{syllable.front}</div>
+        ) : (
+          <div className="mt-5 font-mono text-5xl font-semibold" style={{ color: "var(--duo-green-d)" }}>
+            {syllable.roman}
+          </div>
+        )}
+        <div className="mt-4">
+          <PronounceButton text={syllable.speak} label="🔊 听" />
+        </div>
+      </div>
+
+      <ul className="grid grid-cols-2 gap-3">
+        {choices.map((choice) => {
+          const isPicked = picked === choice.id;
+          const isCorrect = choice.roman === syllable.roman;
+          let cls = "opt";
+          if (submitted) {
+            if (isCorrect) cls = "opt opt-correct";
+            else if (isPicked) cls = "opt opt-wrong";
+            else cls = "opt opt-disabled";
+          } else if (isPicked) {
+            cls = "opt opt-selected";
+          }
+          return (
+            <li key={choice.id}>
+              <button onClick={() => onPick(choice.id)} disabled={submitted} className={`${cls} min-h-[76px]`}>
+                {asksSound ? (
+                  <span className="font-mono text-xl">{choice.roman}</span>
+                ) : (
+                  <span className="thai-big text-4xl leading-none">{choice.front}</span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      {submitted && (
+        <div className={`feedback ${correctAnswered ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div>{correctAnswered ? praise : "正确答案是"}</div>
+              <div className="mt-1 text-sm font-bold">
+                <span className="thai-big mr-2 text-lg">{syllable.front}</span>
+                <span className="font-mono">{syllable.roman}</span>
+              </div>
+            </div>
+            <button onClick={onNext} className={correctAnswered ? "btn-primary px-5" : "btn-red px-5"}>
               继续
             </button>
           </div>

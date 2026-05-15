@@ -87,7 +87,7 @@ export function vowelPhonetic(v: Vowel): string {
 }
 
 export function buildStudyItems(): StudyItem[] {
-  const consonants = CONSONANTS.filter((c) => !c.obsolete).map((c) => ({
+  const consonants = CONSONANTS.map((c) => ({
     id: `c:${c.id}`,
     front: c.letter,
     answer: `${c.romanInitial} · ${c.name} · ${c.meaning}`,
