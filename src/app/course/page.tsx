@@ -563,6 +563,16 @@ function buildQuestions(session: ActiveSession): Question[] {
 }
 
 const PRAISE = ["太棒了！", "做得好！", "完美！", "继续保持！", "答对了！", "厉害👏"];
+const COURSE_MATCH_SLOT_COUNT = 5;
+const COURSE_MATCH_MIN_MATCHABLE = 4;
+const COURSE_MATCH_MAX_NOT_FULL = 2;
+
+interface CourseMatchBoard {
+  leftSlots: (StudyItem | null)[];
+  rightSlots: (StudyItem | null)[];
+  leftQueue: StudyItem[];
+  rightQueue: StudyItem[];
+}
 
 function isShortcutBlocked(event: KeyboardEvent): boolean {
   if (event.metaKey || event.ctrlKey || event.altKey) return true;
@@ -585,6 +595,121 @@ function choiceIndexFromKey(event: KeyboardEvent, max: number): number | null {
 
 function isSpaceKey(event: KeyboardEvent): boolean {
   return event.key === " " || event.code === "Space";
+}
+
+function multisetDiff(a: string[], b: string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const x of b) counts.set(x, (counts.get(x) ?? 0) + 1);
+  const out: string[] = [];
+  for (const x of a) {
+    const c = counts.get(x) ?? 0;
+    if (c > 0) counts.set(x, c - 1);
+    else out.push(x);
+  }
+  return out;
+}
+
+function courseMatchableCount(
+  thisSlots: (StudyItem | null)[],
+  otherSlots: (StudyItem | null)[]
+): number {
+  const otherCounts = new Map<string, number>();
+  for (const s of otherSlots) {
+    if (s) otherCounts.set(s.roman, (otherCounts.get(s.roman) ?? 0) + 1);
+  }
+  let count = 0;
+  for (const s of thisSlots) {
+    if (!s) continue;
+    const c = otherCounts.get(s.roman) ?? 0;
+    if (c > 0) {
+      count++;
+      otherCounts.set(s.roman, c - 1);
+    }
+  }
+  return count;
+}
+
+function coursePickFullyMatchablePair(
+  leftQueue: StudyItem[],
+  rightQueue: StudyItem[],
+  leftAfterClear: (StudyItem | null)[],
+  rightAfterClear: (StudyItem | null)[]
+): {
+  leftItem: StudyItem;
+  rightItem: StudyItem;
+  leftQueue: StudyItem[];
+  rightQueue: StudyItem[];
+} | null {
+  const leftRomans = leftAfterClear.filter(Boolean).map((s) => (s as StudyItem).roman);
+  const rightRomans = rightAfterClear.filter(Boolean).map((s) => (s as StudyItem).roman);
+  const lonelyLeft = multisetDiff(leftRomans, rightRomans);
+  const lonelyRight = multisetDiff(rightRomans, leftRomans);
+
+  if (lonelyLeft.length === 0 && lonelyRight.length === 0) {
+    const leftItem = leftQueue[0];
+    if (!leftItem) return null;
+    const rightIdx = rightQueue.findIndex((it) => it.roman === leftItem.roman);
+    if (rightIdx < 0) return null;
+    return {
+      leftItem,
+      rightItem: rightQueue[rightIdx],
+      leftQueue: leftQueue.slice(1),
+      rightQueue: [...rightQueue.slice(0, rightIdx), ...rightQueue.slice(rightIdx + 1)],
+    };
+  }
+
+  const leftIdx = leftQueue.findIndex((it) => it.roman === lonelyRight[0]);
+  const rightIdx = rightQueue.findIndex((it) => it.roman === lonelyLeft[0]);
+  if (leftIdx < 0 || rightIdx < 0) return null;
+  return {
+    leftItem: leftQueue[leftIdx],
+    rightItem: rightQueue[rightIdx],
+    leftQueue: [...leftQueue.slice(0, leftIdx), ...leftQueue.slice(leftIdx + 1)],
+    rightQueue: [...rightQueue.slice(0, rightIdx), ...rightQueue.slice(rightIdx + 1)],
+  };
+}
+
+function coursePickReplenishment(
+  queue: StudyItem[],
+  thisSlots: (StudyItem | null)[],
+  otherSlots: (StudyItem | null)[]
+): { item: StudyItem | null; queue: StudyItem[] } {
+  if (queue.length === 0) return { item: null, queue };
+  const otherRomans = new Set(otherSlots.filter(Boolean).map((s) => (s as StudyItem).roman));
+  const thisIds = new Set(thisSlots.filter(Boolean).map((s) => (s as StudyItem).id));
+  const activeTarget = Math.min(
+    COURSE_MATCH_SLOT_COUNT,
+    thisSlots.filter(Boolean).length + 1,
+    otherSlots.filter(Boolean).length
+  );
+  const requiredMatchable = Math.min(COURSE_MATCH_MIN_MATCHABLE, activeTarget);
+  const matchable = courseMatchableCount(thisSlots, otherSlots);
+
+  if (matchable < requiredMatchable) {
+    const idx = queue.findIndex((it) => otherRomans.has(it.roman) && !thisIds.has(it.id));
+    if (idx >= 0) {
+      return { item: queue[idx], queue: [...queue.slice(0, idx), ...queue.slice(idx + 1)] };
+    }
+  }
+
+  const idx = queue.findIndex((it) => !thisIds.has(it.id));
+  if (idx >= 0) {
+    return { item: queue[idx], queue: [...queue.slice(0, idx), ...queue.slice(idx + 1)] };
+  }
+  return { item: queue[0], queue: queue.slice(1) };
+}
+
+function makeCourseMatchBoard(items: StudyItem[]): CourseMatchBoard {
+  const slotCount = Math.min(COURSE_MATCH_SLOT_COUNT, items.length);
+  const initialItems = shuffleStrong(items).slice(0, slotCount);
+  const initialIds = new Set(initialItems.map((it) => it.id));
+  const restItems = items.filter((it) => !initialIds.has(it.id));
+  return {
+    leftSlots: shuffleStrong(initialItems),
+    rightSlots: shuffleStrong(initialItems),
+    leftQueue: shuffleStrong(restItems),
+    rightQueue: shuffleStrong(restItems),
+  };
 }
 
 export default function CoursePage() {
@@ -2460,19 +2585,16 @@ function MatchCard({
   onNext: () => void;
 }) {
   const items = question.choices;
-  const [leftOrder] = useState(() => shuffleStrong(items));
-  const [rightOrder] = useState(() => shuffleStrong(items));
-  // 左右各自跟踪已用过的 button id；按罗马音判定配对（同音不同字母可互配），
-  // 所以左[X] 配对后右[X] 仍可被用来配 left[Y]（同 roman）。
-  const [matchedLeft, setMatchedLeft] = useState<Set<string>>(new Set());
-  const [matchedRight, setMatchedRight] = useState<Set<string>>(new Set());
-  const [pickedLeft, setPickedLeft] = useState<string | null>(null);
-  const [pickedRight, setPickedRight] = useState<string | null>(null);
-  const pickedLeftRef = useRef<string | null>(null);
-  const pickedRightRef = useRef<string | null>(null);
+  const [board, setBoard] = useState<CourseMatchBoard>(() => makeCourseMatchBoard(items));
+  const [matchedCount, setMatchedCount] = useState(0);
+  const [pickedLeft, setPickedLeft] = useState<number | null>(null);
+  const [pickedRight, setPickedRight] = useState<number | null>(null);
+  const pickedLeftRef = useRef<number | null>(null);
+  const pickedRightRef = useRef<number | null>(null);
   const [streak, setStreak] = useState(0);
   const [flash, setFlash] = useState<"ok" | "bad" | null>(null);
   const completedRef = useRef(false);
+  const notFullStreakRef = useRef(0);
 
   const clearPicks = () => {
     pickedLeftRef.current = null;
@@ -2481,20 +2603,73 @@ function MatchCard({
     setPickedRight(null);
   };
 
-  const tryMatch = (leftId: string | null, rightId: string | null) => {
-    if (!leftId || !rightId) return;
-    const leftItem = items.find((i) => i.id === leftId);
-    const rightItem = items.find((i) => i.id === rightId);
+  const tryMatch = (leftIdx: number | null, rightIdx: number | null) => {
+    if (leftIdx === null || rightIdx === null) return;
+    const leftItem = board.leftSlots[leftIdx];
+    const rightItem = board.rightSlots[rightIdx];
     if (!leftItem || !rightItem) return;
     if (leftItem.roman === rightItem.roman) {
-      setMatchedLeft((s) => new Set(s).add(leftId));
-      setMatchedRight((s) => new Set(s).add(rightId));
       const newStreak = streak + 1;
       setStreak(newStreak);
+      setMatchedCount((count) => count + 1);
       setFlash("ok");
       speak(leftItem.speak);
       if (newStreak >= 2) feedbackCombo(newStreak);
       else feedbackMatch();
+      setBoard((b) => {
+        const leftAfterClear = [...b.leftSlots];
+        leftAfterClear[leftIdx] = null;
+        const rightAfterClear = [...b.rightSlots];
+        rightAfterClear[rightIdx] = null;
+
+        const newLeftSlots = [...leftAfterClear];
+        const newRightSlots = [...rightAfterClear];
+        let newLeftQueue = b.leftQueue;
+        let newRightQueue = b.rightQueue;
+        let placed = false;
+
+        const mustForceFull = notFullStreakRef.current >= COURSE_MATCH_MAX_NOT_FULL;
+        if (mustForceFull) {
+          const fully = coursePickFullyMatchablePair(
+            b.leftQueue,
+            b.rightQueue,
+            leftAfterClear,
+            rightAfterClear
+          );
+          if (fully) {
+            newLeftSlots[leftIdx] = fully.leftItem;
+            newRightSlots[rightIdx] = fully.rightItem;
+            newLeftQueue = fully.leftQueue;
+            newRightQueue = fully.rightQueue;
+            placed = true;
+          }
+        }
+
+        if (!placed) {
+          const leftPick = coursePickReplenishment(b.leftQueue, leftAfterClear, rightAfterClear);
+          newLeftSlots[leftIdx] = leftPick.item;
+          newLeftQueue = leftPick.queue;
+
+          const rightPick = coursePickReplenishment(b.rightQueue, rightAfterClear, newLeftSlots);
+          newRightSlots[rightIdx] = rightPick.item;
+          newRightQueue = rightPick.queue;
+        }
+
+        const activePairs = Math.min(
+          newLeftSlots.filter(Boolean).length,
+          newRightSlots.filter(Boolean).length
+        );
+        const requiredMatchable = Math.min(COURSE_MATCH_MIN_MATCHABLE, activePairs);
+        const fullyMatchable = courseMatchableCount(newLeftSlots, newRightSlots) >= requiredMatchable;
+        notFullStreakRef.current = fullyMatchable ? 0 : notFullStreakRef.current + 1;
+
+        return {
+          leftSlots: newLeftSlots,
+          rightSlots: newRightSlots,
+          leftQueue: newLeftQueue,
+          rightQueue: newRightQueue,
+        };
+      });
       setTimeout(() => setFlash(null), 250);
     } else {
       setStreak(0);
@@ -2504,29 +2679,29 @@ function MatchCard({
     }
   };
 
-  const onLeft = (id: string) => {
-    if (submitted || matchedLeft.has(id)) return;
+  const onLeft = (idx: number) => {
+    if (submitted || !board.leftSlots[idx]) return;
     feedbackTap();
     const rightPick = pickedRightRef.current;
-    if (rightPick) {
+    if (rightPick !== null) {
       clearPicks();
-      tryMatch(id, rightPick);
+      tryMatch(idx, rightPick);
       return;
     }
-    const next = pickedLeftRef.current === id ? null : id;
+    const next = pickedLeftRef.current === idx ? null : idx;
     pickedLeftRef.current = next;
     setPickedLeft(next);
   };
-  const onRight = (id: string) => {
-    if (submitted || matchedRight.has(id)) return;
+  const onRight = (idx: number) => {
+    if (submitted || !board.rightSlots[idx]) return;
     feedbackTap();
     const leftPick = pickedLeftRef.current;
-    if (leftPick) {
+    if (leftPick !== null) {
       clearPicks();
-      tryMatch(leftPick, id);
+      tryMatch(leftPick, idx);
       return;
     }
-    const next = pickedRightRef.current === id ? null : id;
+    const next = pickedRightRef.current === idx ? null : idx;
     pickedRightRef.current = next;
     setPickedRight(next);
   };
@@ -2555,21 +2730,21 @@ function MatchCard({
       }
 
       if (event.key === "Delete" || event.key === "Backspace") {
-        if (!pickedLeftRef.current && !pickedRightRef.current) return;
+        if (pickedLeftRef.current === null && pickedRightRef.current === null) return;
         event.preventDefault();
         clearPicks();
         return;
       }
 
-      const hasLeftPick = Boolean(pickedLeftRef.current);
-      const order = hasLeftPick ? rightOrder : leftOrder;
+      const hasLeftPick = pickedLeftRef.current !== null;
+      const order = hasLeftPick ? visibleRightSlots : visibleLeftSlots;
       const index = choiceIndexFromKey(event, Math.min(5, order.length));
       if (index === null) return;
       event.preventDefault();
-      const item = order[index];
-      if (!item) return;
-      if (hasLeftPick) onRight(item.id);
-      else onLeft(item.id);
+      const slot = order[index];
+      if (!slot) return;
+      if (hasLeftPick) onRight(slot.idx);
+      else onLeft(slot.idx);
     }
 
     window.addEventListener("keydown", handleKeyDown);
@@ -2577,18 +2752,27 @@ function MatchCard({
   });
 
   useEffect(() => {
-    if (matchedLeft.size === items.length && !completedRef.current) {
+    if (matchedCount >= items.length && !completedRef.current) {
       completedRef.current = true;
       onComplete();
     }
-  }, [matchedLeft, items.length, onComplete]);
+  }, [matchedCount, items.length, onComplete]);
+
+  const visibleLeftSlots = board.leftSlots
+    .map((it, idx) => ({ it, idx }))
+    .filter((slot): slot is { it: StudyItem; idx: number } => Boolean(slot.it));
+  const visibleRightSlots = board.rightSlots
+    .map((it, idx) => ({ it, idx }))
+    .filter((slot): slot is { it: StudyItem; idx: number } => Boolean(slot.it));
+  const currentMatchable = courseMatchableCount(board.leftSlots, board.rightSlots);
 
   return (
     <section className={`space-y-4 ${flash === "bad" ? "animate-shake" : ""}`}>
       <div className="card-soft p-5 text-center">
         <div className="chip chip-yellow">配对 · 把字母和读音连起来</div>
-        <div className="mt-3 flex items-center justify-center gap-3 text-sm">
-          <span className="opacity-70">已配对 {matchedLeft.size} / {items.length}</span>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-3 text-sm">
+          <span className="opacity-70">已配对 {matchedCount} / {items.length}</span>
+          <span className="opacity-50">当前可配 {currentMatchable} 对</span>
           {streak >= 2 && (
             <span className="font-semibold animate-pop" style={{ color: "var(--duo-orange)" }}>
               连击 ×{streak}
@@ -2598,16 +2782,14 @@ function MatchCard({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <ul className="space-y-2">
-          {leftOrder.map((it) => {
-            const ok = matchedLeft.has(it.id);
-            const isPicked = pickedLeft === it.id;
-            const cls = ok ? "opt opt-correct" : isPicked ? "opt opt-selected" : "opt";
+          {visibleLeftSlots.map(({ it, idx }) => {
+            const isPicked = pickedLeft === idx;
+            const cls = isPicked ? "opt opt-selected" : "opt";
             return (
-              <li key={`L-${it.id}`}>
+              <li key={`L-${idx}-${it.id}`}>
                 <button
-                  onPointerDown={(event) => handlePointerPress(event, () => onLeft(it.id))}
-                  onKeyDown={(event) => handleKeyboardPress(event, () => onLeft(it.id))}
-                  disabled={ok}
+                  onPointerDown={(event) => handlePointerPress(event, () => onLeft(idx))}
+                  onKeyDown={(event) => handleKeyboardPress(event, () => onLeft(idx))}
                   className={`${cls} flex min-h-[72px] w-full items-center justify-center`}
                   style={{ touchAction: "none", userSelect: "none" }}
                 >
@@ -2618,16 +2800,14 @@ function MatchCard({
           })}
         </ul>
         <ul className="space-y-2">
-          {rightOrder.map((it) => {
-            const ok = matchedRight.has(it.id);
-            const isPicked = pickedRight === it.id;
-            const cls = ok ? "opt opt-correct" : isPicked ? "opt opt-selected" : "opt";
+          {visibleRightSlots.map(({ it, idx }) => {
+            const isPicked = pickedRight === idx;
+            const cls = isPicked ? "opt opt-selected" : "opt";
             return (
-              <li key={`R-${it.id}`}>
+              <li key={`R-${idx}-${it.id}`}>
                 <button
-                  onPointerDown={(event) => handlePointerPress(event, () => onRight(it.id))}
-                  onKeyDown={(event) => handleKeyboardPress(event, () => onRight(it.id))}
-                  disabled={ok}
+                  onPointerDown={(event) => handlePointerPress(event, () => onRight(idx))}
+                  onKeyDown={(event) => handleKeyboardPress(event, () => onRight(idx))}
                   className={`${cls} flex min-h-[72px] w-full items-center justify-center`}
                   style={{ touchAction: "none", userSelect: "none" }}
                 >
