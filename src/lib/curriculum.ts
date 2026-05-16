@@ -1,4 +1,13 @@
-import { SHAPE_CONFUSABLES } from "@/data";
+import {
+  ADVANCED_GRAMMAR_COMPETENCIES,
+  C2_DOMAIN_TARGETS,
+  GRAMMAR_COVERAGE_SECTIONS,
+  LEXICON_BUILD_TARGET,
+  PROFESSIONAL_GENRE_TARGETS,
+  SHAPE_CONFUSABLES,
+  VOCABULARY_MASTERY_BANDS,
+  type ContentLevel,
+} from "@/data";
 import { CONSONANTS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import type { StudyItem } from "@/lib/study";
@@ -278,3 +287,532 @@ export function allKnownStudyIds(): string[] {
     ...VOWELS.map((item) => `v:${item.id}`),
   ];
 }
+
+export type CourseRoadmapPhaseId =
+  | "phonics"
+  | "core-grammar"
+  | "advanced-grammar"
+  | "vocabulary";
+
+export type CourseRoadmapLessonKind =
+  | "phonics-path"
+  | "grammar-core"
+  | "grammar-review"
+  | "advanced-grammar"
+  | "output-practice"
+  | "vocabulary-band"
+  | "domain-vocabulary";
+
+export interface CourseVocabularyPlan {
+  mode: "inline-with-grammar" | "dedicated-vocabulary";
+  rankRange: [number, number];
+  bandIds: string[];
+  activeTarget?: number;
+  domains: string[];
+  noteZh: string;
+}
+
+export interface CourseRoadmapLesson {
+  id: string;
+  title: string;
+  subtitle: string;
+  kind: CourseRoadmapLessonKind;
+  level: ContentLevel;
+  sourceCourseLessonId?: string;
+  studyItemIds?: string[];
+  newGrammarCoverageIds?: string[];
+  reviewGrammarCoverageIds?: string[];
+  grammarPointIds?: string[];
+  advancedCompetencyIds?: string[];
+  professionalGenreIds?: string[];
+  c2DomainTargetIds?: string[];
+  vocabularyPlan?: CourseVocabularyPlan;
+}
+
+export interface CourseRoadmapUnit {
+  id: string;
+  phaseId: CourseRoadmapPhaseId;
+  order: number;
+  title: string;
+  subtitle: string;
+  level: ContentLevel;
+  completionGateZh: string;
+  lessons: CourseRoadmapLesson[];
+}
+
+export interface CourseRoadmapPhase {
+  id: CourseRoadmapPhaseId;
+  order: number;
+  title: string;
+  subtitle: string;
+  unlockRuleZh: string;
+  units: CourseRoadmapUnit[];
+}
+
+const coverageById = new Map(GRAMMAR_COVERAGE_SECTIONS.map((section) => [section.id, section]));
+const bandById = new Map(VOCABULARY_MASTERY_BANDS.map((band) => [band.id, band]));
+const advancedCompetencyById = new Map(ADVANCED_GRAMMAR_COMPETENCIES.map((item) => [item.id, item]));
+
+function bandIdsForRange(range: [number, number]): string[] {
+  const [start, end] = range;
+  return VOCABULARY_MASTERY_BANDS.filter((band) => {
+    const [bandStart, bandEnd] = band.passiveRange;
+    return bandStart <= end && bandEnd >= start;
+  }).map((band) => band.id);
+}
+
+function activeTargetForBandIds(bandIds: string[]): number | undefined {
+  const targets = bandIds
+    .map((id) => bandById.get(id)?.activeTarget)
+    .filter((target): target is number => typeof target === "number");
+  return targets.length > 0 ? Math.max(...targets) : undefined;
+}
+
+function splitRankRange(range: [number, number], parts: number, index: number): [number, number] {
+  if (parts <= 1) return range;
+  const [start, end] = range;
+  const width = Math.ceil((end - start + 1) / parts);
+  const itemStart = start + width * index;
+  return [itemStart, Math.min(end, itemStart + width - 1)];
+}
+
+function pointIdsForCoverage(coverageIds: string[]): string[] {
+  return uniq(coverageIds.flatMap((id) => coverageById.get(id)?.pointIds ?? []));
+}
+
+function inlineVocabularyPlan(
+  range: [number, number],
+  domains: string[],
+  noteZh = "这批高频词跟语法一起学，只做点选、听辨、拼读和例句识别，不额外开输入题。"
+): CourseVocabularyPlan {
+  const bandIds = bandIdsForRange(range);
+  return {
+    mode: "inline-with-grammar",
+    rankRange: range,
+    bandIds,
+    activeTarget: activeTargetForBandIds(bandIds),
+    domains,
+    noteZh,
+  };
+}
+
+function dedicatedVocabularyPlan(
+  range: [number, number],
+  domains: string[],
+  noteZh = "语法主线完成后再进入纯词汇课，重点扩被动识别、主动表达和场景输出。"
+): CourseVocabularyPlan {
+  const bandIds = bandIdsForRange(range);
+  return {
+    mode: "dedicated-vocabulary",
+    rankRange: range,
+    bandIds,
+    activeTarget: activeTargetForBandIds(bandIds),
+    domains,
+    noteZh,
+  };
+}
+
+const PHONICS_ROADMAP_UNIT: CourseRoadmapUnit = {
+  id: "phonics-script-and-syllables",
+  phaseId: "phonics",
+  order: 1,
+  title: "语音单元 · 字母、元音和拼读",
+  subtitle: "沿用现在的字母表课程，先把文字和基础发音跑通。",
+  level: "pre-a1",
+  completionGateZh: "完成全部字母/元音/拼读小课，解锁语法主线。",
+  lessons: MAIN_COURSE.map((lesson) => ({
+    id: `roadmap-${lesson.id}`,
+    title: lesson.title,
+    subtitle: lesson.subtitle,
+    kind: "phonics-path",
+    level: "pre-a1",
+    sourceCourseLessonId: lesson.id,
+    studyItemIds: lesson.itemIds,
+    newGrammarCoverageIds: ["coverage-01-phonology-writing"],
+  })),
+};
+
+const CORE_GRAMMAR_UNIT_CONFIGS: Array<{
+  id: string;
+  title: string;
+  subtitle: string;
+  level: ContentLevel;
+  coverageIds: string[];
+  vocabularyRange: [number, number];
+  vocabularyDomains: string[];
+}> = [
+  {
+    id: "grammar-01-foundation",
+    title: "语法 1 · 句子地基",
+    subtitle: "先把无变位、是/有/在、人称、礼貌、问句和否定连起来。",
+    level: "a1",
+    coverageIds: [
+      "coverage-02-word-classes",
+      "coverage-17-copulative-sentences",
+      "coverage-04-personal-reference",
+      "coverage-14-speech-level-particles",
+      "coverage-22-questions",
+      "coverage-23-negation",
+    ],
+    vocabularyRange: [1, 1200],
+    vocabularyDomains: ["core", "politeness", "identity", "question", "negation"],
+  },
+  {
+    id: "grammar-02-nouns-classifiers",
+    title: "语法 2 · 名词、指示词和量词",
+    subtitle: "解决这个/那个、几个、第几个、谁的和名词后置修饰。",
+    level: "a1",
+    coverageIds: [
+      "coverage-05-noun-phrases",
+      "coverage-06-classifiers",
+      "coverage-07-demonstratives",
+    ],
+    vocabularyRange: [1201, 2500],
+    vocabularyDomains: ["people", "objects", "numbers", "shopping", "classifiers"],
+  },
+  {
+    id: "grammar-03-verbs-time-modality",
+    title: "语法 3 · 动词、时间和能力",
+    subtitle: "把动作、时体、想要/应该/可以/会、结果可能放进同一套感觉里。",
+    level: "a1-plus",
+    coverageIds: [
+      "coverage-10-verbs-transitivity",
+      "coverage-13-aspect",
+      "coverage-12-modality",
+      "coverage-28-potential",
+    ],
+    vocabularyRange: [2501, 4000],
+    vocabularyDomains: ["daily actions", "time", "ability", "work basics", "travel"],
+  },
+  {
+    id: "grammar-04-description-wordbuilding",
+    title: "语法 4 · 描述、比较和构词",
+    subtitle: "练形容词谓语、程度、比较、复合词、重叠和身体表达。",
+    level: "a2",
+    coverageIds: [
+      "coverage-08-adjectives-comparison-degree",
+      "coverage-09-adverbs",
+      "coverage-03-word-formation",
+      "coverage-16-body-expressions",
+    ],
+    vocabularyRange: [4001, 6000],
+    vocabularyDomains: ["quality", "manner", "body", "emotion", "word formation"],
+  },
+  {
+    id: "grammar-05-clause-chains",
+    title: "语法 5 · 连动、从句和转述",
+    subtitle: "开始从短句进入原因、条件、目的、关系从句和 ว่า 转述。",
+    level: "a2",
+    coverageIds: [
+      "coverage-18-serial-verbs",
+      "coverage-19-relative-clauses",
+      "coverage-20-complementation-quotation",
+      "coverage-21-adverbial-clauses",
+    ],
+    vocabularyRange: [6001, 8000],
+    vocabularyDomains: ["movement", "reason", "condition", "reporting", "opinions"],
+  },
+  {
+    id: "grammar-06-voice-causative-purpose",
+    title: "语法 6 · 被动、使役和受益",
+    subtitle: "把 ถูก/โดน/ได้รับ、ทำให้、ให้、เพื่อ/เผื่อ 这些高频结构分清楚。",
+    level: "b1",
+    coverageIds: [
+      "coverage-25-passive",
+      "coverage-26-causative",
+      "coverage-27-benefactive-purposive",
+    ],
+    vocabularyRange: [8001, 10000],
+    vocabularyDomains: ["workplace", "services", "responsibility", "helping", "process"],
+  },
+  {
+    id: "grammar-07-discourse-interaction",
+    title: "语法 7 · 互动、篇章和自然泰语",
+    subtitle: "收束 ก็、语气助词、请求命令、กัน、话题推进和指代追踪。",
+    level: "b1",
+    coverageIds: [
+      "coverage-11-ko-linking-marker",
+      "coverage-15-pragmatic-particles",
+      "coverage-24-reciprocal-distributive-collective",
+      "coverage-29-pragmatics-commands",
+      "coverage-30-discourse",
+    ],
+    vocabularyRange: [10001, 12000],
+    vocabularyDomains: ["interaction", "particles", "requests", "discourse", "social media"],
+  },
+];
+
+function makeCoreGrammarUnits(): CourseRoadmapUnit[] {
+  return CORE_GRAMMAR_UNIT_CONFIGS.map((unit, unitIndex) => {
+    const grammarLessons = unit.coverageIds.map((coverageId, index) => {
+      const section = coverageById.get(coverageId);
+      const rankRange = splitRankRange(unit.vocabularyRange, unit.coverageIds.length, index);
+      return {
+        id: `${unit.id}-${String(index + 1).padStart(2, "0")}`,
+        title: section?.titleZh ?? coverageId,
+        subtitle: section?.summaryZh ?? unit.subtitle,
+        kind: "grammar-core" as const,
+        level: section?.level ?? unit.level,
+        newGrammarCoverageIds: [coverageId],
+        grammarPointIds: section?.pointIds ?? [],
+        vocabularyPlan: inlineVocabularyPlan(rankRange, unit.vocabularyDomains),
+      };
+    });
+
+    return {
+      id: unit.id,
+      phaseId: "core-grammar",
+      order: unitIndex + 1,
+      title: unit.title,
+      subtitle: unit.subtitle,
+      level: unit.level,
+      completionGateZh: "本单元语法点和随堂高频词都达到基础掌握后，进入下一组。",
+      lessons: [
+        ...grammarLessons,
+        {
+          id: `${unit.id}-review`,
+          title: `${unit.title} · 复习`,
+          subtitle: "把本单元语法点、例句和高频词混在一起做识别、点选和拼读。",
+          kind: "grammar-review" as const,
+          level: unit.level,
+          reviewGrammarCoverageIds: unit.coverageIds,
+          grammarPointIds: pointIdsForCoverage(unit.coverageIds),
+          vocabularyPlan: inlineVocabularyPlan(unit.vocabularyRange, unit.vocabularyDomains),
+        },
+      ],
+    };
+  });
+}
+
+const ADVANCED_GRAMMAR_UNIT_CONFIGS: Array<{
+  id: string;
+  title: string;
+  subtitle: string;
+  level: "c1" | "c2";
+  competencyIds: string[];
+  genreIds: string[];
+  vocabularyRange: [number, number];
+  vocabularyDomains: string[];
+}> = [
+  {
+    id: "advanced-01-register-stance",
+    title: "高级语法 1 · 语气、话题和立场",
+    subtitle: "让泰语从“语法正确”变成“关系、立场和语气都对”。",
+    level: "c1",
+    competencyIds: [
+      "c1-particle-stack-control",
+      "c1-topic-information-structure",
+      "c1-quotation-reporting-control",
+    ],
+    genreIds: ["genre-formal-email", "genre-news-briefing"],
+    vocabularyRange: [12001, 15000],
+    vocabularyDomains: ["register", "meetings", "reporting", "media", "customer service"],
+  },
+  {
+    id: "advanced-02-formal-business",
+    title: "高级语法 2 · 正式书面和商务文件",
+    subtitle: "读懂并写出公告、合同摘要、会议纪要和行动项。",
+    level: "c1",
+    competencyIds: [
+      "c1-formal-written-clause-chain",
+      "c1-contract-obligation-condition",
+      "c1-meeting-minutes-and-action-items",
+    ],
+    genreIds: ["genre-meeting-minutes", "genre-contract-summary", "genre-business-proposal"],
+    vocabularyRange: [15001, 18000],
+    vocabularyDomains: ["contracts", "operations", "procurement", "finance", "management"],
+  },
+  {
+    id: "advanced-03-relationship-public",
+    title: "高级语法 3 · 谈判、修复和公共话语",
+    subtitle: "练委婉拒绝、投诉回应、责任边界和新闻/评论里的隐含立场。",
+    level: "c2",
+    competencyIds: [
+      "c2-negotiation-face-saving",
+      "c2-complaint-apology-repair",
+      "c2-public-media-stance",
+    ],
+    genreIds: ["genre-complaint-reply", "genre-news-briefing"],
+    vocabularyRange: [18001, 23000],
+    vocabularyDomains: ["negotiation", "conflict", "public discourse", "policy", "social media"],
+  },
+  {
+    id: "advanced-04-native-like-control",
+    title: "高级语法 4 · 文化、学术和真实材料",
+    subtitle: "处理仪式称谓、学术抽象写作、缩略语、口语噪音和暧昧表达。",
+    level: "c2",
+    competencyIds: [
+      "c2-ritual-kinship-ceremonial",
+      "c2-academic-abstract-writing",
+      "c2-authentic-noise-control",
+    ],
+    genreIds: ["genre-ceremonial-speech", "genre-formal-email"],
+    vocabularyRange: [23001, 30000],
+    vocabularyDomains: ["kinship", "ritual", "academic", "idioms", "slang", "regional exposure"],
+  },
+];
+
+function makeAdvancedGrammarUnits(): CourseRoadmapUnit[] {
+  return ADVANCED_GRAMMAR_UNIT_CONFIGS.map((unit, unitIndex) => {
+    const competencyLessons = unit.competencyIds.map((competencyId, index) => {
+      const competency = advancedCompetencyById.get(competencyId);
+      const rankRange = splitRankRange(unit.vocabularyRange, unit.competencyIds.length, index);
+      return {
+        id: `${unit.id}-${String(index + 1).padStart(2, "0")}`,
+        title: competency?.titleZh ?? competencyId,
+        subtitle: competency?.summaryZh ?? unit.subtitle,
+        kind: "advanced-grammar" as const,
+        level: unit.level,
+        newGrammarCoverageIds: competency?.grammarCoverageIds ?? [],
+        grammarPointIds: competency?.grammarPointIds ?? [],
+        advancedCompetencyIds: [competencyId],
+        vocabularyPlan: inlineVocabularyPlan(rankRange, unit.vocabularyDomains),
+      };
+    });
+
+    const genreIds = unit.genreIds.filter((id) =>
+      PROFESSIONAL_GENRE_TARGETS.some((genre) => genre.id === id)
+    );
+
+    return {
+      id: unit.id,
+      phaseId: "advanced-grammar",
+      order: unitIndex + 1,
+      title: unit.title,
+      subtitle: unit.subtitle,
+      level: unit.level,
+      completionGateZh: "完成输入理解、改写、语域转换和至少一个输出作品后进入下一组。",
+      lessons: [
+        ...competencyLessons,
+        {
+          id: `${unit.id}-output`,
+          title: `${unit.title} · 输出任务`,
+          subtitle: "用真实商务/媒体/正式文本任务检查是否能主动使用。",
+          kind: "output-practice" as const,
+          level: unit.level,
+          advancedCompetencyIds: unit.competencyIds,
+          professionalGenreIds: genreIds,
+          newGrammarCoverageIds: uniq(
+            unit.competencyIds.flatMap((id) => advancedCompetencyById.get(id)?.grammarCoverageIds ?? [])
+          ),
+          grammarPointIds: uniq(
+            unit.competencyIds.flatMap((id) => advancedCompetencyById.get(id)?.grammarPointIds ?? [])
+          ),
+          vocabularyPlan: inlineVocabularyPlan(unit.vocabularyRange, unit.vocabularyDomains),
+        },
+      ],
+    };
+  });
+}
+
+function makeVocabularyUnits(): CourseRoadmapUnit[] {
+  const bandLessons: CourseRoadmapLesson[] = VOCABULARY_MASTERY_BANDS.map((band) => ({
+    id: `vocab-band-${band.id}`,
+    title: band.labelZh,
+    subtitle: band.summaryZh,
+    kind: "vocabulary-band",
+    level: band.level,
+    vocabularyPlan: dedicatedVocabularyPlan(band.passiveRange, band.domains),
+  }));
+
+  const domainLessons: CourseRoadmapLesson[] = C2_DOMAIN_TARGETS.map((target) => ({
+    id: `vocab-domain-${target.id}`,
+    title: target.titleZh,
+    subtitle: target.summaryZh,
+    kind: "domain-vocabulary",
+    level: "c2",
+    c2DomainTargetIds: [target.id],
+    reviewGrammarCoverageIds: target.grammarCoverageIds,
+    vocabularyPlan: dedicatedVocabularyPlan(
+      [LEXICON_BUILD_TARGET.c1PassiveThreshold + 1, LEXICON_BUILD_TARGET.c2PassiveThreshold],
+      target.vocabularyDomains,
+      "C2 阶段按场景补专业词、固定搭配、语域词和真实材料词。"
+    ),
+  }));
+
+  return [
+    {
+      id: "vocabulary-01-frequency-bands",
+      phaseId: "vocabulary",
+      order: 1,
+      title: "词汇主线 · 高频到 C2",
+      subtitle: "语法学完后，按频率段把被动词库推到 5 万级，主动词汇推到 2 万级。",
+      level: "c2",
+      completionGateZh: "每个频率段完成识别、听辨、例句理解和主动复述后进入下一段。",
+      lessons: bandLessons,
+    },
+    {
+      id: "vocabulary-02-professional-domains",
+      phaseId: "vocabulary",
+      order: 2,
+      title: "词汇主线 · 专业和家业场景",
+      subtitle: "最后按公司、合同、关系、媒体、文化等真实场景补齐术语和表达。",
+      level: "c2",
+      completionGateZh: "能在真实文件、会议、谈判和正式写作里调用这些词汇。",
+      lessons: domainLessons,
+    },
+  ];
+}
+
+export const COURSE_ROADMAP_PHASES: CourseRoadmapPhase[] = [
+  {
+    id: "phonics",
+    order: 1,
+    title: "第一大单元 · 语音和文字",
+    subtitle: "现有语音课程：字母、元音、声调和拼读先跑完。",
+    unlockRuleZh: "默认解锁。",
+    units: [PHONICS_ROADMAP_UNIT],
+  },
+  {
+    id: "core-grammar",
+    order: 2,
+    title: "第二大单元 · 完整语法主线",
+    subtitle: "语法必须完整学完；每节课顺带一小段高频词，不单独开纯词汇负担。",
+    unlockRuleZh: "完成第一大单元后解锁。",
+    units: makeCoreGrammarUnits(),
+  },
+  {
+    id: "advanced-grammar",
+    order: 3,
+    title: "第三大单元 · C1/C2 高级语法和语域",
+    subtitle: "把语法推进到真实材料、商务文件、正式写作、关系语气和专业输出。",
+    unlockRuleZh: "完成核心语法后解锁；仍然继续随堂补高频和领域词。",
+    units: makeAdvancedGrammarUnits(),
+  },
+  {
+    id: "vocabulary",
+    order: 4,
+    title: "第四大单元 · 词汇主线",
+    subtitle: "语法全部学完后再进入纯词汇课程，按频率和专业场景扩到精通。",
+    unlockRuleZh: "完成第二、第三大单元全部语法课后解锁。",
+    units: makeVocabularyUnits(),
+  },
+];
+
+export const COURSE_ROADMAP_UNITS = COURSE_ROADMAP_PHASES.flatMap((phase) => phase.units);
+export const COURSE_ROADMAP_LESSONS = COURSE_ROADMAP_UNITS.flatMap((unit) => unit.lessons);
+
+export const COURSE_ROADMAP_POLICY = {
+  grammarBeforeDedicatedVocabulary: true,
+  grammarLessonsCarryHighFrequencyVocabulary: true,
+  passiveLexiconTarget: LEXICON_BUILD_TARGET.passiveLexiconSize,
+  activeC2Target: LEXICON_BUILD_TARGET.activeC2Target,
+  dedicatedVocabularyStartsAfterPhaseIds: ["core-grammar", "advanced-grammar"] satisfies CourseRoadmapPhaseId[],
+};
+
+const plannedGrammarCoverageIds = new Set(
+  COURSE_ROADMAP_LESSONS.flatMap((lesson) => [
+    ...(lesson.newGrammarCoverageIds ?? []),
+    ...(lesson.reviewGrammarCoverageIds ?? []),
+  ])
+);
+
+export const COURSE_ROADMAP_COVERAGE = {
+  grammarCoverageTotal: GRAMMAR_COVERAGE_SECTIONS.length,
+  grammarCoveragePlanned: plannedGrammarCoverageIds.size,
+  missingGrammarCoverageIds: GRAMMAR_COVERAGE_SECTIONS.map((section) => section.id).filter(
+    (id) => !plannedGrammarCoverageIds.has(id)
+  ),
+  vocabularyBandIds: VOCABULARY_MASTERY_BANDS.map((band) => band.id),
+  c2DomainTargetIds: C2_DOMAIN_TARGETS.map((target) => target.id),
+};
