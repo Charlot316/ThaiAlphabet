@@ -18,6 +18,11 @@ import {
 import { speak, warmupVoices } from "@/lib/tts";
 import { markActive } from "@/lib/stats";
 import { recordOutcome } from "@/lib/mastery";
+import {
+  ALPHABET_FINAL_EXAM_POLICY,
+  isAlphabetFinalPassingScore,
+  saveAlphabetFinalExamResult,
+} from "@/lib/moduleProgress";
 
 const SLOT_COUNT = 5; // 同时显示几对（左右各 SLOT_COUNT 张）
 const REFILL_THRESHOLD = SLOT_COUNT + 2;
@@ -175,6 +180,7 @@ function pickReplenishment(
 }
 
 export default function EndlessMatchPage() {
+  const [isAlphabetFinalExam, setIsAlphabetFinalExam] = useState(false);
   const allItems = useMemo(() => buildStudyItems(), []);
 
   const [board, setBoard] = useState<BoardState>({
@@ -192,6 +198,7 @@ export default function EndlessMatchPage() {
   const pickedRightRef = useRef<string | null>(null);
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
+  const [sessionBestStreak, setSessionBestStreak] = useState(0);
   const [totalMatched, setTotalMatched] = useState(0);
   const [totalMissed, setTotalMissed] = useState(0);
   const [flash, setFlash] = useState<"ok" | "bad" | null>(null);
@@ -199,13 +206,33 @@ export default function EndlessMatchPage() {
   // 已配对、正在淡出的槽（一秒后才被替换为新字母）
   const [fadingSlots, setFadingSlots] = useState<{ left: number; right: number } | null>(null);
   const initialized = useRef(false);
+  const examSavedRef = useRef(false);
   // 已经连续多少次补充后没有恢复 5/5 全配（≥ MAX_NOT_FULL 时下次必须强制全配）
   const notFullStreakRef = useRef(0);
 
   useEffect(() => {
     warmupVoices();
     setBestStreak(loadBest());
+    setIsAlphabetFinalExam(new URLSearchParams(window.location.search).get("exam") === "alphabet-final");
   }, []);
+
+  const passedAlphabetFinal = isAlphabetFinalExam
+    ? isAlphabetFinalPassingScore({
+        totalMatched,
+        totalMissed,
+        bestStreak: sessionBestStreak,
+      })
+    : false;
+
+  useEffect(() => {
+    if (!passedAlphabetFinal || examSavedRef.current) return;
+    examSavedRef.current = true;
+    saveAlphabetFinalExamResult({
+      totalMatched,
+      totalMissed,
+      bestStreak: sessionBestStreak,
+    });
+  }, [passedAlphabetFinal, totalMatched, totalMissed, sessionBestStreak]);
 
   // 初始化：5 对必须全部可配。做法：选 SLOT_COUNT 个不同 id 的字母作为起始
   // items（romans 不要求 distinct — 用户允许同侧出现两个同 roman），
@@ -234,6 +261,7 @@ export default function EndlessMatchPage() {
     if (matchesByRoman(leftItem, rightItem)) {
       const newStreak = streak + 1;
       setStreak(newStreak);
+      setSessionBestStreak((v) => Math.max(v, newStreak));
       setTotalMatched((v) => v + 1);
       if (newStreak > bestStreak) {
         setBestStreak(newStreak);
@@ -390,9 +418,11 @@ export default function EndlessMatchPage() {
   return (
     <div className={`space-y-5 ${flash === "bad" ? "animate-shake" : ""}`}>
       <div>
-        <h1 className="text-lg font-semibold">无尽配对</h1>
+        <h1 className="text-lg font-semibold">{isAlphabetFinalExam ? "Alphabet 期末" : "无尽配对"}</h1>
         <p className="mt-1 text-xs" style={{ color: "var(--duo-muted)" }}>
-          字母和读音配成一对，正确后会朗读字母。
+          {isAlphabetFinalExam
+            ? `${ALPHABET_FINAL_EXAM_POLICY.matchedTarget} 配对 · ≤${ALPHABET_FINAL_EXAM_POLICY.maxMisses} 失误 · ${ALPHABET_FINAL_EXAM_POLICY.streakTarget} 连击`
+            : "字母和读音配成一对，正确后会朗读字母。"}
         </p>
       </div>
 
@@ -424,6 +454,25 @@ export default function EndlessMatchPage() {
           </div>
         </div>
       </div>
+
+      {isAlphabetFinalExam && (
+        <div
+          className="rounded-lg border p-4 text-sm"
+          style={{
+            background: passedAlphabetFinal
+              ? "color-mix(in srgb, var(--duo-green) 11%, var(--duo-card))"
+              : "var(--surface-subtle)",
+            borderColor: passedAlphabetFinal
+              ? "color-mix(in srgb, var(--duo-green) 36%, var(--duo-line))"
+              : "var(--duo-line)",
+            color: passedAlphabetFinal ? "var(--duo-green-d)" : "var(--duo-muted)",
+          }}
+        >
+          {passedAlphabetFinal
+            ? "已通过 Alphabet 期末，语法模块会解锁。"
+            : `本轮最高连击 ${sessionBestStreak}，继续配对到达通过标准。`}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <ul className="space-y-2">

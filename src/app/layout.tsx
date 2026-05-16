@@ -5,20 +5,31 @@ import AuthGuard from "@/components/AuthGuard";
 import AppMain from "@/components/AppMain";
 
 export const metadata: Metadata = {
-  title: "泰语字母学习 · Thai Alphabet",
-  description: "辅音 · 元音 · 声调 · 拼读 — 移动优先的泰语入门训练工具",
+  title: "Thai · 泰语学习",
+  description: "从字母、拼读到语法和词汇的移动优先泰语学习工具",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#020a0f",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7fbf2" },
+    { media: "(prefers-color-scheme: dark)", color: "#10170e" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh">
+    <html lang="zh" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('thai-theme');if(t==='light'||t==='dark'){document.documentElement.dataset.theme=t}else{document.documentElement.removeAttribute('data-theme')}}catch(e){}",
+          }}
+        />
+      </head>
       <body className="antialiased flex flex-col">
         <AuthGuard>
           <Nav />
