@@ -228,3 +228,61 @@ export interface C2DomainTarget {
   vocabularyDomains: string[];
   outputTasks: string[];
 }
+
+export type ProfessionalRegister =
+  | "intimate"
+  | "casual"
+  | "polite"
+  | "service"
+  | "business-formal"
+  | "legal-government"
+  | "academic"
+  | "media"
+  | "ritual-religious";
+
+export interface GrammarDrillTarget {
+  id: string;
+  titleZh: string;
+  instructionZh: string;
+  successCriteriaZh: string[];
+}
+
+export interface AdvancedGrammarCompetency {
+  id: string;
+  level: "c1" | "c2";
+  titleZh: string;
+  summaryZh: string;
+  grammarCoverageIds: string[];
+  grammarPointIds: string[];
+  registerTargets: ProfessionalRegister[];
+  inputGenres: string[];
+  outputGenres: string[];
+  drills: GrammarDrillTarget[];
+  sourceRefs: string[];
+}
+
+export interface RegisterTransformationTarget {
+  id: string;
+  level: "c1" | "c2";
+  situationZh: string;
+  fromRegister: ProfessionalRegister;
+  toRegister: ProfessionalRegister;
+  grammarPointIds: string[];
+  beforeThai: string;
+  afterThai: string;
+  chinese: string;
+  riskZh: string;
+  tags: string[];
+}
+
+export interface ProfessionalGenreTarget {
+  id: string;
+  level: "c1" | "c2";
+  genreZh: string;
+  summaryZh: string;
+  grammarCoverageIds: string[];
+  requiredMovesZh: string[];
+  skeletonThai: string[];
+  assessmentZh: string[];
+  sourceRefs: string[];
+}

@@ -7,3 +7,4 @@ export * from "./contentSources";
 export * from "./grammar";
 export * from "./vocabulary";
 export * from "./proficiency";
+export * from "./advancedGrammar";
