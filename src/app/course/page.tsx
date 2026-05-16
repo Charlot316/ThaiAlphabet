@@ -508,8 +508,19 @@ export default function CoursePage() {
   }
 
   useEffect(() => {
-    setProgress(loadMastery());
-    setCourseProgress(loadCourseProgress());
+    const refresh = () => {
+      setProgress(loadMastery());
+      setCourseProgress(loadCourseProgress());
+    };
+    refresh();
+    window.addEventListener("thai-alphabet:mastery", refresh);
+    window.addEventListener("thai-alphabet:course-progress", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("thai-alphabet:mastery", refresh);
+      window.removeEventListener("thai-alphabet:course-progress", refresh);
+      window.removeEventListener("storage", refresh);
+    };
   }, []);
 
   function gainMastery(itemId: string, amount: number) {

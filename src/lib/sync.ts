@@ -2,20 +2,21 @@
 
 // 客户端 ↔ Cloudflare D1 同步层
 // - 登录后服务端发 token，存 localStorage
-// - 监听 thai-alphabet:* localStorage 写入，防抖批量推送
+// - 监听同步白名单里的 localStorage 写入，防抖批量推送
 // - 启动时拉取服务端 → 与本地按 updated_at 合并
 
 const TOKEN_KEY = "thai-alphabet:sync:token";
 const USER_KEY = "thai-alphabet:sync:user";
 const SINCE_KEY = "thai-alphabet:sync:since";        // 上次拉取的服务端时间
 const META_KEY = "thai-alphabet:sync:meta";          // {key: updated_at}
-const PREFIX = "thai-alphabet:";
 
 // 这些 key 才参与同步
 const SYNC_KEYS = new Set<string>([
   "thai-alphabet:mastery:v2",                // 多维熟练度（含 SRS 字段）
   "thai-alphabet:stats:v1",                  // streak / active days
-  "thai-alphabet:last-lesson:v1",            // course last lesson
+  "thai-alphabet:course-progress:v2",        // 课程列表完成进度
+  "thai:module:alphabet-final:v1",           // 字母期末通过状态
+  "thai-alphabet:last-lesson:v1",            // 旧版 course last lesson，保留读取
   "thai-alphabet:endless-match:best",        // 无尽配对最高连击
   "thai-alphabet:flashcards-last-order:v1:consonant",
   "thai-alphabet:flashcards-last-order:v1:vowel",
@@ -44,6 +45,7 @@ export type SyncStatus = "off" | "idle" | "pulling" | "pushing" | "error";
 const listeners = new Set<(status: SyncStatus, msg?: string) => void>();
 let currentStatus: SyncStatus = "off";
 let currentMsg = "";
+let pullInFlight: Promise<{ ok: boolean; merged: number; error?: string }> | null = null;
 
 function emit(status: SyncStatus, msg = "") {
   currentStatus = status;
@@ -146,12 +148,33 @@ function saveMeta(meta: Record<string, number>) {
   window.localStorage.setItem(META_KEY, JSON.stringify(meta));
 }
 
+function isSyncableKey(key: string): boolean {
+  return SYNC_KEYS.has(key);
+}
+
+function dispatchDataEvents() {
+  window.dispatchEvent(new Event("thai-alphabet:mastery"));
+  window.dispatchEvent(new Event("thai-alphabet:stats"));
+  window.dispatchEvent(new Event("thai-alphabet:course-progress"));
+  window.dispatchEvent(new Event("thai:module:alphabet-final"));
+}
+
 /** 拉取服务端变更，应用到本地（按 updated_at 比较） */
 export async function pull(): Promise<{ ok: boolean; merged: number; error?: string }> {
+  if (pullInFlight) return pullInFlight;
+  pullInFlight = pullOnce().finally(() => {
+    pullInFlight = null;
+  });
+  return pullInFlight;
+}
+
+async function pullOnce(): Promise<{ ok: boolean; merged: number; error?: string }> {
   const token = getToken();
   if (!token) return { ok: false, merged: 0, error: "not-logged-in" };
   emit("pulling");
-  const since = Number(window.localStorage.getItem(SINCE_KEY) || "0") || 0;
+  // 同步 key 很少，直接全量拉更可靠。之前用 since + 客户端 updated_at，
+  // 设备时间或拉取顺序稍微错开，就可能永久跳过另一台设备刚上传的进度。
+  const since = 0;
   try {
     const res = await fetch(`/api/sync?since=${since}`, {
       headers: { authorization: `Bearer ${token}` },
@@ -169,6 +192,7 @@ export async function pull(): Promise<{ ok: boolean; merged: number; error?: str
     const meta = loadMeta();
     let merged = 0;
     for (const row of data.items) {
+      if (!isSyncableKey(row.key)) continue;
       const localStamp = meta[row.key] || 0;
       if (row.updated_at > localStamp) {
         suppressOnce.add(row.key);
@@ -182,8 +206,7 @@ export async function pull(): Promise<{ ok: boolean; merged: number; error?: str
       window.localStorage.setItem(SINCE_KEY, String(data.serverTime));
     }
     emit("idle");
-    window.dispatchEvent(new Event("thai-alphabet:mastery"));
-    window.dispatchEvent(new Event("thai-alphabet:stats"));
+    dispatchDataEvents();
     return { ok: true, merged };
   } catch (e) {
     emit("error", (e as Error).message);
@@ -316,9 +339,9 @@ export async function pushAll(): Promise<{ ok: boolean; pushed: number; error?: 
   const now = Date.now();
   for (let i = 0; i < window.localStorage.length; i++) {
     const k = window.localStorage.key(i);
-    if (!k || !k.startsWith(PREFIX)) continue;
+    if (!k) continue;
     if (SKIP_KEYS.has(k)) continue;
-    if (!SYNC_KEYS.has(k)) continue;
+    if (!isSyncableKey(k)) continue;
     const v = window.localStorage.getItem(k);
     if (v === null) continue;
     const updated_at = meta[k] || now;
@@ -405,9 +428,8 @@ export function installSyncHook() {
       suppressOnce.delete(key);
       return;
     }
-    if (!key.startsWith(PREFIX)) return;
     if (SKIP_KEYS.has(key)) return;
-    if (!SYNC_KEYS.has(key)) return;
+    if (!isSyncableKey(key)) return;
     const meta = loadMeta();
     const now = Date.now();
     meta[key] = now;
@@ -416,4 +438,33 @@ export function installSyncHook() {
     schedulePush();
   };
   emit(isLoggedIn() ? "idle" : "off");
+}
+
+let autoPullStarted = false;
+let lastAutoPullAt = 0;
+
+function maybeAutoPull(force = false) {
+  if (!isLoggedIn()) return;
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+  const now = Date.now();
+  if (!force && now - lastAutoPullAt < 25_000) return;
+  lastAutoPullAt = now;
+  pull().catch(() => {
+    /* status is emitted by pull */
+  });
+}
+
+export function startAutoPull() {
+  if (typeof window === "undefined" || autoPullStarted) return;
+  autoPullStarted = true;
+
+  const onVisible = () => {
+    if (document.visibilityState === "visible") maybeAutoPull(true);
+  };
+  const onFocus = () => maybeAutoPull(true);
+
+  window.addEventListener("focus", onFocus);
+  document.addEventListener("visibilitychange", onVisible);
+  setInterval(() => maybeAutoPull(false), 30_000);
+  maybeAutoPull(true);
 }

@@ -7,6 +7,7 @@ import {
   login,
   pull,
   pullStrokes,
+  startAutoPull,
   subscribeAuth,
 } from "@/lib/sync";
 
@@ -28,6 +29,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     installSyncHook();
+    startAutoPull();
     const sync = () => {
       const v = isLoggedIn();
       setLogged(v);
