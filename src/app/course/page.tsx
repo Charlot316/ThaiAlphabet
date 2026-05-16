@@ -1310,7 +1310,15 @@ function QuestionCard({
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (isShortcutBlocked(event)) return;
-      if (question.kind === "write" || question.kind === "match" || question.kind === "memory" || question.kind === "class" || question.kind === "length") {
+      if (question.kind === "write") {
+        if (!event.repeat && (isSpaceKey(event) || event.key === "Enter")) {
+          event.preventDefault();
+          onWrote();
+        }
+        return;
+      }
+
+      if (question.kind === "match" || question.kind === "memory" || question.kind === "class" || question.kind === "length") {
         return;
       }
 
@@ -1826,6 +1834,39 @@ function MatchCard({
     event.preventDefault();
     press();
   };
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isShortcutBlocked(event)) return;
+      if (submitted) {
+        if (isSpaceKey(event)) {
+          event.preventDefault();
+          onNext();
+        }
+        return;
+      }
+
+      if (event.key === "Delete" || event.key === "Backspace") {
+        if (!pickedLeftRef.current && !pickedRightRef.current) return;
+        event.preventDefault();
+        clearPicks();
+        return;
+      }
+
+      const hasLeftPick = Boolean(pickedLeftRef.current);
+      const order = hasLeftPick ? rightOrder : leftOrder;
+      const index = choiceIndexFromKey(event, Math.min(5, order.length));
+      if (index === null) return;
+      event.preventDefault();
+      const item = order[index];
+      if (!item) return;
+      if (hasLeftPick) onRight(item.id);
+      else onLeft(item.id);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
 
   useEffect(() => {
     if (matchedLeft.size === items.length && !completedRef.current) {
