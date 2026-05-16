@@ -1072,7 +1072,7 @@ export default function CoursePage() {
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-col gap-4 overflow-x-hidden">
+    <div className="course-session flex min-h-full min-w-0 flex-col gap-4 overflow-x-hidden">
       {/* 进度条 + 重置 */}
       <div className="shrink-0">
         <div className="flex items-center justify-between gap-3 mb-1 px-1">
@@ -1126,7 +1126,7 @@ export default function CoursePage() {
             </div>
           </section>
         ) : current ? (
-          <div className="min-w-0 max-w-full overflow-x-hidden">
+          <div className="course-question-shell min-w-0 max-w-full overflow-x-hidden">
             <QuestionCard
               question={current}
               picked={picked}
@@ -1729,7 +1729,7 @@ function QuestionCard({
         )}
 
         {submitted && introAttribute && (
-          <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} mt-5 animate-pop`}>
+          <div className={`course-action-feedback feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} mt-5 animate-pop`}>
             <div className="flex items-center justify-between gap-3">
               <div className="text-base">
                 {feedback === "ok" ? (
@@ -2004,7 +2004,7 @@ function QuestionCard({
       )}
 
       {submitted && (
-        <div className={`feedback ${correctAnswered ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+        <div className={`course-action-feedback feedback ${correctAnswered ? "feedback-ok" : "feedback-bad"} animate-pop`}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-base">
@@ -2171,7 +2171,7 @@ function SyllableCard({
       </ul>
 
       {submitted && (
-        <div className={`feedback ${correctAnswered ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+        <div className={`course-action-feedback feedback ${correctAnswered ? "feedback-ok" : "feedback-bad"} animate-pop`}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div>{correctAnswered ? praise : "正确答案是"}</div>
@@ -2300,7 +2300,7 @@ function FinalSoundCard({
       </div>
 
       {submitted && (
-        <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+        <div className={`course-action-feedback feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
           <div className="flex items-center justify-between gap-3">
             <div className="text-base">
               {feedback === "ok" ? (
@@ -2427,7 +2427,7 @@ function ToneMarkCard({
       </ul>
 
       {submitted && (
-        <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+        <div className={`course-action-feedback feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div>{feedback === "ok" ? praise : "正确答案是"}</div>
@@ -2639,7 +2639,7 @@ function MatchCard({
         </ul>
       </div>
       {submitted && (
-        <div className="feedback feedback-ok animate-pop">
+        <div className="course-action-feedback feedback feedback-ok animate-pop">
           <div className="flex items-center justify-between gap-3">
             <div className="text-base">🎉 全部配对成功！</div>
             <button onClick={onNext} className="btn-primary px-5">继续</button>
@@ -2742,7 +2742,7 @@ function MemoryCard({
           </button>
         </div>
       ) : (
-        <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+        <div className={`course-action-feedback feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
           <div className="flex items-center justify-between gap-3">
             <div className="text-base">{feedback === "ok" ? `${praise || "答对了！"}` : "再试试看！"}</div>
             <div className="flex flex-wrap justify-end gap-2">
@@ -2853,7 +2853,7 @@ function ClassCard({
       </div>
 
       {submitted && (
-        <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+        <div className={`course-action-feedback feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
           <div className="flex items-center justify-between gap-3">
             <div className="text-base">
               {feedback === "ok" ? (
@@ -2959,7 +2959,7 @@ function LengthCard({
       </div>
 
       {submitted && (
-        <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+        <div className={`course-action-feedback feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
           <div className="flex items-center justify-between gap-3">
             <div className="text-base">
               {feedback === "ok" ? (
