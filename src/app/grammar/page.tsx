@@ -20,6 +20,7 @@ import {
 } from "@/data/grammar";
 import {
   buildGrammarExercisesForLesson,
+  GRAMMAR_EXERCISE_CATALOG,
   GRAMMAR_LESSON_PLANS,
   type GrammarExercise,
 } from "@/lib/grammarCourse";
@@ -91,12 +92,14 @@ export default function GrammarPage() {
       ?.filter((token) => selectedTokenIds.includes(token.id))
       .sort((a, b) => selectedTokenIds.indexOf(a.id) - selectedTokenIds.indexOf(b.id))
       .map((token) => token.label) ?? [];
+  const isTokenQuestion =
+    currentQuestion?.kind === "order-tokens" || currentQuestion?.kind === "output-plan";
   const orderCorrect =
-    currentQuestion?.kind === "order-tokens" &&
+    isTokenQuestion &&
     selectedTokenLabels.join("\u0001") === (currentQuestion.answerTokens ?? []).join("\u0001");
   const choiceCorrect =
     currentQuestion?.choices?.find((choice) => choice.id === selectedChoiceId)?.correct ?? false;
-  const answerCorrect = currentQuestion?.kind === "order-tokens" ? orderCorrect : choiceCorrect;
+  const answerCorrect = isTokenQuestion ? orderCorrect : choiceCorrect;
 
   const filteredPoints = useMemo(() => {
     if (!query.trim()) return GRAMMAR_POINTS;
@@ -175,10 +178,24 @@ export default function GrammarPage() {
               <p className="mt-1 text-sm leading-6" style={{ color: "var(--duo-muted)" }}>
                 {activeLesson.subtitle}
               </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {activeLesson.trainingModes.map((mode) => (
+                  <span key={mode} className="chip" style={{ background: "var(--surface-subtle)", color: "var(--duo-muted)", borderColor: "var(--duo-line)" }}>
+                    {mode}
+                  </span>
+                ))}
+              </div>
             </div>
             <button type="button" onClick={closeLesson} className="btn-ghost shrink-0 px-3">
               退出
             </button>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {activeLesson.skillGoalsZh.slice(0, 4).map((goal) => (
+              <div key={goal} className="rounded-lg border px-3 py-2 text-xs font-semibold leading-5" style={{ borderColor: "var(--duo-line)", background: "var(--surface-subtle)", color: "var(--duo-muted)" }}>
+                {goal}
+              </div>
+            ))}
           </div>
           <div className="mt-4 flex items-center gap-3">
             <div className="progress-track flex-1">
@@ -228,13 +245,13 @@ export default function GrammarPage() {
               )}
             </article>
 
-            {currentQuestion.kind === "order-tokens" ? (
+            {isTokenQuestion ? (
               <section className="space-y-3">
                 <div className="min-h-16 rounded-lg border p-3" style={{ background: "var(--duo-card)", borderColor: "var(--duo-line)" }}>
                   <div className="flex flex-wrap gap-2">
                     {selectedTokenIds.length === 0 ? (
                       <span className="text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
-                        点下面的词块来组句
+                        点下面的词块来完成顺序
                       </span>
                     ) : (
                       selectedTokenLabels.map((label, index) => (
@@ -358,6 +375,9 @@ export default function GrammarPage() {
                 <span className="chip" style={{ background: "var(--surface-subtle)", color: "var(--duo-muted)", borderColor: "var(--duo-line)" }}>
                   {GRAMMAR_COVERAGE_SECTIONS.length} 覆盖区 · {GRAMMAR_POINTS.length} 条目
                 </span>
+                <span className="chip" style={{ background: "var(--surface-subtle)", color: "var(--duo-muted)", borderColor: "var(--duo-line)" }}>
+                  {GRAMMAR_LESSON_PLANS.length} 课 · {GRAMMAR_EXERCISE_CATALOG.length} 种题型
+                </span>
               </div>
             </div>
           </div>
@@ -429,6 +449,14 @@ export default function GrammarPage() {
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <span className="chip chip-blue">{lesson.pointIds.length} 个语法点</span>
+                      <span className="chip" style={{ background: "var(--surface-subtle)", color: "var(--duo-muted)", borderColor: "var(--duo-line)" }}>
+                        {lesson.phase === "core" ? "核心语法" : lesson.phase === "advanced" ? "C1/C2 高级" : "输出课"}
+                      </span>
+                      {lesson.trainingModes.slice(0, 3).map((mode) => (
+                        <span key={mode} className="chip" style={{ background: "var(--surface-subtle)", color: "var(--duo-muted)", borderColor: "var(--duo-line)" }}>
+                          {mode}
+                        </span>
+                      ))}
                       <span className="chip chip-low">{lesson.examplesCount} 条例句</span>
                       <span className="chip" style={{ background: "var(--surface-subtle)", color: "var(--duo-muted)", borderColor: "var(--duo-line)" }}>
                         约 {lesson.estimatedQuestions} 题
