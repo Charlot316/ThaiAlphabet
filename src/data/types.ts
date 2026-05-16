@@ -170,6 +170,106 @@ export interface VocabularyEntry {
   sourceRefs: string[];
 }
 
+export type VocabularyReviewStatus =
+  | "draft"
+  | "needs-enrichment"
+  | "llm-draft"
+  | "human-draft"
+  | "needs-source-check"
+  | "needs-review"
+  | "reviewed"
+  | "verified"
+  | "approved"
+  | "rejected";
+
+export type VocabularyRegister =
+  | "neutral"
+  | "colloquial"
+  | "slang"
+  | "vulgar"
+  | "child-directed"
+  | "literary"
+  | "royal"
+  | ProfessionalRegister;
+
+export type VocabularyComparisonKind =
+  | "confusable"
+  | "homophone"
+  | "near-synonym"
+  | "register-pair"
+  | "grammar-pair";
+
+export interface VocabularyRelatedWord {
+  vocabularyId?: VocabularyEntry["id"];
+  thai: string;
+  roman?: string;
+  chinese?: string;
+  english?: string;
+  notesZh?: string;
+}
+
+export interface VocabularyComparison {
+  kind: VocabularyComparisonKind;
+  target: VocabularyRelatedWord;
+  distinctionZh: string;
+  example?: VocabularyUsageExample;
+}
+
+export interface VocabularyCollocation {
+  thai: string;
+  roman?: string;
+  chinese: string;
+  english?: string;
+  example?: VocabularyUsageExample;
+  notesZh?: string;
+}
+
+export interface VocabularySense {
+  id: string;
+  chinese: string;
+  english: string;
+  level?: ContentLevel;
+  register?: VocabularyRegister;
+  examples: VocabularyUsageExample[];
+  synonyms: VocabularyRelatedWord[];
+  antonyms: VocabularyRelatedWord[];
+  comparisons?: VocabularyComparison[];
+  collocations?: VocabularyCollocation[];
+  grammarIds?: string[];
+  usageNotesZh?: string[];
+  tags?: string[];
+  notesZh?: string;
+}
+
+export interface VocabularyUsageExample extends ThaiExample {
+  english?: string;
+  register?: VocabularyRegister;
+  grammarIds?: string[];
+  notesZh?: string;
+}
+
+export interface VocabularyEnrichment {
+  id: string;
+  vocabularyId: VocabularyEntry["id"];
+  thai: VocabularyEntry["thai"];
+  roman: VocabularyEntry["roman"];
+  chinese: VocabularyEntry["chinese"];
+  english: VocabularyEntry["english"];
+  senses: VocabularySense[];
+  examples?: VocabularyUsageExample[];
+  synonyms: VocabularyRelatedWord[];
+  antonyms: VocabularyRelatedWord[];
+  comparisons: VocabularyComparison[];
+  registers: VocabularyRegister[];
+  collocations: VocabularyCollocation[];
+  learningNotesZh: string[];
+  sourceRefs: LearningSource["id"][];
+  reviewStatus: VocabularyReviewStatus;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  updatedAt?: string;
+}
+
 export type SentenceSlotKind =
   | "person"
   | "noun"

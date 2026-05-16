@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "lexicon:build": "node scripts/build-thai-lexicon.mjs",
+    "vocab:enrich:batch": "node scripts/build-vocabulary-enrichment.mjs",
     "start": "next start",
     "lint": "next lint"
   },
