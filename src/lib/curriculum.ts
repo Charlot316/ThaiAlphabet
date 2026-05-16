@@ -180,6 +180,23 @@ function consonantsByFinalSound(sounds: Array<(typeof CONSONANTS)[number]["final
   return c(CONSONANTS.filter((item) => wanted.has(item.finalSound)).map((item) => item.id));
 }
 
+const COURSE_LABELS = new Map<string, string>([
+  ...CONSONANTS.map((item) => [`c:${item.id}`, item.letter] as const),
+  ...VOWELS.map((item) => [`v:${item.id}`, item.display] as const),
+]);
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    out.push(items.slice(index, index + size));
+  }
+  return out;
+}
+
+function labels(ids: string[]): string {
+  return ids.map((id) => COURSE_LABELS.get(id) ?? id).join(" ");
+}
+
 function makeMainCourse(): CourseLesson[] {
   const lessons: CourseLesson[] = [];
   let step = 1;
@@ -193,6 +210,42 @@ function makeMainCourse(): CourseLesson[] {
     step += 1;
   };
 
+  const addChunks = (
+    unit: string,
+    title: string,
+    kind: "consonant" | "vowel",
+    ids: string[],
+    size: number,
+    note: string
+  ) => {
+    const parts = chunk(ids, size);
+    parts.forEach((part, index) => {
+      add(unit, {
+        title: parts.length > 1 ? `${title} ${index + 1}` : title,
+        subtitle: `${labels(part)}；${note}`,
+        kind,
+        itemIds: part,
+        newItemIds: part,
+      });
+    });
+  };
+
+  const addPractice = (
+    unit: string,
+    title: string,
+    subtitle: string,
+    kind: "blend" | "review",
+    ids: string[]
+  ) => {
+    add(unit, {
+      title,
+      subtitle,
+      kind,
+      itemIds: uniq(ids),
+      newItemIds: [],
+    });
+  };
+
   const allConsonants = c(CONSONANTS.map((item) => item.id));
   const allVowels = v(VOWELS.map((item) => item.id));
   const chapter1Core = [...c(MID_CONSONANTS), ...v(BASIC_VOWELS_1)];
@@ -201,244 +254,73 @@ function makeMainCourse(): CourseLesson[] {
   const chapter5Core = c(LOW_CONSONANTS_1);
   const chapter6Core = c(LOW_CONSONANTS_2);
   const chapter7Core = v(COMPOUND_VOWELS);
+  const firstBasicVowels = v(BASIC_VOWELS_1.slice(0, 4));
+  const secondBasicVowels = v(BASIC_VOWELS_1.slice(4));
+  const frontVowelsA = v(BASIC_VOWELS_2.slice(0, 4));
+  const frontVowelsB = v(BASIC_VOWELS_2.slice(4, 8));
+  const frontVowelsC = v(BASIC_VOWELS_2.slice(8));
 
-  add("第 1 课 · 中辅音和单元音", {
-    title: "中辅音",
-    subtitle: "ก จ ด ต ฎ ฏ บ ป อ；先建立中辅音和字母名。",
-    kind: "consonant",
-    itemIds: c(MID_CONSONANTS),
-    newItemIds: c(MID_CONSONANTS),
-  });
-  add("第 1 课 · 中辅音和单元音", {
-    title: "单元音（一）",
-    subtitle: "-ะ -า -ิ -ี -ึ -ื -ุ -ู；先分清短长和上下位置。",
-    kind: "vowel",
-    itemIds: v(BASIC_VOWELS_1),
-    newItemIds: v(BASIC_VOWELS_1),
-  });
-  add("第 1 课 · 中辅音和单元音", {
-    title: "中辅音 + 单元音拼读",
-    subtitle: "用中辅音搭配第一组单元音，先把基本 CV 音节跑顺。",
-    kind: "blend",
-    itemIds: chapter1Core,
-    newItemIds: [],
-  });
+  addChunks("第 1 课 · 中辅音和单元音", "中辅音", "consonant", c(MID_CONSONANTS), 3, "每次只认 3 个，先把中辅音类别钉住。");
+  addChunks("第 1 课 · 中辅音和单元音", "单元音（一）", "vowel", v(BASIC_VOWELS_1), 4, "按口型和短长成组学习。");
+  addPractice("第 1 课 · 中辅音和单元音", "中辅音拼读（一）", "只用前三个中辅音和第一组单元音做 CV 拼读。", "blend", [...c(MID_CONSONANTS.slice(0, 3)), ...firstBasicVowels]);
+  addPractice("第 1 课 · 中辅音和单元音", "中辅音拼读（二）", "扩展到全部中辅音和第二组单元音。", "blend", chapter1Core);
 
-  add("第 2 课 · 单元音（二）和特殊元音", {
-    title: "前置单元音",
-    subtitle: "เ-ะ เ- แ-ะ แ- โ-ะ โ- เ-าะ -อ เ-อะ เ-อ。",
-    kind: "vowel",
-    itemIds: v(BASIC_VOWELS_2),
-    newItemIds: v(BASIC_VOWELS_2),
-  });
-  add("第 2 课 · 单元音（二）和特殊元音", {
-    title: "特殊元音",
-    subtitle: "-ำ ไ- ใ- เ-า ฤ ฤๅ；注意 ไ / ใ 都读 ai，但用法不同。",
-    kind: "vowel",
-    itemIds: v(SPECIAL_VOWELS),
-    newItemIds: v(SPECIAL_VOWELS),
-  });
-  add("第 2 课 · 单元音（二）和特殊元音", {
-    title: "元音短长对照",
-    subtitle: "把第 1-2 课的单元音混在一起，专门复习长短和相近读音。",
-    kind: "review",
-    itemIds: uniq([...v(BASIC_VOWELS_1), ...chapter2Core]),
-    newItemIds: [],
-  });
+  addChunks("第 2 课 · 单元音（二）和特殊元音", "前置单元音", "vowel", v(BASIC_VOWELS_2), 4, "前置写法容易混，分小组看位置。");
+  addChunks("第 2 课 · 单元音（二）和特殊元音", "特殊元音", "vowel", v(SPECIAL_VOWELS), 3, "一次只处理 3 个特殊元音。");
+  addPractice("第 2 课 · 单元音（二）和特殊元音", "前置元音拼读", "把前置元音放进中辅音拼读，避免只记图形。", "blend", [...c(MID_CONSONANTS), ...frontVowelsA, ...frontVowelsB, ...frontVowelsC]);
+  addPractice("第 2 课 · 单元音（二）和特殊元音", "特殊元音对照", "复习 -ำ / เ-า / ไ- / ใ- / ฤ / ฤๅ 的读音和形状。", "review", chapter2Core);
 
-  add("第 3 课 · 中辅音声调", {
-    title: "中辅音声调入门",
-    subtitle: "认识 -่ -้ -๊ -๋ 的作用；先用中辅音做声调规则预备练习。",
-    kind: "blend",
-    itemIds: chapter1Core,
-    newItemIds: [],
-  });
-  add("第 3 课 · 中辅音声调", {
-    title: "中辅音声调复习",
-    subtitle: "继续强化中辅音、短长元音、声调标记之间的关系。",
-    kind: "review",
-    itemIds: chapter1Core,
-    newItemIds: [],
-  });
+  addPractice("第 3 课 · 中辅音声调", "声调符号认识", "先记 -่ -้ -๊ -๋ 四个声调符号和它们出现的位置。", "review", chapter1Core);
+  addPractice("第 3 课 · 中辅音声调", "中辅音 + 短元音", "用中辅音和短元音做声调规则预备。", "blend", [...c(MID_CONSONANTS), ...v(["a-short", "i-short", "ue-short", "u-short"])]);
+  addPractice("第 3 课 · 中辅音声调", "中辅音 + 长元音", "用中辅音和长元音做声调规则预备。", "blend", [...c(MID_CONSONANTS), ...v(["a-long", "i-long", "ue-long", "u-long"])]);
+  addPractice("第 3 课 · 中辅音声调", "中辅音声调复习", "把中辅音、短长元音、声调标记之间的关系再洗一遍。", "review", chapter1Core);
 
-  add("第 4 课 · 高辅音和声调", {
-    title: "高辅音",
-    subtitle: "ข ฃ ฉ ถ ฐ ผ ฝ ศ ษ ส ห；包含 ฃ 作为完整字母表补充。",
-    kind: "consonant",
-    itemIds: chapter4Core,
-    newItemIds: chapter4Core,
-  });
-  add("第 4 课 · 高辅音和声调", {
-    title: "高辅音 + 元音拼读",
-    subtitle: "用高辅音搭配已学元音，开始对照高辅音声调规律。",
-    kind: "blend",
-    itemIds: uniq([...chapter4Core, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2)]),
-    newItemIds: [],
-  });
+  addChunks("第 4 课 · 高辅音和声调", "高辅音", "consonant", chapter4Core, 4, "分批认识高辅音，持续判断高中低。");
+  addPractice("第 4 课 · 高辅音和声调", "高辅音拼读（一）", "高辅音搭配基础短长元音，先建立读音连接。", "blend", [...chapter4Core.slice(0, 6), ...v(BASIC_VOWELS_1)]);
+  addPractice("第 4 课 · 高辅音和声调", "高辅音声调预备", "把高辅音与中辅音放在一起，对照类别差异。", "review", uniq([...chapter4Core, ...c(MID_CONSONANTS)]));
 
-  add("第 5 课 · 低辅音（一）和声调", {
-    title: "低辅音（一）",
-    subtitle: "ค ฅ ฆ ช ซ ฌ ฑ ฒ ท ธ พ ฟ ภ ฮ；包含 ฅ 作为完整字母表补充。",
-    kind: "consonant",
-    itemIds: chapter5Core,
-    newItemIds: chapter5Core,
-  });
-  add("第 5 课 · 低辅音（一）和声调", {
-    title: "低辅音（一）声调预备",
-    subtitle: "把低辅音（一）和已学元音拼起来，对照中/高/低辅音差异。",
-    kind: "blend",
-    itemIds: uniq([...chapter5Core, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2)]),
-    newItemIds: [],
-  });
+  addChunks("第 5 课 · 低辅音（一）和声调", "低辅音（一）", "consonant", chapter5Core, 4, "低辅音数量多，按 4 个左右一组推进。");
+  addPractice("第 5 课 · 低辅音（一）和声调", "低辅音（一）拼读", "低辅音（一）搭配已学元音，先练读音连接。", "blend", [...chapter5Core, ...v(BASIC_VOWELS_1)]);
+  addPractice("第 5 课 · 低辅音（一）和声调", "低辅音（一）声调预备", "把低辅音（一）和中/高辅音混合判断。", "review", uniq([...chapter5Core, ...c(MID_CONSONANTS), ...chapter4Core]));
 
-  add("第 6 课 · 低辅音（二）", {
-    title: "低辅音（二）",
-    subtitle: "ง ญ ณ น ม ย ร ล ว ฬ；补齐常用响音类低辅音。",
-    kind: "consonant",
-    itemIds: chapter6Core,
-    newItemIds: chapter6Core,
-  });
-  add("第 6 课 · 低辅音（二）", {
-    title: "三类辅音总混合",
-    subtitle: "把中、高、低辅音放在一起，重点判断类别和读音。",
-    kind: "review",
-    itemIds: allConsonants,
-    newItemIds: [],
-  });
+  addChunks("第 6 课 · 低辅音（二）", "低辅音（二）", "consonant", chapter6Core, 3, "响音类低辅音更常见，拆小组反复见。");
+  addPractice("第 6 课 · 低辅音（二）", "低辅音（二）拼读", "低辅音（二）搭配已学元音，特别注意 ง ญ น ม ย ร ล ว ฬ。", "blend", [...chapter6Core, ...v(BASIC_VOWELS_1)]);
+  addPractice("第 6 课 · 低辅音（二）", "三类辅音总混合", "把中、高、低辅音放在一起，重点判断类别和读音。", "review", allConsonants);
 
-  add("第 7 课 · 复合元音", {
-    title: "复合元音",
-    subtitle: "เ-ียะ เ-ีย เ-ือะ เ-ือ -ัวะ -ัว；按短长成组学习。",
-    kind: "vowel",
-    itemIds: chapter7Core,
-    newItemIds: chapter7Core,
-  });
-  add("第 7 课 · 复合元音", {
-    title: "复合元音拼读",
-    subtitle: "把复合元音放进真实拼读，训练多元素元音从左到右识别。",
-    kind: "blend",
-    itemIds: uniq([...c(MID_CONSONANTS), ...c(LOW_CONSONANTS_2), ...chapter7Core]),
-    newItemIds: [],
-  });
+  addChunks("第 7 课 · 复合元音", "复合元音", "vowel", chapter7Core, 2, "每次一组短长复合元音。");
+  addPractice("第 7 课 · 复合元音", "复合元音拼读（一）", "用中辅音和复合元音练多元素元音。", "blend", [...c(MID_CONSONANTS), ...chapter7Core]);
+  addPractice("第 7 课 · 复合元音", "复合元音拼读（二）", "加入低辅音（二），训练更自然的复合元音拼读。", "blend", uniq([...c(LOW_CONSONANTS_2), ...chapter7Core]));
 
-  add("第 8 课 · 单元音小结", {
-    title: "辅音小结",
-    subtitle: "按字母表顺序、辅音类别、读音三条线复习 44 个辅音。",
-    kind: "review",
-    itemIds: allConsonants,
-    newItemIds: [],
-  });
-  add("第 8 课 · 单元音小结", {
-    title: "元音小结",
-    subtitle: "复习单元音、特殊元音和复合元音，重点看长短和形状。",
-    kind: "review",
-    itemIds: uniq([...allVowels, ...v(RARE_SPECIAL_VOWELS)]),
-    newItemIds: v(RARE_SPECIAL_VOWELS),
-  });
-  add("第 8 课 · 单元音小结", {
-    title: "声调小结",
-    subtitle: "中/高/低辅音 + 短长元音混合，为后面的尾辅音规则做准备。",
-    kind: "blend",
-    itemIds: uniq([...allConsonants, ...allVowels]),
-    newItemIds: [],
-  });
+  addPractice("第 8 课 · 单元音小结", "辅音类别小结", "按中/高/低三类重新复习 44 个辅音。", "review", allConsonants);
+  addPractice("第 8 课 · 单元音小结", "单元音小结", "复习所有单元音，重点看短长和位置。", "review", uniq([...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2)]));
+  addPractice("第 8 课 · 单元音小结", "特殊和复合元音小结", "复习特殊元音、复合元音和 ฦ / ฦๅ。", "review", uniq([...v(SPECIAL_VOWELS), ...chapter7Core, ...v(RARE_SPECIAL_VOWELS)]));
+  addPractice("第 8 课 · 单元音小结", "声调小结", "中/高/低辅音 + 短长元音混合，为尾辅音规则做准备。", "blend", uniq([...allConsonants, ...allVowels]));
 
-  add("第 9 课 · 清尾辅音", {
-    title: "尾辅音总览",
-    subtitle: "แม่กก แม่กด แม่กบ แม่กง แม่กน แม่กม แม่เกย แม่เกอว。",
-    kind: "review",
-    itemIds: allConsonants,
-    newItemIds: [],
-  });
-  add("第 9 课 · 清尾辅音", {
-    title: "响音尾辅音",
-    subtitle: "แม่กง แม่กน แม่กม แม่เกย แม่เกอว；先熟悉可延长的尾音。",
-    kind: "blend",
-    itemIds: uniq([...consonantsByFinalSound(["ng", "n", "m", "y", "w"]), ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2)]),
-    newItemIds: [],
-  });
+  addPractice("第 9 课 · 清尾辅音", "แม่กก / แม่กด / แม่กบ", "先分清 k / t / p 三类塞音尾。", "review", consonantsByFinalSound(["k", "t", "p"]));
+  addPractice("第 9 课 · 清尾辅音", "แม่กง / แม่กน / แม่กม", "练 ng / n / m 三类响音尾。", "review", consonantsByFinalSound(["ng", "n", "m"]));
+  addPractice("第 9 课 · 清尾辅音", "แม่เกย / แม่เกอว", "练 y / w 两类滑音尾。", "review", consonantsByFinalSound(["y", "w"]));
+  addPractice("第 9 课 · 清尾辅音", "尾辅音拼读", "把八类尾辅音和已学元音混合起来。", "blend", uniq([...allConsonants, ...firstBasicVowels, ...frontVowelsA]));
 
-  add("第 10 课 · 浊尾辅音", {
-    title: "塞音尾辅音",
-    subtitle: "แม่กก แม่กด แม่กบ；重点分清 k / t / p 三类尾音。",
-    kind: "review",
-    itemIds: consonantsByFinalSound(["k", "t", "p"]),
-    newItemIds: [],
-  });
-  add("第 10 课 · 浊尾辅音", {
-    title: "尾辅音对照",
-    subtitle: "把响音尾和塞音尾混在一起，练最终读音而不是字母形状。",
-    kind: "blend",
-    itemIds: uniq([...allConsonants, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2)]),
-    newItemIds: [],
-  });
+  addPractice("第 10 课 · 浊尾辅音", "塞音尾规则", "集中练 แม่กก แม่กด แม่กบ，读音只保留 k / t / p。", "review", consonantsByFinalSound(["k", "t", "p"]));
+  addPractice("第 10 课 · 浊尾辅音", "塞音尾 + 短元音", "塞音尾和短元音组合，准备活音/死音判断。", "blend", uniq([...consonantsByFinalSound(["k", "t", "p"]), ...v(["a-short", "i-short", "u-short", "e-short", "o-short"])]));
+  addPractice("第 10 课 · 浊尾辅音", "尾辅音对照", "把响音尾和塞音尾混在一起，练最终读音而不是字母形状。", "blend", uniq([...allConsonants, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2)]));
 
-  add("第 11 课 · 前引字", {
-    title: "不发音前引字",
-    subtitle: "อ ห 作前引字时影响声调或读法，先从 อ / ห 识别开始。",
-    kind: "review",
-    itemIds: c(["o-ang", "ho-hip", ...LOW_CONSONANTS_2]),
-    newItemIds: [],
-  });
-  add("第 11 课 · 前引字", {
-    title: "发音前引字",
-    subtitle: "高辅音和中辅音作前引字；用类别判断帮助记声调规则。",
-    kind: "review",
-    itemIds: uniq([...c(HIGH_CONSONANTS), ...c(MID_CONSONANTS)]),
-    newItemIds: [],
-  });
+  addPractice("第 11 课 · 前引字", "不发音前引字 อ / ห", "อ / ห 作前引字时影响声调或读法，先抓住两个前引核心字。", "review", c(["o-ang", "ho-hip", ...LOW_CONSONANTS_2]));
+  addPractice("第 11 课 · 前引字", "高辅音前引字", "ข ฉ ถ ฐ ผ ฝ ศ ส ษ 作前引字时，先用高辅音类别帮助记忆。", "review", c(["kho-khai", "cho-ching", "tho-thung", "tho-than", "pho-phueng", "fo-fa", "so-sala", "so-suea", "so-rusi"]));
+  addPractice("第 11 课 · 前引字", "中辅音前引字", "ก จ ด ฎ ต ฏ บ ป อ 作前引字时，回到中辅音类别判断。", "review", c(MID_CONSONANTS));
 
-  add("第 12 课 · 复合辅音", {
-    title: "真复合辅音",
-    subtitle: "重点准备 กร กล กว ขร ขล ขว คร คล คว ตร ปร ปล พร พล 等组合。",
-    kind: "blend",
-    itemIds: uniq([...c(["ko-kai", "kho-khai", "kho-khwai", "to-tao", "po-pla", "pho-phan", "ro-ruea", "lo-ling", "wo-waen"]), ...v(BASIC_VOWELS_1)]),
-    newItemIds: [],
-  });
-  add("第 12 课 · 复合辅音", {
-    title: "假复合辅音",
-    subtitle: "准备 จร ซร ศร สร ทร 等特殊读法，先用相近字形和读音复习。",
-    kind: "review",
-    itemIds: c(["cho-chan", "so-so", "so-sala", "so-suea", "tho-thahan", "ro-ruea"]),
-    newItemIds: [],
-  });
+  addPractice("第 12 课 · 复合辅音", "真复合辅音（一）", "กร กล กว ขร ขล ขว：先练 ก/ข 开头的复合辅音预备。", "blend", uniq([...c(["ko-kai", "kho-khai", "ro-ruea", "lo-ling", "wo-waen"]), ...firstBasicVowels]));
+  addPractice("第 12 课 · 复合辅音", "真复合辅音（二）", "คร คล คว ตร ปร ปล พร พล：继续练常用真复合辅音预备。", "blend", uniq([...c(["kho-khwai", "to-tao", "po-pla", "pho-phan", "ro-ruea", "lo-ling", "wo-waen"]), ...secondBasicVowels]));
+  addPractice("第 12 课 · 复合辅音", "假复合辅音", "จร ซร ศร สร ทร 等特殊读法，先用相近字形和读音复习。", "review", c(["cho-chan", "so-so", "so-sala", "so-suea", "tho-thahan", "ro-ruea"]));
 
-  add("第 13 课 · 特殊读法和符号", {
-    title: "ร / รร 特殊读法",
-    subtitle: "复习 ร และ ฤ；后续会增加 รร、์、ๆ、ฯ、ฯลฯ 专门题。",
-    kind: "review",
-    itemIds: uniq([...c(["ro-ruea"]), ...v(["rue", "rue-long"])]),
-    newItemIds: [],
-  });
-  add("第 13 课 · 特殊读法和符号", {
-    title: "常用符号预备",
-    subtitle: "์ ๆ ฯ ฯลฯ 会在符号题型里单独补；这里先复习特殊元音和相关字母。",
-    kind: "review",
-    itemIds: uniq([...v(SPECIAL_VOWELS), ...c(["ro-ruea", "o-ang"])]),
-    newItemIds: [],
-  });
+  addPractice("第 13 课 · 特殊读法和符号", "ร / รร 特殊读法", "复习 ร และ ฤ；后续会增加 รร 专门题。", "review", uniq([...c(["ro-ruea"]), ...v(["rue", "rue-long"])]));
+  addPractice("第 13 课 · 特殊读法和符号", "์ 静音符号预备", "先复习带 ยักษ์ 等记忆词的字母，后续补 ์ 专门题。", "review", c(["yo-yak", "ho-nokhuk", "ro-ruea"]));
+  addPractice("第 13 课 · 特殊读法和符号", "ๆ ฯ ฯลฯ 符号预备", "符号题型后续单独补；这里先复习特殊元音和相关字母。", "review", uniq([...v(SPECIAL_VOWELS), ...c(["ro-ruea", "o-ang"])]));
 
-  add("第 14 课 · 语音小结", {
-    title: "辅音排列和作用",
-    subtitle: "按名称、初辅音、尾辅音、三类辅音重新扫完整字母表。",
-    kind: "review",
-    itemIds: allConsonants,
-    newItemIds: [],
-  });
-  add("第 14 课 · 语音小结", {
-    title: "元音排列和 ไ / ใ",
-    subtitle: "按元音名称和排列顺序总复习，并再次区分 ไ- / ใ-。",
-    kind: "review",
-    itemIds: allVowels,
-    newItemIds: [],
-  });
-  add("第 14 课 · 语音小结", {
-    title: "语音期末预备",
-    subtitle: "把辅音、元音、拼读、声调预备、尾辅音主题混合起来。",
-    kind: "review",
-    itemIds: uniq([...allConsonants, ...allVowels]),
-    newItemIds: [],
-  });
+  addPractice("第 14 课 · 语音小结", "辅音排列和名称", "按名称、初辅音、三类辅音重新扫完整字母表。", "review", allConsonants);
+  addPractice("第 14 课 · 语音小结", "辅音尾音总复习", "按尾辅音作用重新扫完整字母表。", "review", allConsonants);
+  addPractice("第 14 课 · 语音小结", "元音排列和 ไ / ใ", "按元音名称和排列顺序总复习，并再次区分 ไ- / ใ-。", "review", allVowels);
+  addPractice("第 14 课 · 语音小结", "语音期末预备", "把辅音、元音、拼读、声调预备、尾辅音主题混合起来。", "review", uniq([...allConsonants, ...allVowels]));
 
   return lessons;
 }
