@@ -32,6 +32,25 @@ const MIN_MATCHABLE = 4; // 任何时候至少保证 N 对可配（不能让用�
 const MAX_NOT_FULL = 2;
 const BEST_KEY = "thai-alphabet:endless-match:best";
 
+function isShortcutBlocked(event: KeyboardEvent): boolean {
+  if (event.metaKey || event.ctrlKey || event.altKey) return true;
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
+}
+
+function choiceIndexFromKey(event: KeyboardEvent, max: number): number | null {
+  if (event.repeat) return null;
+  const index = Number(event.key) - 1;
+  if (!Number.isInteger(index) || index < 0 || index >= max) return null;
+  return index;
+}
+
 interface BoardState {
   leftSlots: (StudyItem | null)[];
   rightSlots: (StudyItem | null)[];
@@ -359,6 +378,7 @@ export default function EndlessMatchPage() {
   }
 
   function onLeft(idx: number) {
+    if (fadingSlots?.left === idx) return;
     const item = board.leftSlots[idx];
     if (!item) return;
     feedbackTap();
@@ -378,6 +398,7 @@ export default function EndlessMatchPage() {
   }
 
   function onRight(idx: number) {
+    if (fadingSlots?.right === idx) return;
     const item = board.rightSlots[idx];
     if (!item) return;
     feedbackTap();
@@ -407,6 +428,37 @@ export default function EndlessMatchPage() {
     press();
   }
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isShortcutBlocked(event)) return;
+
+      if (event.key === "Delete" || event.key === "Backspace") {
+        if (!pickedLeftRef.current && !pickedRightRef.current) return;
+        event.preventDefault();
+        clearPicks();
+        return;
+      }
+
+      const hasLeftPick = Boolean(pickedLeftRef.current);
+      const hasRightPick = Boolean(pickedRightRef.current);
+      const targetSlots = hasLeftPick ? board.rightSlots : board.leftSlots;
+      const index = choiceIndexFromKey(event, Math.min(SLOT_COUNT, targetSlots.length));
+      if (index === null) return;
+
+      const isFading =
+        hasLeftPick ? fadingSlots?.right === index : fadingSlots?.left === index;
+      if (!targetSlots[index] || isFading) return;
+
+      event.preventDefault();
+      if (hasLeftPick) onRight(index);
+      else if (hasRightPick) onLeft(index);
+      else onLeft(index);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
   function slotClass(state: "idle" | "picked" | "ok" | "bad" | "empty"): string {
     if (state === "empty") return "opt opacity-0 pointer-events-none";
     if (state === "ok") return "opt opt-correct";
@@ -423,6 +475,9 @@ export default function EndlessMatchPage() {
           {isAlphabetFinalExam
             ? `${ALPHABET_FINAL_EXAM_POLICY.matchedTarget} 配对 · ≤${ALPHABET_FINAL_EXAM_POLICY.maxMisses} 失误 · ${ALPHABET_FINAL_EXAM_POLICY.streakTarget} 连击`
             : "字母和读音配成一对，正确后会朗读字母。"}
+        </p>
+        <p className="mt-1 text-xs" style={{ color: "var(--duo-muted)" }}>
+          键盘：1-5 先选左边，再按 1-5 选右边；Delete 撤回选择。
         </p>
       </div>
 
