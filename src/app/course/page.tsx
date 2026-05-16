@@ -1,5 +1,14 @@
 "use client";
 import {
+  BookOpen,
+  Check,
+  Dumbbell,
+  LockKeyhole,
+  Sparkles,
+  Star,
+  type LucideIcon,
+} from "lucide-react";
+import {
   useEffect,
   useMemo,
   useRef,
@@ -817,6 +826,20 @@ export default function CoursePage() {
   );
 }
 
+const PATH_X = [50, 66, 58, 38, 30, 44, 62, 70, 52, 34];
+const PATH_ROW_HEIGHT = 82;
+
+function lessonKindMeta(kind: CourseLesson["kind"]): {
+  label: string;
+  Icon: LucideIcon;
+  chip: string;
+} {
+  if (kind === "consonant") return { label: "辅音", Icon: Star, chip: "chip-high" };
+  if (kind === "vowel") return { label: "元音", Icon: BookOpen, chip: "chip-yellow" };
+  if (kind === "blend") return { label: "拼读", Icon: Sparkles, chip: "chip-blue" };
+  return { label: "复习", Icon: Dumbbell, chip: "chip-low" };
+}
+
 function CourseHome({
   progress,
   mastery,
@@ -840,6 +863,10 @@ function CourseHome({
   const completed = progress.completedLessonIds.length;
   const completionPct = Math.round((completed / MAIN_COURSE.length) * 100);
   const masteredUnlocked = unlocked.filter((item) => (mastery[item.id] || 0) >= 60).length;
+  const currentUnit = upcomingLesson?.unit ?? MAIN_COURSE[MAIN_COURSE.length - 1]?.unit;
+  const currentLessonNumber = upcomingLesson
+    ? MAIN_COURSE.findIndex((lesson) => lesson.id === upcomingLesson.id) + 1
+    : MAIN_COURSE.length;
   const practiceAvailability: Record<PracticeMode["id"], number> = {
     random: unlocked.length,
     homophone: homophoneGroups(unlocked).length,
@@ -855,64 +882,102 @@ function CourseHome({
   return (
     <div className="space-y-5">
       <section
-        className="card-soft overflow-hidden p-5 sm:p-6"
+        className="sticky top-0 z-10 overflow-hidden rounded-lg border p-3 sm:p-4"
         style={{
           background:
-            "radial-gradient(circle at 82% 18%, rgba(40, 215, 244, 0.16), transparent 15rem), linear-gradient(135deg, rgba(9, 32, 44, 0.96), rgba(4, 14, 21, 0.96))",
+            "radial-gradient(circle at 84% 20%, rgba(40, 215, 244, 0.18), transparent 14rem), linear-gradient(135deg, rgba(8, 32, 44, 0.98), rgba(4, 14, 21, 0.98))",
+          borderColor: "var(--duo-line-d)",
+          boxShadow: "0 18px 36px rgba(0, 9, 16, 0.28)",
         }}
       >
-        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <div className="chip chip-blue">课程路径</div>
-            <h1 className="mt-3 text-2xl font-semibold sm:text-3xl">按顺序学完泰语字母</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: "var(--duo-muted)" }}>
-              每节课内容固定，只从已解锁的字母里出选项。完成主线以后，专项练习会继续帮你复习同音、形近和元音长短。
-            </p>
+            <div className="text-xs font-semibold" style={{ color: "var(--duo-green-d)" }}>
+              第 {currentLessonNumber} / {MAIN_COURSE.length} 节
+            </div>
+            <h1 className="mt-0.5 truncate text-xl font-semibold sm:text-2xl">
+              {currentUnit ?? "课程路径"}
+            </h1>
+            {upcomingLesson && (
+              <div className="mt-0.5 truncate text-sm font-semibold" style={{ color: "var(--duo-blue-d)" }}>
+                当前：{upcomingLesson.title}
+              </div>
+            )}
           </div>
-          <div className="grid min-w-64 grid-cols-3 gap-2 text-center text-xs">
-            <div className="rounded-lg border p-3" style={{ borderColor: "var(--duo-line)", background: "rgba(255,255,255,0.025)" }}>
-              <div className="text-xl font-semibold" style={{ color: "var(--duo-green-d)" }}>{completed}</div>
-              <div className="mt-0.5 opacity-65">已完成</div>
+
+          <div className="grid grid-cols-3 gap-2 text-center text-xs sm:min-w-64">
+            <div className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--duo-line)", background: "rgba(255,255,255,0.025)" }}>
+              <div className="text-lg font-semibold" style={{ color: "var(--duo-green-d)" }}>{completed}</div>
+              <div className="opacity-65">已完成</div>
             </div>
-            <div className="rounded-lg border p-3" style={{ borderColor: "var(--duo-line)", background: "rgba(255,255,255,0.025)" }}>
-              <div className="text-xl font-semibold" style={{ color: "var(--duo-blue-d)" }}>{unlockedCount}</div>
-              <div className="mt-0.5 opacity-65">已解锁</div>
+            <div className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--duo-line)", background: "rgba(255,255,255,0.025)" }}>
+              <div className="text-lg font-semibold" style={{ color: "var(--duo-blue-d)" }}>{unlockedCount}</div>
+              <div className="opacity-65">已解锁</div>
             </div>
-            <div className="rounded-lg border p-3" style={{ borderColor: "var(--duo-line)", background: "rgba(255,255,255,0.025)" }}>
-              <div className="text-xl font-semibold" style={{ color: "var(--duo-orange-d)" }}>{masteredUnlocked}</div>
-              <div className="mt-0.5 opacity-65">较熟悉</div>
+            <div className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--duo-line)", background: "rgba(255,255,255,0.025)" }}>
+              <div className="text-lg font-semibold" style={{ color: "var(--duo-orange-d)" }}>{masteredUnlocked}</div>
+              <div className="opacity-65">较熟悉</div>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="mt-3 flex items-center gap-3">
           <div className="progress-track h-2 flex-1">
             <div className="progress-fill" style={{ width: `${completionPct}%` }} />
           </div>
-          <div className="text-xs font-semibold" style={{ color: "var(--duo-muted)" }}>
-            {completionPct}% · {MAIN_COURSE.length} 节主线课
+          <div className="w-12 text-right text-xs font-semibold" style={{ color: "var(--duo-muted)" }}>
+            {completionPct}%
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-3">
-          {upcomingLesson && (
-            <button onClick={() => onStartLesson(upcomingLesson)} className="btn-primary px-5">
-              继续：{upcomingLesson.title}
-            </button>
-          )}
-          <button onClick={() => onStartPractice("random")} className="btn-ghost px-5">
-            随机复习已学
+        {upcomingLesson && (
+          <button onClick={() => onStartLesson(upcomingLesson)} className="btn-primary mt-3 px-4 py-2 text-xs">
+            继续学习
           </button>
-          <button onClick={onReset} className="btn-ghost px-4 text-xs">
-            重置课程
-          </button>
+        )}
+      </section>
+
+      <section
+        className="relative overflow-hidden rounded-lg border px-2 py-4 sm:px-5"
+        style={{
+          borderColor: "var(--duo-line)",
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.004)), rgba(2, 10, 15, 0.38)",
+        }}
+      >
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-40"
+          style={{
+            background: "linear-gradient(180deg, rgba(40, 215, 244, 0.08), transparent)",
+          }}
+          aria-hidden
+        />
+        <div className="relative mx-auto max-w-2xl">
+          {Object.entries(units).map(([unit, lessons], unitIndex) => (
+            <CoursePathUnit
+              key={unit}
+              unit={unit}
+              unitIndex={unitIndex}
+              lessons={lessons}
+              progress={progress}
+              allItems={allItems}
+              onStartLesson={onStartLesson}
+            />
+          ))}
         </div>
       </section>
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold">专项练习</h2>
-          <div className="text-xs" style={{ color: "var(--duo-muted)" }}>只抽已解锁内容</div>
+          <div>
+            <h2 className="text-base font-semibold">训练场</h2>
+            <div className="mt-0.5 text-xs" style={{ color: "var(--duo-muted)" }}>
+              不影响主线，专门练已经解锁的内容。
+            </div>
+          </div>
+          <button onClick={onReset} className="btn-ghost px-3 py-2 text-xs">
+            重置
+          </button>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {PRACTICE_MODES.map((mode) => {
@@ -922,7 +987,7 @@ function CourseHome({
                 key={mode.id}
                 onClick={() => onStartPractice(mode.id)}
                 disabled={disabled}
-                className="card group min-h-[9rem] p-4 text-left transition hover:-translate-y-0.5 disabled:opacity-45"
+                className="card group min-h-[8rem] p-4 text-left transition hover:-translate-y-0.5 disabled:opacity-45"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="font-semibold">{mode.title}</div>
@@ -936,64 +1001,166 @@ function CourseHome({
           })}
         </div>
       </section>
+    </div>
+  );
+}
 
-      <section className="space-y-4">
-        <h2 className="text-base font-semibold">主线课程</h2>
-        {Object.entries(units).map(([unit, lessons]) => (
-          <div key={unit} className="space-y-2">
-            <div className="px-1 text-xs font-semibold" style={{ color: "var(--duo-green-d)" }}>{unit}</div>
-            <div className="grid gap-2 md:grid-cols-2">
-              {lessons.map((lesson) => {
-                const status = lessonStatus(lesson, progress);
-                const disabled = status === "locked";
-                const lessonItems = studyItemsByIds(allItems, lesson.itemIds);
-                const preview = lessonItems.slice(0, 8).map((item) => item.front).join(" ");
-                return (
-                  <button
-                    key={lesson.id}
-                    onClick={() => onStartLesson(lesson)}
-                    disabled={disabled}
-                    className="group grid min-h-[6.5rem] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border p-3 text-left transition hover:-translate-y-0.5 disabled:opacity-42"
-                    style={{
-                      background: status === "current"
-                        ? "color-mix(in srgb, var(--duo-green) 8%, var(--duo-card))"
-                        : "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.008)), var(--duo-card)",
-                      borderColor: status === "current" ? "rgba(40, 215, 244, 0.34)" : "var(--duo-line)",
-                      boxShadow: status === "current" ? "var(--shadow-cyan)" : "var(--shadow-small)",
-                    }}
-                  >
-                    <div
-                      className="flex h-10 w-10 items-center justify-center rounded-lg border text-sm font-semibold"
-                      style={{
-                        borderColor: status === "done" ? "rgba(40, 215, 244, 0.32)" : "var(--duo-line)",
-                        background: status === "done" ? "rgba(40, 215, 244, 0.1)" : "var(--surface-subtle)",
-                        color: status === "locked" ? "var(--duo-muted)" : "var(--duo-green-d)",
-                      }}
-                    >
-                      {status === "done" ? "✓" : status === "locked" ? "·" : lesson.id.slice(1)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold">{lesson.title}</span>
-                        <span className={`chip ${lesson.kind === "consonant" ? "chip-high" : lesson.kind === "vowel" ? "chip-yellow" : lesson.kind === "blend" ? "chip-blue" : "chip-low"}`}>
-                          {lesson.kind === "consonant" ? "辅音" : lesson.kind === "vowel" ? "元音" : lesson.kind === "blend" ? "拼读" : "复习"}
-                        </span>
-                      </div>
-                      <div className="mt-1 text-xs leading-5" style={{ color: "var(--duo-muted)" }}>{lesson.subtitle}</div>
-                      <div className="thai-big mt-2 truncate text-lg leading-none" style={{ color: status === "locked" ? "var(--duo-muted)" : "var(--duo-text)" }}>
-                        {preview}
-                      </div>
-                    </div>
-                    <div className="text-xs font-semibold" style={{ color: status === "current" ? "var(--duo-green-d)" : "var(--duo-muted)" }}>
-                      {status === "done" ? "复习" : status === "current" ? "开始" : "锁定"}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+function CoursePathUnit({
+  unit,
+  unitIndex,
+  lessons,
+  progress,
+  allItems,
+  onStartLesson,
+}: {
+  unit: string;
+  unitIndex: number;
+  lessons: CourseLesson[];
+  progress: CourseProgress;
+  allItems: StudyItem[];
+  onStartLesson: (lesson: CourseLesson) => void;
+}) {
+  const height = lessons.length * PATH_ROW_HEIGHT + 28;
+  const points = lessons
+    .map((_, index) => {
+      const x = PATH_X[(index + unitIndex * 2) % PATH_X.length];
+      return `${x},${index * PATH_ROW_HEIGHT + 40}`;
+    })
+    .join(" ");
+
+  return (
+    <div className="relative pb-3">
+      <div
+        className="mx-auto mb-3 flex max-w-sm items-center justify-between gap-3 rounded-lg border px-4 py-2.5"
+        style={{
+          borderColor: "var(--duo-line-d)",
+          background: "linear-gradient(180deg, rgba(40, 215, 244, 0.09), rgba(40, 215, 244, 0.025))",
+        }}
+      >
+        <div>
+          <div className="text-xs font-semibold" style={{ color: "var(--duo-green-d)" }}>
+            第 {unitIndex + 1} 阶段
           </div>
-        ))}
-      </section>
+          <div className="mt-0.5 text-sm font-semibold sm:text-base">{unit.replace(/^第.+?·\s*/, "")}</div>
+        </div>
+        <div className="text-xs" style={{ color: "var(--duo-muted)" }}>
+          {lessons.length} 节
+        </div>
+      </div>
+
+      <div className="relative mx-auto max-w-xl" style={{ height }}>
+        <svg
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          viewBox={`0 0 100 ${height}`}
+          preserveAspectRatio="none"
+          aria-hidden
+        >
+          <polyline
+            points={points}
+            fill="none"
+            stroke="rgba(130, 220, 245, 0.18)"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="6 7"
+          />
+        </svg>
+
+        {lessons.map((lesson, index) => {
+          const x = PATH_X[(index + unitIndex * 2) % PATH_X.length];
+          return (
+            <CoursePathNode
+              key={lesson.id}
+              lesson={lesson}
+              status={lessonStatus(lesson, progress)}
+              preview={studyItemsByIds(allItems, lesson.itemIds).slice(0, 5).map((item) => item.front).join(" ")}
+              x={x}
+              y={index * PATH_ROW_HEIGHT}
+              onStartLesson={onStartLesson}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CoursePathNode({
+  lesson,
+  status,
+  preview,
+  x,
+  y,
+  onStartLesson,
+}: {
+  lesson: CourseLesson;
+  status: "done" | "current" | "locked";
+  preview: string;
+  x: number;
+  y: number;
+  onStartLesson: (lesson: CourseLesson) => void;
+}) {
+  const meta = lessonKindMeta(lesson.kind);
+  const Icon = status === "done" ? Check : status === "locked" ? LockKeyhole : meta.Icon;
+  const disabled = status === "locked";
+
+  return (
+    <div
+      className="absolute flex -translate-x-1/2 flex-col items-center"
+      style={{ left: `${x}%`, top: y }}
+    >
+      {status === "current" && (
+        <div
+          className="absolute -top-9 rounded-lg border px-3 py-1.5 text-xs font-semibold"
+          style={{
+            background: "var(--surface-solid)",
+            borderColor: "rgba(40, 215, 244, 0.42)",
+            color: "var(--duo-green-d)",
+            boxShadow: "var(--shadow-cyan)",
+          }}
+        >
+          开始
+        </div>
+      )}
+
+      <button
+        onClick={() => onStartLesson(lesson)}
+        disabled={disabled}
+        className="relative flex h-16 w-16 items-center justify-center rounded-full border transition hover:-translate-y-0.5 active:scale-95 disabled:cursor-not-allowed sm:h-[68px] sm:w-[68px]"
+        style={{
+          background:
+            status === "done"
+              ? "linear-gradient(180deg, rgba(40, 215, 244, 0.28), rgba(40, 215, 244, 0.12))"
+              : status === "current"
+              ? "linear-gradient(180deg, #4be7fb, #20c8eb)"
+              : "linear-gradient(180deg, rgba(142, 167, 181, 0.18), rgba(142, 167, 181, 0.08))",
+          borderColor:
+            status === "current"
+              ? "rgba(151, 242, 255, 0.78)"
+              : status === "done"
+              ? "rgba(40, 215, 244, 0.34)"
+              : "rgba(130, 220, 245, 0.12)",
+          boxShadow:
+            status === "current"
+              ? "0 0 0 7px rgba(40, 215, 244, 0.1), 0 16px 32px rgba(40, 215, 244, 0.18)"
+              : status === "done"
+              ? "0 12px 26px rgba(0, 9, 16, 0.24)"
+              : "none",
+          color: status === "current" ? "#021016" : status === "locked" ? "var(--duo-muted)" : "var(--duo-green-d)",
+        }}
+        aria-label={`${lesson.title}${status === "done" ? "，复习" : status === "current" ? "，开始" : "，未解锁"}`}
+        title={`${lesson.title} · ${meta.label} · ${preview}`}
+      >
+        {status === "current" && (
+          <span
+            className="absolute inset-[-7px] rounded-full border"
+            style={{ borderColor: "rgba(40, 215, 244, 0.36)" }}
+            aria-hidden
+          />
+        )}
+        <Icon size={26} strokeWidth={2.35} />
+      </button>
+
     </div>
   );
 }
