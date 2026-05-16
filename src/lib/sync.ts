@@ -9,12 +9,14 @@ const TOKEN_KEY = "thai-alphabet:sync:token";
 const USER_KEY = "thai-alphabet:sync:user";
 const SINCE_KEY = "thai-alphabet:sync:since";        // 上次拉取的服务端时间
 const META_KEY = "thai-alphabet:sync:meta";          // {key: updated_at}
+const LAST_PULL_KEY = "thai-alphabet:sync:last-pull";
+const COURSE_PROGRESS_SYNC_KEY = "thai-alphabet:course-progress:v2";
 
 // 这些 key 才参与同步
 const SYNC_KEYS = new Set<string>([
   "thai-alphabet:mastery:v2",                // 多维熟练度（含 SRS 字段）
   "thai-alphabet:stats:v1",                  // streak / active days
-  "thai-alphabet:course-progress:v2",        // 课程列表完成进度
+  COURSE_PROGRESS_SYNC_KEY,                  // 课程列表完成进度
   "thai:module:alphabet-final:v1",           // 字母期末通过状态
   "thai-alphabet:last-lesson:v1",            // 旧版 course last lesson，保留读取
   "thai-alphabet:endless-match:best",        // 无尽配对最高连击
@@ -32,12 +34,18 @@ export const LEGACY_REMOTE_KEYS: readonly string[] = [
 // 本地标记：旧 key 已经在云端 + 本地都清理过了
 const LEGACY_CLEANUP_FLAG = "thai-alphabet:cleanup:legacy:v2";
 
-const SKIP_KEYS = new Set<string>([TOKEN_KEY, USER_KEY, SINCE_KEY, META_KEY]);
+const SKIP_KEYS = new Set<string>([TOKEN_KEY, USER_KEY, SINCE_KEY, META_KEY, LAST_PULL_KEY]);
 
 interface KvRow {
   key: string;
   value: string;
   updated_at: number;
+}
+
+interface CourseProgressSyncValue {
+  completedLessonIds?: unknown;
+  updatedAt?: unknown;
+  resetAt?: unknown;
 }
 
 export type SyncStatus = "off" | "idle" | "pulling" | "pushing" | "error";
@@ -72,6 +80,10 @@ export function getToken(): string {
 export function getUsername(): string {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(USER_KEY) || "";
+}
+export function getLastPullAt(): number {
+  if (typeof window === "undefined") return 0;
+  return readNumberKey(LAST_PULL_KEY);
 }
 export function isLoggedIn(): boolean {
   return getToken().length > 0;
@@ -159,6 +171,109 @@ function dispatchDataEvents() {
   window.dispatchEvent(new Event("thai:module:alphabet-final"));
 }
 
+function readNumberKey(key: string): number {
+  try {
+    return Number(window.localStorage.getItem(key) || "0") || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeNumberKey(key: string, value: number) {
+  try {
+    window.localStorage.setItem(key, String(value));
+  } catch {
+    /* ignore */
+  }
+}
+
+function parseCourseProgress(raw: string | null): {
+  completedLessonIds: string[];
+  updatedAt: number;
+  resetAt: number;
+} | null {
+  if (!raw) return { completedLessonIds: [], updatedAt: 0, resetAt: 0 };
+  try {
+    const parsed = JSON.parse(raw) as CourseProgressSyncValue | null;
+    if (!parsed || typeof parsed !== "object") return null;
+    const completedLessonIds = Array.isArray(parsed.completedLessonIds)
+      ? parsed.completedLessonIds.filter((id): id is string => typeof id === "string")
+      : [];
+    return {
+      completedLessonIds,
+      updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : 0,
+      resetAt: typeof parsed.resetAt === "number" ? parsed.resetAt : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function sortLessonIds(ids: Iterable<string>): string[] {
+  return Array.from(new Set(ids)).sort((a, b) => {
+    const aNum = /^L(\d+)$/.exec(a)?.[1];
+    const bNum = /^L(\d+)$/.exec(b)?.[1];
+    if (aNum && bNum) return Number(aNum) - Number(bNum);
+    return a.localeCompare(b);
+  });
+}
+
+function sameStringArray(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function mergeCourseProgressRow(row: KvRow, meta: Record<string, number>): boolean {
+  const local = parseCourseProgress(window.localStorage.getItem(COURSE_PROGRESS_SYNC_KEY));
+  const remote = parseCourseProgress(row.value);
+  if (!remote) return false;
+  if (!local) {
+    suppressOnce.add(COURSE_PROGRESS_SYNC_KEY);
+    window.localStorage.setItem(COURSE_PROGRESS_SYNC_KEY, row.value);
+    meta[COURSE_PROGRESS_SYNC_KEY] = Math.max(meta[COURSE_PROGRESS_SYNC_KEY] || 0, row.updated_at);
+    return true;
+  }
+
+  const resetAt = Math.max(local.resetAt, remote.resetAt);
+  const localIds = local.resetAt === resetAt || local.updatedAt >= resetAt ? local.completedLessonIds : [];
+  const remoteIds = remote.resetAt === resetAt || remote.updatedAt >= resetAt ? remote.completedLessonIds : [];
+  const mergedIds = sortLessonIds([...localIds, ...remoteIds]);
+  const localSorted = sortLessonIds(localIds);
+  const remoteSorted = sortLessonIds(remoteIds);
+  const localChanged =
+    !sameStringArray(localSorted, mergedIds) || local.resetAt !== resetAt || local.completedLessonIds.length !== localSorted.length;
+  const remoteNeedsPush = !sameStringArray(remoteSorted, mergedIds) || remote.resetAt !== resetAt;
+  const nextUpdatedAt = remoteNeedsPush
+    ? Math.max(Date.now(), local.updatedAt, remote.updatedAt, row.updated_at) + 1
+    : Math.max(local.updatedAt, remote.updatedAt, row.updated_at);
+  const nextValue = JSON.stringify({
+    completedLessonIds: mergedIds,
+    updatedAt: nextUpdatedAt,
+    ...(resetAt ? { resetAt } : {}),
+  });
+
+  if (localChanged) {
+    suppressOnce.add(COURSE_PROGRESS_SYNC_KEY);
+    window.localStorage.setItem(COURSE_PROGRESS_SYNC_KEY, nextValue);
+  }
+
+  meta[COURSE_PROGRESS_SYNC_KEY] = Math.max(
+    meta[COURSE_PROGRESS_SYNC_KEY] || 0,
+    row.updated_at,
+    nextUpdatedAt
+  );
+
+  if (remoteNeedsPush) {
+    pending.set(COURSE_PROGRESS_SYNC_KEY, {
+      key: COURSE_PROGRESS_SYNC_KEY,
+      value: nextValue,
+      updated_at: nextUpdatedAt,
+    });
+    schedulePush();
+  }
+
+  return localChanged;
+}
+
 /** 拉取服务端变更，应用到本地（按 updated_at 比较） */
 export async function pull(): Promise<{ ok: boolean; merged: number; error?: string }> {
   if (pullInFlight) return pullInFlight;
@@ -193,6 +308,10 @@ async function pullOnce(): Promise<{ ok: boolean; merged: number; error?: string
     let merged = 0;
     for (const row of data.items) {
       if (!isSyncableKey(row.key)) continue;
+      if (row.key === COURSE_PROGRESS_SYNC_KEY) {
+        if (mergeCourseProgressRow(row, meta)) merged++;
+        continue;
+      }
       const localStamp = meta[row.key] || 0;
       if (row.updated_at > localStamp) {
         suppressOnce.add(row.key);
@@ -205,6 +324,7 @@ async function pullOnce(): Promise<{ ok: boolean; merged: number; error?: string
     if (data.serverTime) {
       window.localStorage.setItem(SINCE_KEY, String(data.serverTime));
     }
+    writeNumberKey(LAST_PULL_KEY, Date.now());
     emit("idle");
     dispatchDataEvents();
     return { ok: true, merged };
@@ -332,7 +452,11 @@ export async function deleteRemoteKeys(keys: readonly string[]): Promise<{ ok: b
 
 /** 把当前所有受跟踪 key 全量推送 */
 export async function pushAll(): Promise<{ ok: boolean; pushed: number; error?: string }> {
-  const token = getToken();
+  let token = getToken();
+  if (!token) return { ok: false, pushed: 0, error: "not-logged-in" };
+  const pulled = await pull();
+  if (!pulled.ok) return { ok: false, pushed: 0, error: pulled.error || "pull-before-push-failed" };
+  token = getToken();
   if (!token) return { ok: false, pushed: 0, error: "not-logged-in" };
   const items: KvRow[] = [];
   const meta = loadMeta();
@@ -392,8 +516,21 @@ function schedulePush() {
       pending.clear();
       return;
     }
-    const items = Array.from(pending.values());
+    const queued = Array.from(pending.values());
     pending.clear();
+    const meta = loadMeta();
+    const items = queued
+      .map((row) => {
+        const latestValue = window.localStorage.getItem(row.key);
+        if (latestValue === null) return null;
+        return {
+          key: row.key,
+          value: latestValue,
+          updated_at: meta[row.key] || row.updated_at,
+        };
+      })
+      .filter((row): row is KvRow => row !== null);
+    if (items.length === 0) return;
     emit("pushing");
     try {
       const res = await fetch("/api/sync", {
@@ -447,7 +584,8 @@ function maybeAutoPull(force = false) {
   if (!isLoggedIn()) return;
   if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
   const now = Date.now();
-  if (!force && now - lastAutoPullAt < 25_000) return;
+  const lastPullAt = Math.max(lastAutoPullAt, getLastPullAt());
+  if (!force && now - lastPullAt < 25_000) return;
   lastAutoPullAt = now;
   pull().catch(() => {
     /* status is emitted by pull */
@@ -462,8 +600,10 @@ export function startAutoPull() {
     if (document.visibilityState === "visible") maybeAutoPull(true);
   };
   const onFocus = () => maybeAutoPull(true);
+  const onPageShow = () => maybeAutoPull(true);
 
   window.addEventListener("focus", onFocus);
+  window.addEventListener("pageshow", onPageShow);
   document.addEventListener("visibilitychange", onVisible);
   setInterval(() => maybeAutoPull(false), 30_000);
   maybeAutoPull(true);

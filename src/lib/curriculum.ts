@@ -27,6 +27,7 @@ export interface CourseLesson {
 export interface CourseProgress {
   completedLessonIds: string[];
   updatedAt: number;
+  resetAt?: number;
 }
 
 export interface PracticeMode {
@@ -334,6 +335,7 @@ export function loadCourseProgress(): CourseProgress {
     return {
       completedLessonIds: Array.isArray(raw?.completedLessonIds) ? raw.completedLessonIds : [],
       updatedAt: typeof raw?.updatedAt === "number" ? raw.updatedAt : 0,
+      resetAt: typeof raw?.resetAt === "number" ? raw.resetAt : undefined,
     };
   } catch {
     return { completedLessonIds: [], updatedAt: 0 };
@@ -349,15 +351,15 @@ export function saveCourseProgress(progress: CourseProgress) {
 export function completeCourseLesson(lessonId: string): CourseProgress {
   const current = loadCourseProgress();
   const completedLessonIds = uniq([...current.completedLessonIds, lessonId]);
-  const next = { completedLessonIds, updatedAt: Date.now() };
+  const next = { completedLessonIds, updatedAt: Date.now(), resetAt: current.resetAt };
   saveCourseProgress(next);
   return next;
 }
 
 export function resetCourseProgress() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(COURSE_PROGRESS_KEY);
-  window.dispatchEvent(new Event("thai-alphabet:course-progress"));
+  const now = Date.now();
+  saveCourseProgress({ completedLessonIds: [], updatedAt: now, resetAt: now });
 }
 
 export function nextLesson(progress: CourseProgress, lessons: CourseLesson[] = MAIN_COURSE): CourseLesson | null {
