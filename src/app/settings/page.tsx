@@ -115,7 +115,7 @@ export default function SettingsPage() {
           <li>课程熟练度（mastery）</li>
           <li>SRS 卡片状态</li>
           <li>连续学习天数</li>
-          <li>课程历史 / Flashcard 顺序</li>
+          <li>课程历史 / 闪卡顺序</li>
         </ul>
       </section>
     </div>

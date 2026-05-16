@@ -78,7 +78,7 @@ export default function FlashcardsPage() {
       <section className="card-soft p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-lg font-semibold">Flashcard 速看</h1>
+            <h1 className="text-lg font-semibold">闪卡速看</h1>
             <p className="mt-0.5 text-xs opacity-70">打开页面会重新洗牌，答案直接显示</p>
           </div>
           <button onClick={() => reshuffle(0)} className="btn-ghost px-3 py-2 text-xs">

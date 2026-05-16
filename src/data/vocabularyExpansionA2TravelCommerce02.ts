@@ -69,7 +69,6 @@ export type VocabularyExpansionCandidate = {
 const LEXICON_REFS = ["phupha-wordfreq", "pythainlp-corpus", "kaikki-wiktionary-thai"];
 const TRAVEL_REFS = ["loecsen-thai", "thaipod101-core100", ...LEXICON_REFS];
 const COMMERCE_REFS = ["thai-frequency", "thaipod101-core100", ...LEXICON_REFS];
-const GRAMMAR_REFS = ["complete-thai-a1", "into-asia-grammar", ...LEXICON_REFS];
 
 export const VOCABULARY_EXPANSION_A2_TRAVEL_COMMERCE_02 = [
   {

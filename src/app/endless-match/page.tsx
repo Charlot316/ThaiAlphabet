@@ -418,7 +418,7 @@ export default function EndlessMatchPage() {
   return (
     <div className={`space-y-5 ${flash === "bad" ? "animate-shake" : ""}`}>
       <div>
-        <h1 className="text-lg font-semibold">{isAlphabetFinalExam ? "Alphabet 期末" : "无尽配对"}</h1>
+        <h1 className="text-lg font-semibold">{isAlphabetFinalExam ? "字母期末" : "无尽配对"}</h1>
         <p className="mt-1 text-xs" style={{ color: "var(--duo-muted)" }}>
           {isAlphabetFinalExam
             ? `${ALPHABET_FINAL_EXAM_POLICY.matchedTarget} 配对 · ≤${ALPHABET_FINAL_EXAM_POLICY.maxMisses} 失误 · ${ALPHABET_FINAL_EXAM_POLICY.streakTarget} 连击`
@@ -469,7 +469,7 @@ export default function EndlessMatchPage() {
           }}
         >
           {passedAlphabetFinal
-            ? "已通过 Alphabet 期末，语法模块会解锁。"
+            ? "已通过字母期末，语法模块会解锁。"
             : `本轮最高连击 ${sessionBestStreak}，继续配对到达通过标准。`}
         </div>
       )}

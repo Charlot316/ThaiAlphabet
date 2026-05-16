@@ -6,6 +6,7 @@ export * from "./confusables";
 export * from "./contentSources";
 export * from "./grammar";
 export * from "./vocabulary";
+export * from "./vocabularyCatalog";
 export * from "./vocabularyEnrichment";
 export * from "./proficiency";
 export * from "./advancedGrammar";

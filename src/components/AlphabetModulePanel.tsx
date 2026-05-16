@@ -29,14 +29,14 @@ const ALPHABET_MODES: ModeCard[] = [
   { href: "/overview", icon: LibraryBig, title: "字母总览", desc: "浏览字形、读音和熟练度", preview: "ก…ฮ", tone: "blue" },
   { href: "/endless-match", icon: Gamepad2, title: "无尽配对", desc: "字母和罗马音快速建立连接", preview: "kh ↔ ข", tone: "orange" },
   { href: "/srs", icon: Brain, title: "记忆模式", desc: "确认答案后再记录熟练度", preview: "SRS", tone: "purple" },
-  { href: "/flashcards", icon: Zap, title: "Flashcard", desc: "随机速看，自动朗读", preview: "random", tone: "blue" },
+  { href: "/flashcards", icon: Zap, title: "闪卡速看", desc: "随机速看，自动朗读", preview: "随机", tone: "blue" },
   { href: "/spell", icon: Keyboard, title: "拼读输入", desc: "音节解析和声调推导", preview: "กา → kaa", tone: "primary" },
   {
     href: ALPHABET_FINAL_EXAM_POLICY.route,
     icon: FileCheck2,
-    title: "Alphabet 期末",
+    title: "字母期末",
     desc: `${ALPHABET_FINAL_EXAM_POLICY.matchedTarget} 配对 · ≤${ALPHABET_FINAL_EXAM_POLICY.maxMisses} 失误 · ${ALPHABET_FINAL_EXAM_POLICY.streakTarget} 连击`,
-    preview: "final",
+    preview: "期末",
     tone: "orange",
   },
 ];
@@ -94,7 +94,7 @@ export default function AlphabetModulePanel({
                 ก
               </div>
               <div>
-                <div className="text-lg font-semibold">Alphabet</div>
+                <div className="text-lg font-semibold">字母</div>
                 <div className="text-sm" style={{ color: "var(--duo-muted)" }}>
                   字母、元音、声调、拼读和书写
                 </div>

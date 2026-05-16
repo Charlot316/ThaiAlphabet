@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -30,7 +31,7 @@ const MODULES: LearningModule[] = [
   {
     id: "alphabet",
     icon: GraduationCap,
-    title: "Alphabet",
+    title: "字母",
     subtitle: "字母、元音、声调、拼读、书写",
     status: "默认展开",
     stats: "44 辅音 · 32 元音 · 5 声调",
@@ -38,20 +39,18 @@ const MODULES: LearningModule[] = [
   {
     id: "grammar",
     icon: BookOpenText,
-    title: "Grammar",
+    title: "语法",
     subtitle: "完整语法主线，随堂带高频词",
-    status: "字母期末后进入",
+    status: "可先浏览",
     stats: "30 覆盖区 · C1/C2 语域",
-    locked: true,
   },
   {
     id: "vocabulary",
     icon: Languages,
-    title: "Vocabulary",
+    title: "词汇",
     subtitle: "词汇总览、记忆模式、例句和关系词",
-    status: "语法后主线",
+    status: "可先浏览",
     stats: "50k 被动词库 · 20k 主动目标",
-    locked: true,
   },
 ];
 
@@ -118,7 +117,7 @@ function ModuleButton({
 export default function Home() {
   const examResult = useAlphabetFinalExamResult();
   const [openModule, setOpenModule] = useState<ModuleId>("alphabet");
-  const grammarUnlocked = Boolean(examResult);
+  const grammarCourseUnlocked = Boolean(examResult);
 
   return (
     <div className="space-y-5">
@@ -142,7 +141,7 @@ export default function Home() {
               从字母开始，学完整泰语
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6" style={{ color: "color-mix(in srgb, var(--duo-text) 72%, var(--duo-muted))" }}>
-              Alphabet 现在是第一个模块；之后语法和词汇会接在同一条学习路径里。
+              字母现在是第一个模块；之后语法和词汇会接在同一条学习路径里。
             </p>
           </div>
 
@@ -182,12 +181,16 @@ export default function Home() {
               status:
                 module.id === "alphabet" && examResult
                   ? "期末已通过"
-                  : module.id === "grammar" && grammarUnlocked
-                  ? "已解锁"
+                  : module.id === "grammar" && grammarCourseUnlocked
+                  ? "课程已解锁"
+                  : module.id === "grammar"
+                  ? "可浏览 · 课程锁"
+                  : module.id === "vocabulary"
+                  ? "可浏览 · 分页"
                   : module.status,
             }}
             active={openModule === module.id}
-            unlocked={module.id === "alphabet" || (module.id === "grammar" && grammarUnlocked)}
+            unlocked={true}
             onClick={() => setOpenModule((current) => (current === module.id ? "alphabet" : module.id))}
           />
         ))}
@@ -197,28 +200,34 @@ export default function Home() {
 
       {openModule === "grammar" && (
         <section className="card-soft p-5">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
             <BookOpenText size={22} strokeWidth={2.1} style={{ color: "var(--duo-blue-d)" }} />
             <div>
-              <div className="text-lg font-semibold">Grammar</div>
+              <div className="text-lg font-semibold">语法</div>
               <div className="text-sm" style={{ color: "var(--duo-muted)" }}>
-                先完成 Alphabet 期末，再进入完整语法主线。
+                  语法条目可以先浏览；正式课程先等字母期末通过。
               </div>
             </div>
+            </div>
+            <Link href="/grammar" className="btn-blue shrink-0">打开语法总览</Link>
           </div>
         </section>
       )}
 
       {openModule === "vocabulary" && (
         <section className="card-soft p-5">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
             <Boxes size={22} strokeWidth={2.1} style={{ color: "var(--duo-purple-d)" }} />
             <div>
-              <div className="text-lg font-semibold">Vocabulary</div>
+              <div className="text-lg font-semibold">词汇</div>
               <div className="text-sm" style={{ color: "var(--duo-muted)" }}>
-                词汇会复用记忆模式，并增加词义、例句、同反义词和总览。
+                  词汇条目可以先分页浏览；记忆和课程稍后接入。
               </div>
             </div>
+            </div>
+            <Link href="/vocabulary" className="btn-purple shrink-0">打开词汇总览</Link>
           </div>
         </section>
       )}

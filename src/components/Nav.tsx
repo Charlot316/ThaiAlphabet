@@ -15,7 +15,7 @@ const TABS = [
   {
     href: "/alphabet",
     icon: GraduationCap,
-    label: "Alphabet",
+    label: "字母",
     match: ["/alphabet", "/overview", "/course", "/endless-match", "/srs", "/flashcards", "/spell", "/quiz"],
   },
   { href: "/grammar", icon: BookOpenText, label: "语法", match: ["/grammar"] },

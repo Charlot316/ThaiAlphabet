@@ -96,7 +96,6 @@ type CandidateSeed = Omit<
 };
 
 const LEXICON_REFS = ["thai-frequency", "wiktionary-thai-frequency", "thaipod101-core100"];
-const GRAMMAR_REFS = ["complete-thai-a1", "into-asia-grammar"];
 
 const candidate = (entry: CandidateSeed): VocabularyExpansionCandidate => {
   const synonyms = entry.synonyms ?? [];
