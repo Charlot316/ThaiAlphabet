@@ -27,6 +27,7 @@ import {
   PRACTICE_MODES,
   PracticeMode,
   completeCourseLesson,
+  consonantClassItems,
   filterUnlockedItems,
   homophoneGroups,
   lessonStatus,
@@ -282,6 +283,12 @@ function makeSyllableQuestion(
   };
 }
 
+function makeAttributeQuestion(item: StudyItem, choiceItems: StudyItem[]): Question | null {
+  if (item.pool === "consonant") return makeQuestion(item, "class1", choiceItems);
+  if (item.pool === "vowel" && item.length) return makeQuestion(item, "length1", choiceItems);
+  return null;
+}
+
 function buildQuestions(session: ActiveSession): Question[] {
   const lessonItems = session.items;
   const choiceItems = session.choiceItems.length ? session.choiceItems : lessonItems;
@@ -290,12 +297,16 @@ function buildQuestions(session: ActiveSession): Question[] {
       ? lessonItems.slice(0, Math.min(6, lessonItems.length))
       : lessonItems;
 
-  const introRound = focusItems.map((item) => ({
-    id: `${item.id}:look`,
-    kind: "look" as const,
-    item,
-    choices: [item],
-  }));
+  const introRound = focusItems.flatMap((item) => {
+    const lookQuestion: Question = {
+      id: `${item.id}:look`,
+      kind: "look",
+      item,
+      choices: [item],
+    };
+    const attributeQuestion = makeAttributeQuestion(item, choiceItems);
+    return attributeQuestion ? [lookQuestion, attributeQuestion] : [lookQuestion];
+  });
 
   const pickRound = focusItems.map((item, idx) =>
     makeQuestion(item, idx % 2 === 0 ? "sound" : "letter", choiceItems)
@@ -319,12 +330,17 @@ function buildQuestions(session: ActiveSession): Question[] {
           .map((item) => makeQuestion(item, "write1", choiceItems));
 
   const classOrLengthRound =
-    session.kind === "vowel-length"
+    session.kind === "consonant-class"
       ? focusItems
-          .filter((item) => item.pool === "vowel")
-          .slice(0, Math.min(4, focusItems.length))
-          .map((item) => makeQuestion(item, "length1", choiceItems))
-      : [];
+          .filter((item) => item.pool === "consonant")
+          .slice(0, Math.min(8, focusItems.length))
+          .map((item) => makeQuestion(item, "class2", choiceItems))
+      : session.kind === "vowel-length"
+        ? focusItems
+            .filter((item) => item.pool === "vowel")
+            .slice(0, Math.min(4, focusItems.length))
+            .map((item) => makeQuestion(item, "length2", choiceItems))
+        : [];
 
   const syllableBank = session.kind === "blend" || session.kind === "review"
     ? buildSyllableBank(choiceItems, 10)
@@ -353,7 +369,8 @@ function buildQuestions(session: ActiveSession): Question[] {
         }]
       : [];
 
-  return shuffleStrong([...introRound, ...pickRound]).concat(
+  return introRound.concat(
+    shuffleStrong(pickRound),
     shuffleStrong([
       ...fontVariantRound,
       ...syllableRound,
@@ -515,6 +532,11 @@ export default function CoursePage() {
       if (items.length > 0) subtitle = `这一组都读 ${displayRoman(items[0].roman)}`;
     } else if (mode === "shape") {
       items = weakestGroup(shapeGroups(unlocked)) ?? [];
+    } else if (mode === "consonant-class") {
+      const consonants = consonantClassItems(unlocked);
+      items = [...consonants]
+        .sort((a, b) => (progress[a.id] || 0) - (progress[b.id] || 0))
+        .slice(0, Math.min(8, consonants.length));
     } else if (mode === "vowel-length") {
       items = weakestGroup(vowelLengthGroups(unlocked)) ?? [];
     }
@@ -959,6 +981,7 @@ function CourseHome({
     random: unlocked.length,
     homophone: homophoneGroups(unlocked).length,
     shape: shapeGroups(unlocked).length,
+    "consonant-class": consonantClassItems(unlocked).length,
     "vowel-length": vowelLengthGroups(unlocked).length,
   };
 

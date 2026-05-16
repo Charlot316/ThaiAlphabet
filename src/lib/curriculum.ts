@@ -30,7 +30,7 @@ export interface CourseProgress {
 }
 
 export interface PracticeMode {
-  id: "random" | "homophone" | "shape" | "vowel-length";
+  id: "random" | "homophone" | "shape" | "consonant-class" | "vowel-length";
   title: string;
   subtitle: string;
 }
@@ -88,6 +88,11 @@ export const PRACTICE_MODES: PracticeMode[] = [
     id: "shape",
     title: "形近字特训",
     subtitle: "专门比较长得像、容易看混的字母和符号",
+  },
+  {
+    id: "consonant-class",
+    title: "辅音等级",
+    subtitle: "专练中辅音、高辅音、低辅音判断",
   },
   {
     id: "vowel-length",
@@ -273,6 +278,10 @@ export function shapeGroups(items: StudyItem[]): StudyItem[][] {
     if (group.length > 1) groups.push(group);
   }
   return groups;
+}
+
+export function consonantClassItems(items: StudyItem[]): StudyItem[] {
+  return items.filter((item) => item.pool === "consonant" && !!item.class);
 }
 
 export function vowelLengthGroups(items: StudyItem[]): StudyItem[][] {
