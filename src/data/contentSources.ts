@@ -56,6 +56,18 @@ export const CONTENT_SOURCES: LearningSource[] = [
     notes: "Used to cross-check the beginner essentials: no conjugation, SVO, classifiers, question particles, and negation.",
   },
   {
+    id: "cambridge-reference-grammar-toc",
+    title: "Cambridge: A Reference Grammar of Thai front matter and table of contents",
+    url: "https://assets.cambridge.org/97805216/50854/frontmatter/9780521650854_frontmatter.pdf",
+    notes: "Used as the comprehensive coverage spine for grammar categories from phonology and word formation through discourse.",
+  },
+  {
+    id: "cambridge-reference-grammar-books",
+    title: "Google Books: A Reference Grammar of Thai",
+    url: "https://books.google.co.th/books/about/A_Reference_Grammar_of_Thai.html?id=YE29njS4qSUC",
+    notes: "Used to cross-check the book's stated coverage: demonstratives, personal reference terms, modality, aspect, particles, serial verbs, relative clauses, questions, passive, causative, and topic marking.",
+  },
+  {
     id: "poly-thai-intermediate",
     title: "Poly Thai Reader: Intermediate Grammar Points",
     url: "https://polythaireader.com/intermediate-grammar-points",

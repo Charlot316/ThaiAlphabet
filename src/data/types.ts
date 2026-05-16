@@ -43,7 +43,7 @@ export type ToneName = "mid" | "low" | "falling" | "high" | "rising";
 
 export type ToneMark = "none" | "ek" | "tho" | "tri" | "chattawa";
 
-export type ContentLevel = "pre-a1" | "a1" | "a1-plus" | "a2";
+export type ContentLevel = "pre-a1" | "a1" | "a1-plus" | "a2" | "b1" | "b2";
 
 export interface LearningSource {
   id: string;
@@ -60,7 +60,10 @@ export interface ThaiExample {
 }
 
 export type GrammarCategory =
+  | "phonology"
+  | "orthography"
   | "typology"
+  | "word-class"
   | "sentence-order"
   | "noun-phrase"
   | "pronoun"
@@ -70,15 +73,21 @@ export type GrammarCategory =
   | "aspect"
   | "classifier"
   | "location"
+  | "verb-phrase"
   | "modal"
   | "degree"
+  | "adverbial"
   | "comparison"
   | "conjunction"
   | "clause"
   | "serial-verb"
   | "passive-causative"
+  | "benefactive-purposive"
+  | "potential"
   | "pragmatics"
+  | "body-expression"
   | "word-formation"
+  | "discourse"
   | "register";
 
 export interface GrammarPoint {
@@ -101,6 +110,16 @@ export interface GrammarTrack {
   summaryZh: string;
   pointIds: string[];
   reviewPointIds?: string[];
+}
+
+export interface GrammarCoverageSection {
+  id: string;
+  titleZh: string;
+  titleEn: string;
+  level: ContentLevel;
+  summaryZh: string;
+  pointIds: string[];
+  sourceRefs: string[];
 }
 
 export type VocabularyPartOfSpeech =
