@@ -1,0 +1,37 @@
+{
+  "generatedAt": "2026-05-16T05:24:52.555Z",
+  "targetSize": 50000,
+  "output": "thai-lexicon-top-50000.tsv",
+  "counts": {
+    "phuphaUniqueFiltered": 61177,
+    "pyThaiNlpWords": 62077,
+    "exported": 50000
+  },
+  "sources": [
+    {
+      "id": "phupha-wordfreq",
+      "url": "https://zenodo.org/records/18490474/files/wordfreq.csv?download=1",
+      "license": "CC0-1.0"
+    },
+    {
+      "id": "pythainlp-words-th",
+      "url": "https://raw.githubusercontent.com/PyThaiNLP/pythainlp/dev/pythainlp/corpus/words_th.txt",
+      "license": "Apache-2.0",
+      "use": "membership flag only"
+    }
+  ],
+  "levelBands": {
+    "pre-a1": "rank 1-500",
+    "a1": "rank 501-1500",
+    "a2": "rank 1501-3500",
+    "b1": "rank 3501-8000",
+    "b2": "rank 8001-15000",
+    "c1": "rank 15001-30000",
+    "c2": "rank 30001-50000"
+  },
+  "notes": [
+    "This is a passive recognition lexicon, not a finished learner deck.",
+    "Chinese definitions, examples, register labels, and business-domain tags should be added in curated layers above this raw frequency file.",
+    "Entries marked frequency-only need dictionary review before becoming active study cards."
+  ]
+}

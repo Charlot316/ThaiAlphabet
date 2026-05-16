@@ -79,6 +79,36 @@ export const CONTENT_SOURCES: LearningSource[] = [
     url: "https://www.thaipod101.com/thai-word-lists/?coreX=100",
     notes: "Used only for category and priority cross-checking, not copied wholesale.",
   },
+  {
+    id: "phupha-wordfreq",
+    title: "Phupha: Thai Word Frequency Dataset",
+    url: "https://zenodo.org/records/18490474",
+    notes: "CC0 Thai word-frequency dataset from Common Crawl July 2025, used as the first large passive-vocabulary ranking source.",
+  },
+  {
+    id: "pythainlp-corpus",
+    title: "PyThaiNLP corpus word lists",
+    url: "https://pythainlp.org/docs/2.3/api/corpus.html",
+    notes: "Apache-2.0 Thai NLP corpus utilities and bundled Thai word lists, used as a dictionary-membership source.",
+  },
+  {
+    id: "kaikki-wiktionary-thai",
+    title: "Kaikki/Wiktextract Thai Wiktionary data",
+    url: "https://kaikki.org/dictionary/Thai/index.html",
+    notes: "Structured Wiktionary-derived data, useful for definitions, parts of speech, senses, pronunciations, and etymology where available.",
+  },
+  {
+    id: "leipzig-thai-frequency",
+    title: "Leipzig Corpora Collection Thai frequency lists",
+    url: "https://wortschatz.uni-leipzig.de/en/download/",
+    notes: "CC BY frequency lists useful as a second-domain frequency cross-check, especially for news/web vocabulary.",
+  },
+  {
+    id: "opensubtitles-thai-wordlists",
+    title: "OpenSubtitles-derived Thai word lists",
+    url: "https://github.com/hermitdave/FrequencyWords",
+    notes: "CC BY-SA subtitle-derived word lists useful for colloquial and dialogue frequency cross-checking.",
+  },
 ];
 
 export const CONTENT_SOURCE_BY_ID: Record<string, LearningSource> = Object.fromEntries(

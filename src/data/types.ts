@@ -43,7 +43,7 @@ export type ToneName = "mid" | "low" | "falling" | "high" | "rising";
 
 export type ToneMark = "none" | "ek" | "tho" | "tri" | "chattawa";
 
-export type ContentLevel = "pre-a1" | "a1" | "a1-plus" | "a2" | "b1" | "b2";
+export type ContentLevel = "pre-a1" | "a1" | "a1-plus" | "a2" | "b1" | "b2" | "c1" | "c2";
 
 export interface LearningSource {
   id: string;
@@ -197,4 +197,34 @@ export interface SentencePattern {
   slots: SentencePatternSlot[];
   examples: ThaiExample[];
   tags: string[];
+}
+
+export interface LexiconSource {
+  id: string;
+  title: string;
+  url: string;
+  license: string;
+  licenseUrl?: string;
+  kind: "frequency" | "dictionary" | "wordlist" | "corpus" | "semantic";
+  recommendedUse: string;
+  caution?: string;
+}
+
+export interface VocabularyMasteryBand {
+  id: string;
+  level: ContentLevel;
+  labelZh: string;
+  passiveRange: [number, number];
+  activeTarget: number;
+  summaryZh: string;
+  domains: string[];
+}
+
+export interface C2DomainTarget {
+  id: string;
+  titleZh: string;
+  summaryZh: string;
+  grammarCoverageIds: string[];
+  vocabularyDomains: string[];
+  outputTasks: string[];
 }

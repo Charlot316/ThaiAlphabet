@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "lexicon:build": "node scripts/build-thai-lexicon.mjs",
     "start": "next start",
     "lint": "next lint"
   },
