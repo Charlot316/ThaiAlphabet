@@ -71,6 +71,8 @@ import {
 type QuestionKind =
   | "sound"
   | "letter"
+  | "font-sound"
+  | "font-letter"
   | "sound-blind"
   | "letter-blind"
   | "look"
@@ -90,11 +92,18 @@ interface SyllableChoice {
   componentIds: string[];
 }
 
+interface ThaiFontVariant {
+  label: string;
+  className: string;
+  note: string;
+}
+
 interface Question {
   id: string;
   kind: QuestionKind;
   item: StudyItem;
   choices: StudyItem[];
+  fontVariant?: ThaiFontVariant;
   syllable?: SyllableChoice;
   syllableChoices?: SyllableChoice[];
 }
@@ -112,6 +121,8 @@ interface ActiveSession {
 type QuestionKindKey =
   | "sound"
   | "letter"
+  | "fontSound"
+  | "fontLetter"
   | "write1"
   | "write2"
   | "memory"
@@ -121,6 +132,18 @@ type QuestionKindKey =
   | "class2"
   | "length1"
   | "length2";
+
+const THAI_FONT_VARIANTS: ThaiFontVariant[] = [
+  { label: "Noto Sans Thai", className: "thai-big thai-font-noto", note: "无圈印刷体" },
+  { label: "Prompt", className: "thai-big thai-font-prompt", note: "现代简化字形" },
+  { label: "Kanit", className: "thai-big thai-font-kanit", note: "屏幕/标题常见" },
+  { label: "Sarabun", className: "thai-big thai-font-sarabun", note: "正文和文件常见" },
+];
+
+function fontVariantFor(item: StudyItem, salt: string): ThaiFontVariant {
+  const seed = [...`${item.id}:${salt}`].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  return THAI_FONT_VARIANTS[seed % THAI_FONT_VARIANTS.length];
+}
 
 function makeQuestion(
   item: StudyItem,
@@ -143,6 +166,22 @@ function makeQuestion(
         kind: "letter",
         item,
         choices: uniqueChoices(item, choicePool, 4, (o) => o.roman),
+      };
+    case "fontSound":
+      return {
+        id: `${item.id}:font-sound`,
+        kind: "font-sound",
+        item,
+        choices: uniqueChoices(item, choicePool, 4, (o) => o.roman),
+        fontVariant: fontVariantFor(item, "sound"),
+      };
+    case "fontLetter":
+      return {
+        id: `${item.id}:font-letter`,
+        kind: "font-letter",
+        item,
+        choices: uniqueChoices(item, choicePool, 4, (o) => o.roman),
+        fontVariant: fontVariantFor(item, "letter"),
       };
     case "write1":
       return { id: `${item.id}:write:1`, kind: "write", item, choices: [item] };
@@ -262,6 +301,12 @@ function buildQuestions(session: ActiveSession): Question[] {
     makeQuestion(item, idx % 2 === 0 ? "sound" : "letter", choiceItems)
   );
 
+  const fontVariantRound = shuffleStrong(focusItems)
+    .slice(0, Math.min(3, focusItems.length))
+    .map((item, idx) =>
+      makeQuestion(item, idx % 2 === 0 ? "fontSound" : "fontLetter", choiceItems)
+    );
+
   const memoryRound = shuffleStrong(focusItems)
     .slice(0, Math.min(4, focusItems.length))
     .map((item) => makeQuestion(item, "memory", choiceItems));
@@ -309,7 +354,13 @@ function buildQuestions(session: ActiveSession): Question[] {
       : [];
 
   return shuffleStrong([...introRound, ...pickRound]).concat(
-    shuffleStrong([...syllableRound, ...memoryRound, ...writingRound, ...classOrLengthRound]),
+    shuffleStrong([
+      ...fontVariantRound,
+      ...syllableRound,
+      ...memoryRound,
+      ...writingRound,
+      ...classOrLengthRound,
+    ]),
     finalMatch
   );
 }
@@ -485,7 +536,10 @@ export default function CoursePage() {
       ...question,
       id: `${question.id}:retry:${Date.now()}`,
       choices:
-        question.kind === "sound" || question.kind === "letter"
+        question.kind === "sound" ||
+        question.kind === "letter" ||
+        question.kind === "font-sound" ||
+        question.kind === "font-letter"
           ? uniqueChoices(question.item, replayPool, 4, (option) => option.roman)
           : question.choices,
     };
@@ -1354,16 +1408,24 @@ function QuestionCard({
 
   const roman = displayRoman(question.item.roman);
   const isBlind = question.kind === "sound-blind" || question.kind === "letter-blind";
-  const isSoundLike = question.kind === "sound" || question.kind === "sound-blind";
+  const isFontVariant = question.kind === "font-sound" || question.kind === "font-letter";
+  const isFontSound = question.kind === "font-sound";
+  const isFontLetter = question.kind === "font-letter";
+  const isSoundLike = question.kind === "sound" || question.kind === "sound-blind" || isFontSound;
   const prompt = isSoundLike
-    ? question.kind === "sound-blind"
+    ? isFontSound
+      ? "这个字体变体读什么？"
+      : question.kind === "sound-blind"
       ? "这个字母读什么？(无提示)"
       : "这个字母读什么？"
+    : isFontLetter
+    ? `哪个字体变体读 ${roman}？`
     : question.kind === "letter-blind"
     ? `哪个字母读 ${roman}？(无提示)`
     : `哪个字母读 ${roman}？`;
   const correctAnswered = submitted && picked === question.item.id;
-  const isLetterKind = question.kind === "letter"; // 只有非 blind 版才用 preview/confirm 流程
+  const isLetterKind = question.kind === "letter" || isFontLetter; // 只有非 blind 版才用 preview/confirm 流程
+  const glyphClassName = question.fontVariant?.className ?? "thai-big";
 
   const onPick = (choiceId: string) => {
     if (isBlind) onAnswerBlind(choiceId);
@@ -1375,8 +1437,25 @@ function QuestionCard({
     <section className="space-y-4">
       <div className={`card-soft p-6 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
         <div className="chip chip-blue">{prompt}</div>
+        {isFontVariant && question.fontVariant && (
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <span className="chip chip-low">{question.fontVariant.label}</span>
+            <span
+              className="chip"
+              style={{
+                background: "var(--surface-subtle)",
+                borderColor: "var(--duo-line)",
+                color: "var(--duo-muted)",
+              }}
+            >
+              {question.fontVariant.note}
+            </span>
+          </div>
+        )}
         {isSoundLike ? (
-          <div className="thai-big mt-5 text-8xl leading-none">{question.item.front}</div>
+          <div className={`${glyphClassName} mt-5 text-8xl leading-none`}>
+            {question.item.front}
+          </div>
         ) : (
           <div className="mt-5 text-5xl font-mono font-extrabold" style={{ color: "var(--duo-blue)" }}>
             {roman}
@@ -1428,7 +1507,9 @@ function QuestionCard({
                   </span>
                 ) : (
                   <span className="flex flex-col items-center gap-1">
-                    <span className="thai-big text-4xl leading-none">{choice.front}</span>
+                    <span className={`${isFontLetter ? glyphClassName : "thai-big"} text-4xl leading-none`}>
+                      {choice.front}
+                    </span>
                     {submitted && (
                       <span className="font-mono text-xs opacity-70">{displayRoman(choice.roman)}</span>
                     )}
