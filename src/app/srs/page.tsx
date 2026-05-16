@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CONSONANTS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import PronounceButton from "@/components/PronounceButton";
@@ -36,6 +36,22 @@ interface ReviewState {
   item: MemoryItem;
   outcome: Outcome;
   pendingCorrect: boolean;
+}
+
+function isShortcutBlocked(event: KeyboardEvent): boolean {
+  if (event.metaKey || event.ctrlKey || event.altKey) return true;
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
+}
+
+function isSpaceKey(event: KeyboardEvent): boolean {
+  return event.key === " " || event.code === "Space";
 }
 
 function buildAllItems(): MemoryItem[] {
@@ -124,6 +140,39 @@ export default function SrsPage() {
 
   const score = activeItem ? deriveScore(getRecord(activeItem.id)) : 0;
   const record = activeItem ? getRecord(activeItem.id) : null;
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isShortcutBlocked(event) || !activeItem) return;
+      if (!review) {
+        if (event.repeat) return;
+        if (event.key === "1") {
+          event.preventDefault();
+          grade("wrong");
+        } else if (event.key === "2") {
+          event.preventDefault();
+          grade("hard");
+        } else if (event.key === "3" && !peeked) {
+          event.preventDefault();
+          grade("correct");
+        }
+        return;
+      }
+
+      if (isSpaceKey(event)) {
+        event.preventDefault();
+        continueReview();
+        return;
+      }
+      if (event.key === "Enter" && review.pendingCorrect) {
+        event.preventDefault();
+        markMistaken();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
 
   return (
     <div className="space-y-5">

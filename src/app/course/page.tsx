@@ -367,6 +367,29 @@ function buildQuestions(session: ActiveSession): Question[] {
 
 const PRAISE = ["太棒了！", "做得好！", "完美！", "继续保持！", "答对了！", "厉害👏"];
 
+function isShortcutBlocked(event: KeyboardEvent): boolean {
+  if (event.metaKey || event.ctrlKey || event.altKey) return true;
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
+}
+
+function choiceIndexFromKey(event: KeyboardEvent, max: number): number | null {
+  if (event.repeat) return null;
+  const index = Number(event.key) - 1;
+  if (!Number.isInteger(index) || index < 0 || index >= max) return null;
+  return index;
+}
+
+function isSpaceKey(event: KeyboardEvent): boolean {
+  return event.key === " " || event.code === "Space";
+}
+
 export default function CoursePage() {
   const allItems = useMemo(() => buildStudyItems(), []);
   const romanGroups = useMemo(() => {
@@ -1278,6 +1301,63 @@ function QuestionCard({
   romanGroups: Record<string, StudyItem[]>;
 }) {
   const mastery = progress[question.item.id] || 0;
+  const isBlind = question.kind === "sound-blind" || question.kind === "letter-blind";
+  const isFontSound = question.kind === "font-sound";
+  const isFontLetter = question.kind === "font-letter";
+  const isSoundLike = question.kind === "sound" || question.kind === "sound-blind" || isFontSound;
+  const isLetterKind = question.kind === "letter" || isFontLetter;
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isShortcutBlocked(event)) return;
+      if (question.kind === "write" || question.kind === "match" || question.kind === "memory" || question.kind === "class" || question.kind === "length") {
+        return;
+      }
+
+      if (question.kind === "look") {
+        if (isSpaceKey(event) || event.key === "Enter") {
+          event.preventDefault();
+          onAnswerLook(true);
+        }
+        return;
+      }
+
+      if (submitted) {
+        if (isSpaceKey(event)) {
+          event.preventDefault();
+          onNext();
+        }
+        return;
+      }
+
+      if (question.kind === "syllable-sound" || question.kind === "syllable-letter") {
+        const choices = question.syllableChoices ?? [];
+        const index = choiceIndexFromKey(event, Math.min(4, choices.length));
+        if (index === null) return;
+        event.preventDefault();
+        onAnswerSyllable(choices[index].id);
+        return;
+      }
+
+      if (isLetterKind && (isSpaceKey(event) || event.key === "Enter")) {
+        if (!picked) return;
+        event.preventDefault();
+        onConfirmLetter();
+        return;
+      }
+
+      const index = choiceIndexFromKey(event, Math.min(4, question.choices.length));
+      if (index === null) return;
+      event.preventDefault();
+      const choiceId = question.choices[index].id;
+      if (isBlind) onAnswerBlind(choiceId);
+      else if (isLetterKind) onPreviewLetter(choiceId);
+      else onAnswerSound(choiceId);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
 
   if (question.kind === "look") {
     const isConsonant = question.item.id.startsWith("c:");
@@ -1418,11 +1498,7 @@ function QuestionCard({
   }
 
   const roman = displayRoman(question.item.roman);
-  const isBlind = question.kind === "sound-blind" || question.kind === "letter-blind";
   const isFontVariant = question.kind === "font-sound" || question.kind === "font-letter";
-  const isFontSound = question.kind === "font-sound";
-  const isFontLetter = question.kind === "font-letter";
-  const isSoundLike = question.kind === "sound" || question.kind === "sound-blind" || isFontSound;
   const prompt = isSoundLike
     ? isFontSound
       ? "这个字体变体读什么？"
@@ -1435,7 +1511,6 @@ function QuestionCard({
     ? `哪个字母读 ${roman}？(无提示)`
     : `哪个字母读 ${roman}？`;
   const correctAnswered = submitted && picked === question.item.id;
-  const isLetterKind = question.kind === "letter" || isFontLetter; // 只有非 blind 版才用 preview/confirm 流程
   const glyphClassName = question.fontVariant?.className ?? "thai-big";
 
   const onPick = (choiceId: string) => {
@@ -1854,6 +1929,33 @@ function MemoryCard({
   useEffect(() => {
     setPeeked(false);
   }, [question.id]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isShortcutBlocked(event)) return;
+      if (!submitted) {
+        const index = choiceIndexFromKey(event, 3);
+        if (index === null) return;
+        if (peeked && index === 2) return;
+        event.preventDefault();
+        onGrade(index + 1, peeked);
+        return;
+      }
+      if (isSpaceKey(event)) {
+        event.preventDefault();
+        onNext();
+        return;
+      }
+      if (event.key === "Enter" && canMarkMistaken) {
+        event.preventDefault();
+        onMistaken();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
   return (
     <section className="space-y-4">
       <div className={`card-soft p-7 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
@@ -1937,6 +2039,26 @@ function ClassCard({
     setPicked(val);
     onAnswer(val === question.item.class);
   };
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isShortcutBlocked(event)) return;
+      if (submitted) {
+        if (isSpaceKey(event)) {
+          event.preventDefault();
+          onNext();
+        }
+        return;
+      }
+      const index = choiceIndexFromKey(event, OPTIONS.length);
+      if (index === null) return;
+      event.preventDefault();
+      handlePick(OPTIONS[index].value);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
 
   return (
     <section className="space-y-4">
@@ -2031,6 +2153,26 @@ function LengthCard({
     setPicked(val);
     onAnswer(val === question.item.length);
   };
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isShortcutBlocked(event)) return;
+      if (submitted) {
+        if (isSpaceKey(event)) {
+          event.preventDefault();
+          onNext();
+        }
+        return;
+      }
+      const index = choiceIndexFromKey(event, OPTIONS.length);
+      if (index === null) return;
+      event.preventDefault();
+      handlePick(OPTIONS[index].value);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
 
   return (
     <section className="space-y-4">
