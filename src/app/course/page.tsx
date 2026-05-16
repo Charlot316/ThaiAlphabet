@@ -141,6 +141,45 @@ const THAI_FONT_VARIANTS: ThaiFontVariant[] = [
   { label: "Sarabun", className: "thai-big thai-font-sarabun", note: "正文和文件常见" },
 ];
 
+const CONSONANT_CLASS_OPTIONS = [
+  { label: "中辅音", value: "mid", color: "var(--duo-blue)" },
+  { label: "高辅音", value: "high", color: "var(--duo-green)" },
+  { label: "低辅音", value: "low", color: "var(--duo-orange)" },
+];
+
+const VOWEL_LENGTH_OPTIONS = [
+  { label: "短元音", value: "short", color: "var(--duo-orange)" },
+  { label: "长元音", value: "long", color: "var(--duo-blue)" },
+];
+
+function getConsonantClassLabel(value?: string): string {
+  return CONSONANT_CLASS_OPTIONS.find((option) => option.value === value)?.label ?? "";
+}
+
+function getVowelLengthLabel(value?: string): string {
+  return VOWEL_LENGTH_OPTIONS.find((option) => option.value === value)?.label ?? "";
+}
+
+function introAttributeFor(item: StudyItem) {
+  if (item.pool === "consonant" && item.class) {
+    return {
+      kind: "class" as const,
+      prompt: "先判断它属于哪一类辅音",
+      correct: item.class,
+      options: CONSONANT_CLASS_OPTIONS,
+    };
+  }
+  if (item.pool === "vowel" && item.length) {
+    return {
+      kind: "length" as const,
+      prompt: "先判断它是长元音还是短元音",
+      correct: item.length,
+      options: VOWEL_LENGTH_OPTIONS,
+    };
+  }
+  return null;
+}
+
 function fontVariantFor(item: StudyItem, salt: string): ThaiFontVariant {
   const seed = [...`${item.id}:${salt}`].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
   return THAI_FONT_VARIANTS[seed % THAI_FONT_VARIANTS.length];
@@ -283,12 +322,6 @@ function makeSyllableQuestion(
   };
 }
 
-function makeAttributeQuestion(item: StudyItem, choiceItems: StudyItem[]): Question | null {
-  if (item.pool === "consonant") return makeQuestion(item, "class1", choiceItems);
-  if (item.pool === "vowel" && item.length) return makeQuestion(item, "length1", choiceItems);
-  return null;
-}
-
 function buildQuestions(session: ActiveSession): Question[] {
   const lessonItems = session.items;
   const choiceItems = session.choiceItems.length ? session.choiceItems : lessonItems;
@@ -297,16 +330,12 @@ function buildQuestions(session: ActiveSession): Question[] {
       ? lessonItems.slice(0, Math.min(6, lessonItems.length))
       : lessonItems;
 
-  const introRound = focusItems.flatMap((item) => {
-    const lookQuestion: Question = {
-      id: `${item.id}:look`,
-      kind: "look",
-      item,
-      choices: [item],
-    };
-    const attributeQuestion = makeAttributeQuestion(item, choiceItems);
-    return attributeQuestion ? [lookQuestion, attributeQuestion] : [lookQuestion];
-  });
+  const introRound: Question[] = focusItems.map((item) => ({
+    id: `${item.id}:look`,
+    kind: "look",
+    item,
+    choices: [item],
+  }));
 
   const pickRound = focusItems.map((item, idx) =>
     makeQuestion(item, idx % 2 === 0 ? "sound" : "letter", choiceItems)
@@ -1329,6 +1358,19 @@ function QuestionCard({
   const isFontLetter = question.kind === "font-letter";
   const isSoundLike = question.kind === "sound" || question.kind === "sound-blind" || isFontSound;
   const isLetterKind = question.kind === "letter" || isFontLetter;
+  const introAttribute = question.kind === "look" ? introAttributeFor(question.item) : null;
+  const [lookPicked, setLookPicked] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLookPicked(null);
+  }, [question.id]);
+
+  function answerIntroLook(value: string) {
+    if (submitted || !introAttribute) return;
+    setLookPicked(value);
+    if (introAttribute.kind === "class") onAnswerClass(value === introAttribute.correct);
+    else onAnswerLength(value === introAttribute.correct);
+  }
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -1346,9 +1388,24 @@ function QuestionCard({
       }
 
       if (question.kind === "look") {
-        if (isSpaceKey(event) || event.key === "Enter") {
+        if (submitted) {
+          if (isSpaceKey(event) || event.key === "Enter") {
+            event.preventDefault();
+            onNext();
+          }
+          return;
+        }
+        if (!introAttribute) {
+          if (isSpaceKey(event) || event.key === "Enter") {
+            event.preventDefault();
+            onAnswerLook(true);
+          }
+          return;
+        }
+        const index = choiceIndexFromKey(event, introAttribute.options.length);
+        if (index !== null) {
           event.preventDefault();
-          onAnswerLook(true);
+          answerIntroLook(introAttribute.options[index].value);
         }
         return;
       }
@@ -1392,6 +1449,7 @@ function QuestionCard({
 
   if (question.kind === "look") {
     const isConsonant = question.item.id.startsWith("c:");
+    const gridCols = introAttribute?.options.length === 2 ? "grid-cols-2" : "grid-cols-3";
     return (
       <section className={`card-soft p-7 text-center animate-pop ${feedback === "bad" ? "animate-shake" : ""}`}>
         <div className="chip chip-blue">先看一眼</div>
@@ -1410,21 +1468,80 @@ function QuestionCard({
         </div>
         {isConsonant && (
           <div className="mt-1 text-xs font-bold" style={{ color: "var(--duo-purple)" }}>
-            等级: {question.item.class === "mid" ? "中辅音" : question.item.class === "high" ? "高辅音" : "低辅音"}
+            等级: {getConsonantClassLabel(question.item.class)}
           </div>
         )}
         {!isConsonant && question.item.length && (
           <div className="mt-1 text-xs font-bold" style={{ color: "var(--duo-purple)" }}>
-            长度: {question.item.length === "short" ? "短元音" : "长元音"}
+            长度: {getVowelLengthLabel(question.item.length)}
           </div>
         )}
         <div className="mt-3">
           <PronounceButton text={question.item.speak} label="🔊 听一下" />
         </div>
 
-        <button onClick={() => onAnswerLook(true)} className="btn-primary mt-6 px-8">
-          记住了，继续
-        </button>
+        {introAttribute ? (
+          <>
+            <div className="mt-5 text-sm font-bold">{introAttribute.prompt}</div>
+            <div className={`mt-3 grid ${gridCols} gap-2`}>
+              {introAttribute.options.map((option) => {
+                const isCorrect = option.value === introAttribute.correct;
+                const isPicked = lookPicked === option.value;
+                let cls = "btn-ghost border-2";
+                let style = {};
+
+                if (submitted) {
+                  if (isCorrect) cls = "btn-primary";
+                  else if (isPicked) cls = "btn-red";
+                  else cls = "btn-ghost opacity-40";
+                } else if (isPicked) {
+                  style = { borderColor: option.color, color: option.color };
+                }
+
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => answerIntroLook(option.value)}
+                    disabled={submitted}
+                    className={`${cls} py-4 text-sm font-bold`}
+                    style={style}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <button onClick={() => onAnswerLook(true)} className="btn-primary mt-6 px-8">
+            继续
+          </button>
+        )}
+
+        {submitted && introAttribute && (
+          <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} mt-5 animate-pop`}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-base">
+                {feedback === "ok" ? (
+                  <span>{praise || "答对了！"}</span>
+                ) : (
+                  <span>
+                    正确答案：
+                    {introAttribute.kind === "class"
+                      ? getConsonantClassLabel(introAttribute.correct)
+                      : getVowelLengthLabel(introAttribute.correct)}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={onNext}
+                className={feedback === "ok" ? "btn-primary px-5" : "btn-red px-5"}
+              >
+                继续
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="mt-5 text-xs opacity-50">
           熟练度 {mastery} / {MASTERY_TARGET}
