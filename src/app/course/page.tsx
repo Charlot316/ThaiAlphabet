@@ -19,6 +19,7 @@ import {
 import PronounceButton from "@/components/PronounceButton";
 import TraceSvg from "@/components/TraceSvg";
 import { CONSONANT_BY_ID } from "@/data/consonants";
+import { TONE_MARKS } from "@/data/tones";
 import { VOWEL_BY_ID } from "@/data/vowels";
 import {
   CourseLesson,
@@ -83,7 +84,14 @@ type QuestionKind =
   | "class"
   | "length"
   | "syllable-sound"
-  | "syllable-letter";
+  | "syllable-letter"
+  | "syllable-compose"
+  | "syllable-parts"
+  | "syllable-vowel"
+  | "syllable-initial"
+  | "final-sound"
+  | "tone-mark-symbol"
+  | "tone-mark-name";
 
 interface SyllableChoice {
   id: string;
@@ -91,6 +99,19 @@ interface SyllableChoice {
   roman: string;
   speak: string;
   componentIds: string[];
+  consonantId: string;
+  consonantFront: string;
+  consonantRoman: string;
+  vowelId: string;
+  vowelFront: string;
+  vowelRoman: string;
+}
+
+interface ToneMarkChoice {
+  id: string;
+  symbol: string;
+  name: string;
+  roman: string;
 }
 
 interface ThaiFontVariant {
@@ -107,6 +128,8 @@ interface Question {
   fontVariant?: ThaiFontVariant;
   syllable?: SyllableChoice;
   syllableChoices?: SyllableChoice[];
+  toneMark?: ToneMarkChoice;
+  toneMarkChoices?: ToneMarkChoice[];
 }
 
 interface ActiveSession {
@@ -152,12 +175,42 @@ const VOWEL_LENGTH_OPTIONS = [
   { label: "长元音", value: "long", color: "var(--duo-blue)" },
 ];
 
+const FINAL_SOUND_OPTIONS = [
+  { label: "k · แม่กก", value: "k" },
+  { label: "t · แม่กด", value: "t" },
+  { label: "p · แม่กบ", value: "p" },
+  { label: "ng · แม่กง", value: "ng" },
+  { label: "n · แม่กน", value: "n" },
+  { label: "m · แม่กม", value: "m" },
+  { label: "y · แม่เกย", value: "y" },
+  { label: "w · แม่เกอว", value: "w" },
+  { label: "无尾音", value: "none" },
+];
+
+const COURSE_TONE_MARKS: ToneMarkChoice[] = TONE_MARKS
+  .filter((mark) => mark.id !== "none")
+  .map((mark) => ({
+    id: mark.id,
+    symbol: mark.symbol,
+    name: mark.name,
+    roman: mark.nameRoman,
+  }));
+
 function getConsonantClassLabel(value?: string): string {
   return CONSONANT_CLASS_OPTIONS.find((option) => option.value === value)?.label ?? "";
 }
 
 function getVowelLengthLabel(value?: string): string {
   return VOWEL_LENGTH_OPTIONS.find((option) => option.value === value)?.label ?? "";
+}
+
+function getFinalSoundLabel(value?: string): string {
+  return FINAL_SOUND_OPTIONS.find((option) => option.value === value)?.label ?? "";
+}
+
+function finalSoundForItem(item: StudyItem): string | null {
+  if (!item.id.startsWith("c:")) return null;
+  return CONSONANT_BY_ID[item.id.slice(2)]?.finalSound ?? null;
 }
 
 function introAttributeFor(item: StudyItem) {
@@ -270,10 +323,16 @@ function makeSyllableChoice(consonant: StudyItem, vowel: StudyItem): SyllableCho
     roman,
     speak: front,
     componentIds: [consonant.id, vowel.id],
+    consonantId: consonant.id,
+    consonantFront: consonant.front,
+    consonantRoman: displayRoman(consonant.roman),
+    vowelId: vowel.id,
+    vowelFront: vowel.front,
+    vowelRoman: displayRoman(vowel.roman),
   };
 }
 
-function buildSyllableBank(items: StudyItem[], limit = 8): SyllableChoice[] {
+function buildSyllableBank(items: StudyItem[], limit = 8, uniqueByRoman = true): SyllableChoice[] {
   const consonants = items.filter((item) => item.pool === "consonant");
   const vowels = items.filter((item) => item.pool === "vowel");
   const seen = new Set<string>();
@@ -281,8 +340,9 @@ function buildSyllableBank(items: StudyItem[], limit = 8): SyllableChoice[] {
   for (const consonant of shuffleStrong(consonants)) {
     for (const vowel of shuffleStrong(vowels)) {
       const syllable = makeSyllableChoice(consonant, vowel);
-      if (!syllable || seen.has(syllable.roman)) continue;
-      seen.add(syllable.roman);
+      const key = uniqueByRoman ? syllable?.roman : syllable?.id;
+      if (!syllable || !key || seen.has(key)) continue;
+      seen.add(key);
       out.push(syllable);
       if (out.length >= limit) return out;
     }
@@ -290,17 +350,44 @@ function buildSyllableBank(items: StudyItem[], limit = 8): SyllableChoice[] {
   return out;
 }
 
+type SyllableQuestionKind =
+  | "syllable-sound"
+  | "syllable-letter"
+  | "syllable-compose"
+  | "syllable-parts"
+  | "syllable-vowel"
+  | "syllable-initial";
+
+function isSyllableQuestionKind(kind: QuestionKind): kind is SyllableQuestionKind {
+  return kind.startsWith("syllable-");
+}
+
 function uniqueSyllableChoices(
   correct: SyllableChoice,
   allOptions: SyllableChoice[],
-  count: number
+  count: number,
+  kind: SyllableQuestionKind
 ): SyllableChoice[] {
-  const seen = new Set<string>([correct.roman]);
+  const keyFor = (option: SyllableChoice) => {
+    if (kind === "syllable-parts") return `${option.consonantId}:${option.vowelId}`;
+    if (kind === "syllable-vowel") return option.vowelId;
+    if (kind === "syllable-initial") return option.consonantId;
+    return option.roman;
+  };
+  const preferredPool =
+    kind === "syllable-vowel"
+      ? allOptions.filter((option) => option.consonantId === correct.consonantId)
+      : kind === "syllable-initial"
+        ? allOptions.filter((option) => option.vowelId === correct.vowelId)
+        : allOptions;
+  const pool = preferredPool.length >= count ? preferredPool : allOptions;
+  const seen = new Set<string>([keyFor(correct)]);
   const result = [correct];
-  for (const option of shuffleStrong(allOptions)) {
+  for (const option of shuffleStrong(pool)) {
     if (result.length >= count) break;
-    if (seen.has(option.roman)) continue;
-    seen.add(option.roman);
+    const key = keyFor(option);
+    if (seen.has(key)) continue;
+    seen.add(key);
     result.push(option);
   }
   return shuffleStrong(result);
@@ -308,7 +395,7 @@ function uniqueSyllableChoices(
 
 function makeSyllableQuestion(
   syllable: SyllableChoice,
-  kind: "syllable-sound" | "syllable-letter",
+  kind: SyllableQuestionKind,
   bank: SyllableChoice[],
   fallbackItem: StudyItem
 ): Question {
@@ -318,7 +405,39 @@ function makeSyllableQuestion(
     item: fallbackItem,
     choices: [fallbackItem],
     syllable,
-    syllableChoices: uniqueSyllableChoices(syllable, bank, 4),
+    syllableChoices: uniqueSyllableChoices(syllable, bank, 4, kind),
+  };
+}
+
+function makeFinalSoundQuestion(item: StudyItem): Question {
+  return {
+    id: `${item.id}:final-sound`,
+    kind: "final-sound",
+    item,
+    choices: [item],
+  };
+}
+
+function isFinalSoundLesson(session: ActiveSession): boolean {
+  return /尾辅音|尾音|แม่|塞音尾|响音尾|滑音尾/.test(`${session.title} ${session.subtitle}`);
+}
+
+function isToneMarkLesson(session: ActiveSession): boolean {
+  return /声调符号|声调|音调|วรรณยุกต์/.test(`${session.title} ${session.subtitle}`);
+}
+
+function makeToneMarkQuestion(
+  toneMark: ToneMarkChoice,
+  kind: "tone-mark-symbol" | "tone-mark-name",
+  fallbackItem: StudyItem
+): Question {
+  return {
+    id: `tone:${toneMark.id}:${kind}`,
+    kind,
+    item: fallbackItem,
+    choices: [fallbackItem],
+    toneMark,
+    toneMarkChoices: shuffleStrong(COURSE_TONE_MARKS),
   };
 }
 
@@ -371,22 +490,52 @@ function buildQuestions(session: ActiveSession): Question[] {
             .map((item) => makeQuestion(item, "length2", choiceItems))
         : [];
 
-  const syllableBank = session.kind === "blend" || session.kind === "review"
-    ? buildSyllableBank(choiceItems, 10)
+  const syllableSourceItems = session.kind === "blend" ? lessonItems : choiceItems;
+  const primarySyllableBank = session.kind === "blend" || session.kind === "review"
+    ? buildSyllableBank(syllableSourceItems, 28, false)
     : [];
+  const syllableBank =
+    primarySyllableBank.length >= 4
+      ? primarySyllableBank
+      : session.kind === "blend" || session.kind === "review"
+        ? buildSyllableBank(choiceItems, 28, false)
+        : [];
+  const syllableKinds: SyllableQuestionKind[] = [
+    "syllable-compose",
+    "syllable-sound",
+    "syllable-letter",
+    "syllable-parts",
+    "syllable-vowel",
+    "syllable-initial",
+  ];
   const syllableRound =
     syllableBank.length >= 2
       ? shuffleStrong(syllableBank)
-          .slice(0, Math.min(4, syllableBank.length))
+          .slice(0, Math.min(session.kind === "blend" ? 8 : 5, syllableBank.length))
           .map((syllable, idx) =>
             makeSyllableQuestion(
               syllable,
-              idx % 2 === 0 ? "syllable-sound" : "syllable-letter",
+              syllableKinds[idx % syllableKinds.length],
               syllableBank,
               focusItems[0]
             )
           )
       : [];
+  const finalSoundRound = isFinalSoundLesson(session)
+    ? shuffleStrong(focusItems)
+        .filter((item) => item.pool === "consonant" && finalSoundForItem(item))
+        .slice(0, Math.min(6, focusItems.length))
+        .map(makeFinalSoundQuestion)
+    : [];
+  const toneMarkRound = isToneMarkLesson(session)
+    ? shuffleStrong(COURSE_TONE_MARKS).map((toneMark, idx) =>
+        makeToneMarkQuestion(
+          toneMark,
+          idx % 2 === 0 ? "tone-mark-symbol" : "tone-mark-name",
+          focusItems[0]
+        )
+      )
+    : [];
 
   const finalMatch =
     focusItems.length >= 2
@@ -406,6 +555,8 @@ function buildQuestions(session: ActiveSession): Question[] {
       ...memoryRound,
       ...writingRound,
       ...classOrLengthRound,
+      ...finalSoundRound,
+      ...toneMarkRound,
     ]),
     finalMatch
   );
@@ -489,10 +640,7 @@ export default function CoursePage() {
     if (!current) return;
     if (current.kind === "look" || current.kind === "sound" || current.kind === "write") {
       speak(current.item.speak);
-    } else if (
-      (current.kind === "syllable-sound" || current.kind === "syllable-letter") &&
-      current.syllable
-    ) {
+    } else if (isSyllableQuestionKind(current.kind) && current.syllable) {
       speak(current.syllable.speak);
     }
   }, [current]);
@@ -714,12 +862,25 @@ export default function CoursePage() {
     }
   }
 
+  function isSyllableChoiceCorrect(question: Question, choice: SyllableChoice): boolean {
+    if (!question.syllable) return false;
+    if (question.kind === "syllable-parts") {
+      return (
+        choice.consonantId === question.syllable.consonantId &&
+        choice.vowelId === question.syllable.vowelId
+      );
+    }
+    if (question.kind === "syllable-vowel") return choice.vowelId === question.syllable.vowelId;
+    if (question.kind === "syllable-initial") return choice.consonantId === question.syllable.consonantId;
+    return choice.roman === question.syllable.roman;
+  }
+
   function answerSyllable(id: string) {
     if (!current || submitted || !current.syllable || !current.syllableChoices) return;
     setPicked(id);
     setSubmitted(true);
     const pickedSyllable = current.syllableChoices.find((choice) => choice.id === id);
-    const ok = pickedSyllable?.roman === current.syllable.roman;
+    const ok = pickedSyllable ? isSyllableChoiceCorrect(current, pickedSyllable) : false;
     if (ok) {
       gainQuestionMastery(current, 1);
       setCorrectCount((v) => v + 1);
@@ -730,6 +891,41 @@ export default function CoursePage() {
       speak(current.syllable.speak);
     } else {
       markQuestionWrong(current);
+      setFeedback("bad");
+      feedbackWrong();
+      queueReplay(current);
+    }
+  }
+
+  function answerFinalSound(correct: boolean) {
+    if (!current || submitted) return;
+    setSubmitted(true);
+    if (correct) {
+      gainMastery(current.item.id, 1);
+      setCorrectCount((v) => v + 1);
+      setFeedback("ok");
+      setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+      markActive();
+      feedbackCorrect();
+      speak(current.item.speak);
+    } else {
+      setProgress(applyWrongAnswer(current.item.id));
+      setFeedback("bad");
+      feedbackWrong();
+      queueReplay(current);
+    }
+  }
+
+  function answerToneMark(correct: boolean) {
+    if (!current || submitted) return;
+    setSubmitted(true);
+    if (correct) {
+      setCorrectCount((v) => v + 1);
+      setFeedback("ok");
+      setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+      markActive();
+      feedbackCorrect();
+    } else {
       setFeedback("bad");
       feedbackWrong();
       queueReplay(current);
@@ -945,6 +1141,8 @@ export default function CoursePage() {
               onAnswerMemory={answerMemory}
               onAnswerClass={answerClass}
               onAnswerLength={answerLength}
+              onAnswerFinalSound={answerFinalSound}
+              onAnswerToneMark={answerToneMark}
               onAnswerSyllable={answerSyllable}
               onAnswerLook={answerLook}
               onCompleteMatch={completeMatch}
@@ -1319,6 +1517,8 @@ function QuestionCard({
   onAnswerMemory,
   onAnswerClass,
   onAnswerLength,
+  onAnswerFinalSound,
+  onAnswerToneMark,
   onAnswerSyllable,
   onAnswerLook,
   onCompleteMatch,
@@ -1342,6 +1542,8 @@ function QuestionCard({
   onAnswerMemory: (grade: number, peeked: boolean) => void;
   onAnswerClass: (correct: boolean) => void;
   onAnswerLength: (correct: boolean) => void;
+  onAnswerFinalSound: (correct: boolean) => void;
+  onAnswerToneMark: (correct: boolean) => void;
   onAnswerSyllable: (id: string) => void;
   onAnswerLook: (correct: boolean) => void;
   onCompleteMatch: () => void;
@@ -1383,7 +1585,15 @@ function QuestionCard({
         return;
       }
 
-      if (question.kind === "match" || question.kind === "memory" || question.kind === "class" || question.kind === "length") {
+      if (
+        question.kind === "match" ||
+        question.kind === "memory" ||
+        question.kind === "class" ||
+        question.kind === "length" ||
+        question.kind === "final-sound" ||
+        question.kind === "tone-mark-symbol" ||
+        question.kind === "tone-mark-name"
+      ) {
         return;
       }
 
@@ -1418,7 +1628,7 @@ function QuestionCard({
         return;
       }
 
-      if (question.kind === "syllable-sound" || question.kind === "syllable-letter") {
+      if (isSyllableQuestionKind(question.kind)) {
         const choices = question.syllableChoices ?? [];
         const index = choiceIndexFromKey(event, Math.min(4, choices.length));
         if (index === null) return;
@@ -1614,6 +1824,34 @@ function QuestionCard({
     );
   }
 
+  if (question.kind === "final-sound") {
+    return (
+      <FinalSoundCard
+        key={question.id}
+        question={question}
+        submitted={submitted}
+        feedback={feedback}
+        praise={praise}
+        onAnswer={onAnswerFinalSound}
+        onNext={onNext}
+      />
+    );
+  }
+
+  if (question.kind === "tone-mark-symbol" || question.kind === "tone-mark-name") {
+    return (
+      <ToneMarkCard
+        key={question.id}
+        question={question}
+        submitted={submitted}
+        feedback={feedback}
+        praise={praise}
+        onAnswer={onAnswerToneMark}
+        onNext={onNext}
+      />
+    );
+  }
+
   if (question.kind === "memory") {
     return (
       <MemoryCard
@@ -1630,7 +1868,7 @@ function QuestionCard({
     );
   }
 
-  if (question.kind === "syllable-sound" || question.kind === "syllable-letter") {
+  if (isSyllableQuestionKind(question.kind)) {
     return (
       <SyllableCard
         key={question.id}
@@ -1812,20 +2050,97 @@ function SyllableCard({
   const syllable = question.syllable;
   const choices = question.syllableChoices ?? [];
   if (!syllable) return null;
-  const asksSound = question.kind === "syllable-sound";
-  const prompt = asksSound ? "这个拼读读什么？" : `哪个拼读读 ${syllable.roman}？`;
-  const correctAnswered = submitted && choices.find((choice) => choice.id === picked)?.roman === syllable.roman;
+  const kind = isSyllableQuestionKind(question.kind) ? question.kind : "syllable-sound";
+  const pickedChoice = choices.find((choice) => choice.id === picked);
+  const prompt =
+    kind === "syllable-compose"
+      ? "这个辅音 + 元音合起来读什么？"
+      : kind === "syllable-sound"
+        ? "这个拼读读什么？"
+        : kind === "syllable-letter"
+          ? `哪个拼读读 ${syllable.roman}？`
+          : kind === "syllable-parts"
+            ? "这个拼读由哪组辅音 + 元音组成？"
+            : kind === "syllable-vowel"
+              ? `要让 ${syllable.consonantFront} 读成 ${syllable.roman}，该选哪个元音？`
+              : `哪个辅音 + ${syllable.vowelFront} 读 ${syllable.roman}？`;
+  const correctAnswered = submitted && pickedChoice ? isSyllableAnswerCorrect(kind, syllable, pickedChoice) : false;
+  const mainPrompt =
+    kind === "syllable-letter" ? (
+      <div className="mt-5 font-mono text-5xl font-semibold" style={{ color: "var(--duo-green-d)" }}>
+        {syllable.roman}
+      </div>
+    ) : kind === "syllable-compose" ? (
+      <div className="mt-5 flex items-center justify-center gap-4">
+        <span className="thai-big text-7xl leading-none">{syllable.consonantFront}</span>
+        <span className="text-3xl font-bold" style={{ color: "var(--duo-muted)" }}>+</span>
+        <span className="thai-big text-7xl leading-none">{syllable.vowelFront}</span>
+      </div>
+    ) : kind === "syllable-vowel" ? (
+      <div className="mt-5 flex items-center justify-center gap-4">
+        <span className="thai-big text-7xl leading-none">{syllable.consonantFront}</span>
+        <span className="text-3xl font-bold" style={{ color: "var(--duo-muted)" }}>+</span>
+        <span className="rounded-lg border px-5 py-3 text-3xl font-bold" style={{ borderColor: "var(--duo-line)" }}>
+          ?
+        </span>
+      </div>
+    ) : kind === "syllable-initial" ? (
+      <div className="mt-5 flex items-center justify-center gap-4">
+        <span className="rounded-lg border px-5 py-3 text-3xl font-bold" style={{ borderColor: "var(--duo-line)" }}>
+          ?
+        </span>
+        <span className="text-3xl font-bold" style={{ color: "var(--duo-muted)" }}>+</span>
+        <span className="thai-big text-7xl leading-none">{syllable.vowelFront}</span>
+      </div>
+    ) : (
+      <div className="thai-big mt-5 text-8xl leading-none">{syllable.front}</div>
+    );
+
+  const renderChoice = (choice: SyllableChoice) => {
+    if (kind === "syllable-letter") {
+      return <span className="thai-big text-4xl leading-none">{choice.front}</span>;
+    }
+    if (kind === "syllable-parts") {
+      return (
+        <span className="flex flex-col items-center gap-1">
+          <span className="flex items-center gap-2">
+            <span className="thai-big text-4xl leading-none">{choice.consonantFront}</span>
+            <span className="text-base opacity-60">+</span>
+            <span className="thai-big text-4xl leading-none">{choice.vowelFront}</span>
+          </span>
+          <span className="font-mono text-xs opacity-70">{choice.roman}</span>
+        </span>
+      );
+    }
+    if (kind === "syllable-vowel") {
+      return (
+        <span className="flex flex-col items-center gap-1">
+          <span className="thai-big text-4xl leading-none">{choice.vowelFront}</span>
+          <span className="font-mono text-xs opacity-70">{choice.vowelRoman}</span>
+        </span>
+      );
+    }
+    if (kind === "syllable-initial") {
+      return (
+        <span className="flex flex-col items-center gap-1">
+          <span className="thai-big text-4xl leading-none">{choice.consonantFront}</span>
+          <span className="font-mono text-xs opacity-70">{choice.consonantRoman}</span>
+        </span>
+      );
+    }
+    return <span className="font-mono text-xl">{choice.roman}</span>;
+  };
 
   return (
     <section className="space-y-4">
       <div className={`card-soft p-6 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
         <div className="chip chip-blue">原辅音拼读</div>
         <div className="mt-3 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>{prompt}</div>
-        {asksSound ? (
-          <div className="thai-big mt-5 text-8xl leading-none">{syllable.front}</div>
-        ) : (
-          <div className="mt-5 font-mono text-5xl font-semibold" style={{ color: "var(--duo-green-d)" }}>
-            {syllable.roman}
+        {mainPrompt}
+        {submitted && (
+          <div className="mt-3 text-xs font-semibold" style={{ color: "var(--duo-muted)" }}>
+            <span className="thai-big mr-1">{syllable.front}</span>
+            <span className="font-mono">{syllable.roman}</span>
           </div>
         )}
         <div className="mt-4">
@@ -1836,7 +2151,7 @@ function SyllableCard({
       <ul className="grid grid-cols-2 gap-3">
         {choices.map((choice) => {
           const isPicked = picked === choice.id;
-          const isCorrect = choice.roman === syllable.roman;
+          const isCorrect = isSyllableAnswerCorrect(kind, syllable, choice);
           let cls = "opt";
           if (submitted) {
             if (isCorrect) cls = "opt opt-correct";
@@ -1848,11 +2163,7 @@ function SyllableCard({
           return (
             <li key={choice.id}>
               <button onClick={() => onPick(choice.id)} disabled={submitted} className={`${cls} min-h-[76px]`}>
-                {asksSound ? (
-                  <span className="font-mono text-xl">{choice.roman}</span>
-                ) : (
-                  <span className="thai-big text-4xl leading-none">{choice.front}</span>
-                )}
+                {renderChoice(choice)}
               </button>
             </li>
           );
@@ -1868,8 +2179,265 @@ function SyllableCard({
                 <span className="thai-big mr-2 text-lg">{syllable.front}</span>
                 <span className="font-mono">{syllable.roman}</span>
               </div>
+              <div className="mt-1 text-xs opacity-70">
+                <span className="thai-big">{syllable.consonantFront}</span>
+                <span className="mx-1">+</span>
+                <span className="thai-big">{syllable.vowelFront}</span>
+                <span className="mx-1">=</span>
+                <span className="font-mono">{syllable.consonantRoman} + {syllable.vowelRoman}</span>
+              </div>
             </div>
             <button onClick={onNext} className={correctAnswered ? "btn-primary px-5" : "btn-red px-5"}>
+              继续
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function isSyllableAnswerCorrect(
+  kind: SyllableQuestionKind,
+  syllable: SyllableChoice,
+  choice: SyllableChoice
+): boolean {
+  if (kind === "syllable-parts") {
+    return choice.consonantId === syllable.consonantId && choice.vowelId === syllable.vowelId;
+  }
+  if (kind === "syllable-vowel") return choice.vowelId === syllable.vowelId;
+  if (kind === "syllable-initial") return choice.consonantId === syllable.consonantId;
+  return choice.roman === syllable.roman;
+}
+
+function FinalSoundCard({
+  question,
+  submitted,
+  feedback,
+  praise,
+  onAnswer,
+  onNext,
+}: {
+  question: Question;
+  submitted: boolean;
+  feedback: "ok" | "bad" | null;
+  praise: string;
+  onAnswer: (correct: boolean) => void;
+  onNext: () => void;
+}) {
+  const correct = finalSoundForItem(question.item);
+  const [picked, setPicked] = useState<string | null>(null);
+  const options = useMemo(() => {
+    const base = correct ? FINAL_SOUND_OPTIONS.filter((option) => option.value === correct) : [];
+    const distractors = shuffleStrong(FINAL_SOUND_OPTIONS.filter((option) => option.value !== correct)).slice(0, 3);
+    return shuffleStrong([...base, ...distractors]);
+  }, [correct]);
+
+  const handlePick = (value: string) => {
+    if (submitted || !correct) return;
+    setPicked(value);
+    onAnswer(value === correct);
+  };
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isShortcutBlocked(event)) return;
+      if (submitted) {
+        if (isSpaceKey(event) || event.key === "Enter") {
+          event.preventDefault();
+          onNext();
+        }
+        return;
+      }
+      const index = choiceIndexFromKey(event, options.length);
+      if (index === null) return;
+      event.preventDefault();
+      handlePick(options[index].value);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
+  return (
+    <section className="space-y-4">
+      <div className={`card-soft p-7 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
+        <div className="chip chip-blue">尾辅音</div>
+        <div className="thai-big mt-5 text-8xl leading-none">{question.item.front}</div>
+        <div className="mt-3 text-2xl font-extrabold" style={{ color: "var(--duo-blue)" }}>
+          {displayRoman(question.item.roman)}
+        </div>
+        {question.item.name && (
+          <div className="thai-big mt-2 text-2xl opacity-80">{question.item.name}</div>
+        )}
+        <div className="mt-3 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
+          这个辅音作尾辅音时读什么？
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {options.map((option) => {
+          const isCorrect = option.value === correct;
+          const isPicked = picked === option.value;
+          let cls = "btn-ghost border-2";
+          if (submitted) {
+            if (isCorrect) cls = "btn-primary";
+            else if (isPicked) cls = "btn-red";
+            else cls = "btn-ghost opacity-40";
+          }
+
+          return (
+            <button
+              key={option.value}
+              onClick={() => handlePick(option.value)}
+              disabled={submitted}
+              className={`${cls} min-h-[68px] px-3 py-4 text-sm font-bold`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {submitted && (
+        <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-base">
+              {feedback === "ok" ? (
+                <span>✅ {praise}</span>
+              ) : (
+                <span>❌ 正确答案：{getFinalSoundLabel(correct ?? undefined)}</span>
+              )}
+            </div>
+            <button
+              onClick={onNext}
+              className={feedback === "ok" ? "btn-primary px-5" : "btn-red px-5"}
+            >
+              继续
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ToneMarkCard({
+  question,
+  submitted,
+  feedback,
+  praise,
+  onAnswer,
+  onNext,
+}: {
+  question: Question;
+  submitted: boolean;
+  feedback: "ok" | "bad" | null;
+  praise: string;
+  onAnswer: (correct: boolean) => void;
+  onNext: () => void;
+}) {
+  const toneMark = question.toneMark ?? COURSE_TONE_MARKS[0];
+  const choices = question.toneMarkChoices?.length ? question.toneMarkChoices : COURSE_TONE_MARKS;
+  const [picked, setPicked] = useState<string | null>(null);
+
+  const asksSymbol = question.kind === "tone-mark-symbol";
+  const handlePick = (id: string) => {
+    if (submitted) return;
+    setPicked(id);
+    onAnswer(id === toneMark.id);
+  };
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isShortcutBlocked(event)) return;
+      if (submitted) {
+        if (isSpaceKey(event) || event.key === "Enter") {
+          event.preventDefault();
+          onNext();
+        }
+        return;
+      }
+      const index = choiceIndexFromKey(event, choices.length);
+      if (index === null) return;
+      event.preventDefault();
+      handlePick(choices[index].id);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
+  return (
+    <section className="space-y-4">
+      <div className={`card-soft p-7 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
+        <div className="chip chip-purple">声调符号</div>
+        {asksSymbol ? (
+          <>
+            <div className="mt-5 text-2xl font-extrabold">{toneMark.name}</div>
+            <div className="mt-2 font-mono text-lg" style={{ color: "var(--duo-blue)" }}>
+              {toneMark.roman}
+            </div>
+            <div className="mt-3 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
+              哪个符号对应这个名字？
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="thai-big mt-5 text-8xl leading-none">{toneMark.symbol}</div>
+            <div className="mt-3 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
+              这个声调符号叫什么？
+            </div>
+          </>
+        )}
+      </div>
+
+      <ul className="grid grid-cols-2 gap-3">
+        {choices.map((choice) => {
+          const isPicked = picked === choice.id;
+          const isCorrect = choice.id === toneMark.id;
+          let cls = "opt";
+          if (submitted) {
+            if (isCorrect) cls = "opt opt-correct";
+            else if (isPicked) cls = "opt opt-wrong";
+            else cls = "opt opt-disabled";
+          } else if (isPicked) {
+            cls = "opt opt-selected";
+          }
+
+          return (
+            <li key={choice.id}>
+              <button
+                onClick={() => handlePick(choice.id)}
+                disabled={submitted}
+                className={`${cls} min-h-[76px]`}
+              >
+                {asksSymbol ? (
+                  <span className="thai-big text-5xl leading-none">{choice.symbol}</span>
+                ) : (
+                  <span className="flex flex-col items-center gap-1">
+                    <span className="text-base font-bold">{choice.name}</span>
+                    <span className="font-mono text-xs opacity-70">{choice.roman}</span>
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      {submitted && (
+        <div className={`feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div>{feedback === "ok" ? praise : "正确答案是"}</div>
+              <div className="mt-1 text-sm font-bold">
+                <span className="thai-big mr-2 text-lg">{toneMark.symbol}</span>
+                {toneMark.name}
+                <span className="ml-2 font-mono opacity-75">{toneMark.roman}</span>
+              </div>
+            </div>
+            <button onClick={onNext} className={feedback === "ok" ? "btn-primary px-5" : "btn-red px-5"}>
               继续
             </button>
           </div>
