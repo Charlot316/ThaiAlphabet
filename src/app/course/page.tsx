@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -60,6 +61,7 @@ import {
   recordOutcome,
   resetMastery,
 } from "@/lib/mastery";
+import { installLocationChangeEvents, LOCATION_CHANGE_EVENT } from "@/lib/routeEvents";
 import {
   StudyItem,
   buildStudyItems,
@@ -927,6 +929,15 @@ function makeCourseMatchBoard(items: StudyItem[]): CourseMatchBoard {
   };
 }
 
+function readCourseRoute() {
+  if (typeof window === "undefined") return { unit: null, lessonId: null };
+  const params = new URLSearchParams(window.location.search);
+  return {
+    unit: params.get("unit"),
+    lessonId: params.get("lesson"),
+  };
+}
+
 export default function CoursePage() {
   const allItems = useMemo(() => buildStudyItems(), []);
   const romanGroups = useMemo(() => {
@@ -940,6 +951,7 @@ export default function CoursePage() {
   const [progress, setProgress] = useState<MasteryProgress>(() => loadMastery());
   const [courseProgress, setCourseProgress] = useState<CourseProgress>(() => loadCourseProgress());
   const [localProgressReady, setLocalProgressReady] = useState(false);
+  const [route, setRoute] = useState(readCourseRoute);
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [index, setIndex] = useState(0);
@@ -958,6 +970,15 @@ export default function CoursePage() {
   const completedRecordedRef = useRef<string | null>(null);
   const skippedRecordedRef = useRef<string | null>(null);
   const routeLessonStartedRef = useRef<string | null>(null);
+
+  const refreshLocalProgress = useCallback(() => {
+    const nextMastery = loadMastery();
+    const nextCourseProgress = loadCourseProgress();
+    setProgress(nextMastery);
+    setCourseProgress(nextCourseProgress);
+    setLocalProgressReady(true);
+    return { mastery: nextMastery, courseProgress: nextCourseProgress };
+  }, []);
 
   const challengeFailed = session?.mode === "challenge" && mistakeCount > UNIT_CHALLENGE_MISTAKE_LIMIT;
 
@@ -1043,9 +1064,10 @@ export default function CoursePage() {
   }
 
   function startCourseLesson(lesson: CourseLesson) {
-    const status = lessonStatus(lesson, courseProgress);
+    const latest = refreshLocalProgress().courseProgress;
+    const status = lessonStatus(lesson, latest);
     if (status === "locked") return;
-    const choiceIds = unlockedItemIds(courseProgress, lesson.id);
+    const choiceIds = unlockedItemIds(latest, lesson.id);
     const choiceItems = allItems.filter((item) => choiceIds.has(item.id));
     const items = selectLessonItems(lesson);
     beginSession({
@@ -1120,32 +1142,35 @@ export default function CoursePage() {
 
   useEffect(() => {
     const refresh = () => {
-      setProgress(loadMastery());
-      setCourseProgress(loadCourseProgress());
-      setLocalProgressReady(true);
+      setRoute(readCourseRoute());
+      refreshLocalProgress();
     };
+    installLocationChangeEvents();
     refresh();
     window.addEventListener("thai-alphabet:mastery", refresh);
     window.addEventListener("thai-alphabet:course-progress", refresh);
+    window.addEventListener(LOCATION_CHANGE_EVENT, refresh);
+    window.addEventListener("focus", refresh);
     window.addEventListener("storage", refresh);
     return () => {
       window.removeEventListener("thai-alphabet:mastery", refresh);
       window.removeEventListener("thai-alphabet:course-progress", refresh);
+      window.removeEventListener(LOCATION_CHANGE_EVENT, refresh);
+      window.removeEventListener("focus", refresh);
       window.removeEventListener("storage", refresh);
     };
-  }, []);
+  }, [refreshLocalProgress]);
 
   useEffect(() => {
     if (!localProgressReady) return;
-    if (typeof window === "undefined" || session) return;
-    const params = new URLSearchParams(window.location.search);
-    const unit = params.get("unit");
+    if (session) return;
+    const unit = route.unit;
     if (unit && MAIN_COURSE.some((lesson) => lesson.unit === unit)) {
       if (focusedUnit !== unit) setFocusedUnit(unit);
     } else if (focusedUnit) {
       setFocusedUnit(null);
     }
-    const lessonId = params.get("lesson");
+    const lessonId = route.lessonId;
     if (!lessonId || routeLessonStartedRef.current === lessonId) return;
     const lesson = MAIN_COURSE.find((item) => item.id === lessonId);
     if (!lesson) return;
@@ -1154,9 +1179,10 @@ export default function CoursePage() {
     startCourseLesson(lesson);
     // URL 参数只用于首次落到指定小课；课程内部状态仍由本页控制。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [courseProgress, focusedUnit, localProgressReady, session]);
+  }, [courseProgress, focusedUnit, localProgressReady, route.lessonId, route.unit, session]);
 
   function clearFocusedUnit() {
+    refreshLocalProgress();
     setFocusedUnit(null);
     if (typeof window !== "undefined") {
       window.history.replaceState(null, "", window.location.pathname);

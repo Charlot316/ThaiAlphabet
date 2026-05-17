@@ -27,6 +27,7 @@ import {
 } from "@/lib/curriculum";
 import { GRAMMAR_LESSON_PLANS } from "@/lib/grammarCourse";
 import { ALPHABET_FINAL_EXAM_POLICY, useAlphabetFinalExamResult } from "@/lib/moduleProgress";
+import { installLocationChangeEvents, LOCATION_CHANGE_EVENT } from "@/lib/routeEvents";
 
 const PHASE_ICONS = {
   phonics: GraduationCap,
@@ -251,12 +252,17 @@ export default function CoursesPage() {
       setCourseProgress(loadCourseProgress());
       setLocalProgressReady(true);
     };
+    installLocationChangeEvents();
     refresh();
     window.addEventListener("storage", refresh);
     window.addEventListener("thai-alphabet:course-progress", refresh);
+    window.addEventListener(LOCATION_CHANGE_EVENT, refresh);
+    window.addEventListener("focus", refresh);
     return () => {
       window.removeEventListener("storage", refresh);
       window.removeEventListener("thai-alphabet:course-progress", refresh);
+      window.removeEventListener(LOCATION_CHANGE_EVENT, refresh);
+      window.removeEventListener("focus", refresh);
     };
   }, []);
 
