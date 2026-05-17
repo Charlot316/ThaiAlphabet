@@ -936,12 +936,8 @@ export default function CoursePage() {
     }
     return groups;
   }, [allItems]);
-  const [progress, setProgress] = useState<MasteryProgress>({});
-  const [courseProgress, setCourseProgress] = useState<CourseProgress>({
-    completedLessonIds: [],
-    skippedUnits: [],
-    updatedAt: 0,
-  });
+  const [progress, setProgress] = useState<MasteryProgress>(() => loadMastery());
+  const [courseProgress, setCourseProgress] = useState<CourseProgress>(() => loadCourseProgress());
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [index, setIndex] = useState(0);

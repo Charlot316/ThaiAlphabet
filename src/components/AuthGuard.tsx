@@ -9,6 +9,7 @@ import {
   pullStrokes,
   startAutoPull,
   subscribeAuth,
+  validateSession,
 } from "@/lib/sync";
 
 function shouldBypassAuthLocally() {
@@ -18,8 +19,8 @@ function shouldBypassAuthLocally() {
 }
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(false);
-  const [logged, setLogged] = useState(false);
+  const [ready, setReady] = useState(() => shouldBypassAuthLocally() || isLoggedIn());
+  const [logged, setLogged] = useState(() => shouldBypassAuthLocally() || isLoggedIn());
 
   useEffect(() => {
     if (shouldBypassAuthLocally()) {
@@ -30,22 +31,25 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     installSyncHook();
     startAutoPull();
-    const sync = () => {
+    const sync = async () => {
       const v = isLoggedIn();
       setLogged(v);
+      setReady(true);
       if (v) {
-        // 先一次性清理废弃 key，再 pull，避免被云端的旧数据反向覆盖
-        cleanupLegacyKeys()
-          .catch(() => {})
-          .finally(() => {
-            pull();
-            pullStrokes();
-          });
+        const valid = await validateSession();
+        if (!valid) {
+          setLogged(false);
+          return;
+        }
+        cleanupLegacyKeys().catch(() => {});
+        pull();
+        pullStrokes();
       }
     };
     sync();
-    setReady(true);
-    return subscribeAuth(sync);
+    return subscribeAuth(() => {
+      void sync();
+    });
   }, []);
 
   if (!ready) {

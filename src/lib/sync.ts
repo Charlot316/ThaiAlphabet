@@ -76,11 +76,23 @@ export function subscribe(fn: (status: SyncStatus, msg?: string) => void): () =>
 
 export function getToken(): string {
   if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(TOKEN_KEY) || readCookie(TOKEN_KEY);
+  const stored = window.localStorage.getItem(TOKEN_KEY) || "";
+  if (stored) return stored;
+  const cookieValue = readCookie(TOKEN_KEY);
+  if (cookieValue) {
+    window.localStorage.setItem(TOKEN_KEY, cookieValue);
+  }
+  return cookieValue;
 }
 export function getUsername(): string {
   if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(USER_KEY) || readCookie(USER_KEY);
+  const stored = window.localStorage.getItem(USER_KEY) || "";
+  if (stored) return stored;
+  const cookieValue = readCookie(USER_KEY);
+  if (cookieValue) {
+    window.localStorage.setItem(USER_KEY, cookieValue);
+  }
+  return cookieValue;
 }
 export function getLastPullAt(): number {
   if (typeof window === "undefined") return 0;
@@ -129,6 +141,27 @@ export async function login(username: string, password: string): Promise<LoginRe
     return { ok: true };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
+  }
+}
+
+export async function validateSession(): Promise<boolean> {
+  const token = getToken();
+  if (!token) return false;
+  try {
+    const res = await fetch("/api/me", {
+      headers: { authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return false;
+    const data = (await res.json().catch(() => ({}))) as { username?: string };
+    if (data.username) {
+      window.localStorage.setItem(USER_KEY, data.username);
+      writeCookie(USER_KEY, data.username, 60 * 60 * 24 * 30);
+    }
+    writeCookie(TOKEN_KEY, token, 60 * 60 * 24 * 30);
+    return true;
+  } catch {
+    return true;
   }
 }
 

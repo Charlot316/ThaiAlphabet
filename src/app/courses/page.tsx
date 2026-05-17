@@ -241,11 +241,7 @@ function CoursePathNode({
 export default function CoursesPage() {
   const examResult = useAlphabetFinalExamResult();
   const grammarUnlocked = Boolean(examResult);
-  const [courseProgress, setCourseProgress] = useState<CourseProgress>({
-    completedLessonIds: [],
-    skippedUnits: [],
-    updatedAt: 0,
-  });
+  const [courseProgress, setCourseProgress] = useState<CourseProgress>(() => loadCourseProgress());
 
   useEffect(() => {
     const refresh = () => setCourseProgress(loadCourseProgress());
