@@ -7,6 +7,7 @@ import {
   GRAMMAR_COVERAGE_SECTIONS,
   GRAMMAR_POINT_BY_ID,
   GRAMMAR_POINTS,
+  GRAMMAR_TRACKS,
 } from "@/data/grammar";
 import type {
   AdvancedGrammarCompetency,
@@ -19,6 +20,8 @@ import type {
 import { shuffleStrong, uniqueChoices } from "@/lib/study";
 
 export type GrammarExerciseKind =
+  | "lesson-brief"
+  | "example-showcase"
   | "concept-choice"
   | "pattern-choice"
   | "meaning-choice"
@@ -34,6 +37,7 @@ export type GrammarExerciseKind =
 export type GrammarLessonPhase = "core" | "advanced" | "professional-output" | "review";
 
 export type GrammarTrainingMode =
+  | "showcase"
   | "recognition"
   | "pattern"
   | "example-comprehension"
@@ -88,7 +92,10 @@ export interface GrammarLessonPlan {
   coverageId?: string;
   advancedCompetencyId?: string;
   professionalGenreId?: string;
+  focusPointId?: string;
+  learningLineTitleZh?: string;
   pointIds: string[];
+  reviewPointIds?: string[];
   trainingModes: GrammarTrainingMode[];
   skillGoalsZh: string[];
   outputTaskZh?: string;
@@ -97,6 +104,20 @@ export interface GrammarLessonPlan {
 }
 
 export const GRAMMAR_EXERCISE_CATALOG: GrammarExerciseCatalogItem[] = [
+  {
+    id: "lesson-brief",
+    labelZh: "规则展示",
+    purposeZh: "每个语法小点先单独讲清楚功能、结构和常见坑，再进入选择题。",
+    interactionZh: "读规则卡，点继续。",
+    usedFromLevel: "pre-a1",
+  },
+  {
+    id: "example-showcase",
+    labelZh: "例句展示",
+    purposeZh: "先用多条例句建立语感，再做理解、选句、缺空和排序。",
+    interactionZh: "看泰文、罗马音、中文和直译提示，点继续。",
+    usedFromLevel: "pre-a1",
+  },
   {
     id: "concept-choice",
     labelZh: "概念识别",
@@ -228,6 +249,110 @@ function choiceSet(
   count = 4
 ): GrammarChoice[] {
   return uniqueChoices(correct, [correct, ...others], count, (choice) => choice.id);
+}
+
+const A1_LEVELS = new Set<ContentLevel>(["pre-a1", "a1", "a1-plus"]);
+
+interface GrammarLearningLineStep {
+  pointId: string;
+  titleZh: string;
+  level: ContentLevel;
+  order: number;
+  trackId: string;
+  trackTitleZh: string;
+  coverageId?: string;
+  coverageTitleZh?: string;
+  reviewPointIds: string[];
+}
+
+const coverageByPointId = new Map<string, GrammarCoverageSection>();
+for (const section of GRAMMAR_COVERAGE_SECTIONS) {
+  for (const pointId of section.pointIds) {
+    if (!coverageByPointId.has(pointId)) coverageByPointId.set(pointId, section);
+  }
+}
+
+function buildA1GrammarLearningLine(): GrammarLearningLineStep[] {
+  const seen = new Set<string>();
+  const steps: GrammarLearningLineStep[] = [];
+
+  const addPoint = (
+    pointId: string,
+    track: { id: string; titleZh: string },
+    reviewPointIds: string[] = []
+  ) => {
+    const point = GRAMMAR_POINT_BY_ID[pointId];
+    if (!point || !A1_LEVELS.has(point.level) || seen.has(point.id)) return;
+    seen.add(point.id);
+    const coverage = coverageByPointId.get(point.id);
+    steps.push({
+      pointId: point.id,
+      titleZh: point.titleZh,
+      level: point.level,
+      order: steps.length + 1,
+      trackId: track.id,
+      trackTitleZh: track.titleZh,
+      coverageId: coverage?.id,
+      coverageTitleZh: coverage?.titleZh,
+      reviewPointIds: reviewPointIds.filter((id) => id !== point.id),
+    });
+  };
+
+  for (const track of GRAMMAR_TRACKS) {
+    for (const pointId of track.pointIds) {
+      addPoint(pointId, track, track.reviewPointIds ?? []);
+    }
+  }
+
+  for (const section of GRAMMAR_COVERAGE_SECTIONS) {
+    for (const pointId of section.pointIds) {
+      addPoint(pointId, {
+        id: `line-fill-${section.id}`,
+        titleZh: `补全线 · ${section.titleZh}`,
+      });
+    }
+  }
+
+  return steps;
+}
+
+export const A1_GRAMMAR_LEARNING_LINE: GrammarLearningLineStep[] = buildA1GrammarLearningLine();
+
+function makeLessonBriefExercise(point: GrammarPoint): GrammarExercise {
+  return {
+    id: `${point.id}:brief`,
+    kind: "lesson-brief",
+    pointId: point.id,
+    pointTitleZh: point.titleZh,
+    pointSummaryZh: point.summaryZh,
+    promptZh: point.titleZh,
+    instructionZh: "先看规则卡，再开始练习。",
+    explanationZh: [
+      point.summaryZh,
+      point.patterns.length ? `常见结构：${point.patterns.join("；")}` : "",
+      point.tags.length ? `标签：${point.tags.join(" / ")}` : "",
+    ].filter(Boolean).join("\n"),
+    choices: [{ id: `${point.id}:brief:ok`, label: "我看懂了，继续", correct: true }],
+  };
+}
+
+function makeExampleShowcaseExercise(point: GrammarPoint, example: ThaiExample, index: number): GrammarExercise {
+  return {
+    id: `${point.id}:example-showcase:${index}`,
+    kind: "example-showcase",
+    pointId: point.id,
+    pointTitleZh: point.titleZh,
+    pointSummaryZh: point.summaryZh,
+    promptZh: example.thai,
+    instructionZh: `例句 ${index + 1}：先看这句话怎样使用这个语法点。`,
+    explanationZh: [
+      example.roman,
+      example.chinese,
+      example.literalZh ? `直译/提示：${example.literalZh}` : "",
+    ].filter(Boolean).join("\n"),
+    example,
+    choices: [{ id: `${point.id}:example-showcase:${index}:ok`, label: "继续练这条", correct: true }],
+  };
 }
 
 function makeConceptExercise(point: GrammarPoint, lessonPoints: GrammarPoint[]): GrammarExercise {
@@ -456,6 +581,17 @@ function coreSkillGoals(section: GrammarCoverageSection, points: GrammarPoint[])
   ];
 }
 
+function pointSkillGoals(point: GrammarPoint): string[] {
+  return [
+    `能说清楚「${point.titleZh}」在泰语里解决什么表达问题。`,
+    point.patterns.length
+      ? `能认出并使用结构：${point.patterns.slice(0, 2).join(" / ")}。`
+      : "能在例句里认出这个语法功能。",
+    "能把泰文例句和中文意思对应起来，不靠逐字硬猜。",
+    "能在相近语法点之间判断这条规则为什么适用。",
+  ];
+}
+
 function advancedSkillGoals(competency: AdvancedGrammarCompetency): string[] {
   return [
     "能读懂真实材料里的语气、责任、来源和隐含立场。",
@@ -472,23 +608,46 @@ function genreSkillGoals(genre: ProfessionalGenreTarget): string[] {
   ];
 }
 
-const CORE_GRAMMAR_LESSON_PLANS: GrammarLessonPlan[] = GRAMMAR_COVERAGE_SECTIONS.map((section, index) => {
-  const points = lessonPoints(section);
-  const examplesCount = points.reduce((sum, point) => sum + pointExamples(point).length, 0);
+const A1_CORE_GRAMMAR_LESSON_PLANS: GrammarLessonPlan[] = A1_GRAMMAR_LEARNING_LINE.map((step) => {
+  const point = GRAMMAR_POINT_BY_ID[step.pointId];
+  const examplesCount = pointExamples(point).length;
   return {
-    id: `grammar-course-${section.id}`,
-    title: `语法 ${index + 1} · ${section.titleZh}`,
-    subtitle: section.summaryZh,
-    level: section.level,
+    id: `grammar-a1-${String(step.order).padStart(2, "0")}-${point.id}`,
+    title: `A1 语法 ${step.order} · ${point.titleZh}`,
+    subtitle: `${step.trackTitleZh}：${point.summaryZh}`,
+    level: point.level,
     phase: "core",
-    coverageId: section.id,
-    pointIds: section.pointIds,
-    trainingModes: modesForCoreSection(section),
-    skillGoalsZh: coreSkillGoals(section, points),
+    coverageId: step.coverageId,
+    focusPointId: point.id,
+    learningLineTitleZh: step.trackTitleZh,
+    pointIds: [point.id],
+    reviewPointIds: step.reviewPointIds,
+    trainingModes: ["showcase", "recognition", "pattern", "example-comprehension", "classification", "cloze", "ordering"],
+    skillGoalsZh: pointSkillGoals(point),
     examplesCount,
-    estimatedQuestions: Math.min(28, Math.max(8, points.length * 4 + examplesCount)),
+    estimatedQuestions: Math.max(10, examplesCount * 5 + point.patterns.length + 3),
   };
 });
+
+const LATER_COVERAGE_LESSON_PLANS: GrammarLessonPlan[] = GRAMMAR_COVERAGE_SECTIONS
+  .filter((section) => !A1_LEVELS.has(section.level))
+  .map((section, index) => {
+    const points = lessonPoints(section);
+    const examplesCount = points.reduce((sum, point) => sum + pointExamples(point).length, 0);
+    return {
+      id: `grammar-course-${section.id}`,
+      title: `语法进阶 ${index + 1} · ${section.titleZh}`,
+      subtitle: section.summaryZh,
+      level: section.level,
+      phase: "core",
+      coverageId: section.id,
+      pointIds: section.pointIds,
+      trainingModes: modesForCoreSection(section),
+      skillGoalsZh: coreSkillGoals(section, points),
+      examplesCount,
+      estimatedQuestions: Math.min(28, Math.max(8, points.length * 4 + examplesCount)),
+    };
+  });
 
 const ADVANCED_GRAMMAR_LESSON_PLANS: GrammarLessonPlan[] = ADVANCED_GRAMMAR_COMPETENCIES.map((competency, index) => ({
   id: `grammar-advanced-${competency.id}`,
@@ -523,7 +682,8 @@ const PROFESSIONAL_OUTPUT_LESSON_PLANS: GrammarLessonPlan[] = PROFESSIONAL_GENRE
 }));
 
 export const GRAMMAR_LESSON_PLANS: GrammarLessonPlan[] = [
-  ...CORE_GRAMMAR_LESSON_PLANS,
+  ...A1_CORE_GRAMMAR_LESSON_PLANS,
+  ...LATER_COVERAGE_LESSON_PLANS,
   ...ADVANCED_GRAMMAR_LESSON_PLANS,
   ...PROFESSIONAL_OUTPUT_LESSON_PLANS,
 ];
@@ -730,27 +890,37 @@ function buildProfessionalOutputExercises(plan: GrammarLessonPlan, maxQuestions:
 
 export function buildGrammarExercisesForLesson(
   lessonId: string,
-  maxQuestions = 24
+  maxQuestions = 32
 ): GrammarExercise[] {
   const plan = GRAMMAR_LESSON_PLANS.find((lesson) => lesson.id === lessonId) ?? GRAMMAR_LESSON_PLANS[0];
   if (plan.phase === "advanced") return buildAdvancedExercises(plan, maxQuestions);
   if (plan.phase === "professional-output") return buildProfessionalOutputExercises(plan, maxQuestions);
 
-  const section = GRAMMAR_COVERAGE_SECTIONS.find((item) => item.id === plan.coverageId);
-  if (!section) return [];
-  const points = lessonPoints(section);
+  const points = plan.focusPointId
+    ? [GRAMMAR_POINT_BY_ID[plan.focusPointId]].filter((point): point is GrammarPoint => Boolean(point))
+    : GRAMMAR_COVERAGE_SECTIONS.find((item) => item.id === plan.coverageId)
+      ? lessonPoints(GRAMMAR_COVERAGE_SECTIONS.find((item) => item.id === plan.coverageId) as GrammarCoverageSection)
+      : [];
+  if (points.length === 0) return [];
+  const choicePool = plan.focusPointId
+    ? A1_GRAMMAR_LEARNING_LINE
+        .map((step) => GRAMMAR_POINT_BY_ID[step.pointId])
+        .filter((point): point is GrammarPoint => Boolean(point))
+    : points;
   const exercises: GrammarExercise[] = [];
 
   for (const point of points) {
-    exercises.push(makeConceptExercise(point, points));
-    const pattern = makePatternExercise(point, points);
+    exercises.push(makeLessonBriefExercise(point));
+    exercises.push(makeConceptExercise(point, choicePool));
+    const pattern = makePatternExercise(point, choicePool);
     if (pattern) exercises.push(pattern);
 
     const examples = pointExamples(point);
-    for (const example of examples.slice(0, 2)) {
+    for (const [index, example] of examples.entries()) {
+      exercises.push(makeExampleShowcaseExercise(point, example, index));
       exercises.push(makeMeaningExercise(point, example));
       exercises.push(makeThaiExercise(point, example));
-      exercises.push(makeClassifyExercise(point, example, points));
+      exercises.push(makeClassifyExercise(point, example, choicePool));
       const cloze = makeClozeExercise(point, example);
       if (cloze) exercises.push(cloze);
       const order = makeOrderExercise(point, example);
@@ -758,5 +928,6 @@ export function buildGrammarExercisesForLesson(
     }
   }
 
-  return shuffleStrong(exercises).slice(0, maxQuestions);
+  const [brief, ...rest] = exercises;
+  return [brief, ...shuffleStrong(rest)].filter(Boolean).slice(0, maxQuestions);
 }

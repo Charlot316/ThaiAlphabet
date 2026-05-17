@@ -16,9 +16,9 @@ import {
   GRAMMAR_COVERAGE_SECTIONS,
   GRAMMAR_POINT_BY_ID,
   GRAMMAR_POINTS,
-  GRAMMAR_TRACKS,
 } from "@/data/grammar";
 import {
+  A1_GRAMMAR_LEARNING_LINE,
   buildGrammarExercisesForLesson,
   GRAMMAR_EXERCISE_CATALOG,
   GRAMMAR_LESSON_PLANS,
@@ -376,7 +376,7 @@ export default function GrammarPage() {
                   {GRAMMAR_COVERAGE_SECTIONS.length} 覆盖区 · {GRAMMAR_POINTS.length} 条目
                 </span>
                 <span className="chip" style={{ background: "var(--surface-subtle)", color: "var(--duo-muted)", borderColor: "var(--duo-line)" }}>
-                  {GRAMMAR_LESSON_PLANS.length} 课 · {GRAMMAR_EXERCISE_CATALOG.length} 种题型
+                  A1 {A1_GRAMMAR_LEARNING_LINE.length} 节 · {GRAMMAR_EXERCISE_CATALOG.length} 种题型
                 </span>
               </div>
             </div>
@@ -508,27 +508,60 @@ export default function GrammarPage() {
 
       {view === "tracks" && (
         <section className="space-y-3">
-          {GRAMMAR_TRACKS.map((track, index) => (
-            <article key={track.id} className="rounded-lg border p-4" style={{ background: "var(--duo-card)", borderColor: "var(--duo-line)", boxShadow: "var(--shadow-small)" }}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-xs font-semibold" style={{ color: "var(--duo-green-d)" }}>
-                    Track {index + 1} · {LEVEL_LABELS[track.level] ?? track.level}
-                  </div>
-                  <h2 className="mt-1 text-lg font-semibold">{track.titleZh}</h2>
+          <article className="rounded-lg border p-4" style={{ background: "var(--duo-card)", borderColor: "var(--duo-line)", boxShadow: "var(--shadow-small)" }}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-semibold" style={{ color: "var(--duo-green-d)" }}>
+                  A1 learning line
                 </div>
-                <span className="chip chip-low">{track.pointIds.length} 新点</span>
+                <h2 className="mt-1 text-lg font-semibold">A1 逐点学习线</h2>
               </div>
-              <p className="mt-3 text-sm leading-6" style={{ color: "var(--duo-muted)" }}>{track.summaryZh}</p>
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {track.pointIds.map((pointId) => (
-                  <div key={pointId} className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--duo-line)", background: "var(--surface-subtle)" }}>
-                    {GRAMMAR_POINT_BY_ID[pointId]?.titleZh ?? pointId}
+              <span className="chip chip-blue">{A1_GRAMMAR_LEARNING_LINE.length} 个语法小点</span>
+            </div>
+            <p className="mt-3 text-sm leading-6" style={{ color: "var(--duo-muted)" }}>
+              按现有学习线展开，每个语法条目对应一节课；旧学习线漏掉的 A1 条目会按覆盖区顺序补在后面，先保证 A1 不重不漏。
+            </p>
+          </article>
+
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            {A1_GRAMMAR_LEARNING_LINE.map((step) => {
+              const point = GRAMMAR_POINT_BY_ID[step.pointId];
+              const lesson = GRAMMAR_LESSON_PLANS.find((item) => item.focusPointId === step.pointId);
+              if (!point) return null;
+              return (
+                <article
+                  key={step.pointId}
+                  className="rounded-lg border p-4"
+                  style={{ background: "var(--duo-card)", borderColor: "var(--duo-line)", boxShadow: "var(--shadow-small)" }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold" style={{ color: "var(--duo-green-d)" }}>
+                        {String(step.order).padStart(2, "0")} · {LEVEL_LABELS[point.level] ?? point.level} · {step.trackTitleZh}
+                      </div>
+                      <h2 className="mt-1 text-base font-semibold">{point.titleZh}</h2>
+                      <p className="mt-2 text-sm leading-6" style={{ color: "var(--duo-muted)" }}>
+                        {point.summaryZh}
+                      </p>
+                    </div>
+                    {lesson && (
+                      <button type="button" onClick={() => startLesson(lesson.id)} className={courseUnlocked ? "btn-primary shrink-0 px-4" : "btn-ghost shrink-0 px-4"}>
+                        {courseUnlocked ? "开始" : "预览"}
+                      </button>
+                    )}
                   </div>
-                ))}
-              </div>
-            </article>
-          ))}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="chip chip-blue">{point.examples.length} 条例句</span>
+                    {step.coverageTitleZh && (
+                      <span className="chip" style={{ background: "var(--surface-subtle)", color: "var(--duo-muted)", borderColor: "var(--duo-line)" }}>
+                        {step.coverageTitleZh}
+                      </span>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </section>
       )}
 
