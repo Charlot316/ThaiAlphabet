@@ -17,9 +17,14 @@ import type {
   ProfessionalGenreTarget,
   ThaiExample,
 } from "@/data/types";
+import {
+  VOCABULARY_CATALOG_ENTRIES,
+  type VocabularyCatalogEntry,
+} from "@/data/vocabularyCatalog";
 import { shuffleStrong, uniqueChoices } from "@/lib/study";
 
 export type GrammarExerciseKind =
+  | "vocabulary-preview"
   | "lesson-brief"
   | "example-showcase"
   | "concept-choice"
@@ -68,6 +73,16 @@ export interface GrammarToken {
   label: string;
 }
 
+export interface GrammarVocabularyPreviewItem {
+  id: string;
+  thai: string;
+  roman: string;
+  chinese: string;
+  partOfSpeech: string;
+  exampleThai?: string;
+  exampleChinese?: string;
+}
+
 export interface GrammarExercise {
   id: string;
   kind: GrammarExerciseKind;
@@ -78,6 +93,7 @@ export interface GrammarExercise {
   instructionZh: string;
   explanationZh: string;
   example?: ThaiExample;
+  vocabularyItems?: GrammarVocabularyPreviewItem[];
   choices?: GrammarChoice[];
   tokens?: GrammarToken[];
   answerTokens?: string[];
@@ -104,6 +120,13 @@ export interface GrammarLessonPlan {
 }
 
 export const GRAMMAR_EXERCISE_CATALOG: GrammarExerciseCatalogItem[] = [
+  {
+    id: "vocabulary-preview",
+    labelZh: "本课词汇",
+    purposeZh: "语法题开始前先讲本节会反复出现的词，避免在不认识词的情况下硬猜。",
+    interactionZh: "看泰文、罗马音、中文和词性；每个词可朗读，点继续进入题目。",
+    usedFromLevel: "pre-a1",
+  },
   {
     id: "lesson-brief",
     labelZh: "规则展示",
@@ -333,6 +356,66 @@ function makeLessonBriefExercise(point: GrammarPoint): GrammarExercise {
       point.tags.length ? `标签：${point.tags.join(" / ")}` : "",
     ].filter(Boolean).join("\n"),
     choices: [{ id: `${point.id}:brief:ok`, label: "我看懂了，继续", correct: true }],
+  };
+}
+
+function vocabularyPreviewItem(entry: VocabularyCatalogEntry): GrammarVocabularyPreviewItem {
+  return {
+    id: entry.id,
+    thai: entry.thai,
+    roman: entry.roman,
+    chinese: entry.chinese,
+    partOfSpeech: entry.partOfSpeech,
+    exampleThai: entry.example?.thai,
+    exampleChinese: entry.example?.chinese,
+  };
+}
+
+function lessonVocabulary(points: GrammarPoint[], maxItems = 10): GrammarVocabularyPreviewItem[] {
+  const pointIds = new Set(points.map((point) => point.id));
+  const exampleText = points
+    .flatMap((point) => pointExamples(point))
+    .map((example) => example.thai)
+    .join(" ");
+  const seen = new Set<string>();
+  const ranked = VOCABULARY_CATALOG_ENTRIES
+    .map((entry) => {
+      const grammarHit = entry.grammarIds.some((id) => pointIds.has(id));
+      const textHit = entry.thai.length > 1 && exampleText.includes(entry.thai);
+      const levelBonus = entry.level === "a1" ? 3 : entry.level === "a2" ? 2 : entry.level === "pre-a1" ? 2 : 0;
+      const qualityBonus = entry.quality === "精修" ? 4 : entry.quality === "已丰富" ? 2 : 0;
+      const score = (grammarHit ? 20 : 0) + (textHit ? 12 : 0) + levelBonus + qualityBonus - Math.min(entry.priority, 5000) / 5000;
+      return { entry, score };
+    })
+    .filter(({ score }) => score >= 10)
+    .sort((a, b) => b.score - a.score || a.entry.priority - b.entry.priority);
+
+  const items: GrammarVocabularyPreviewItem[] = [];
+  for (const { entry } of ranked) {
+    const key = entry.thai;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push(vocabularyPreviewItem(entry));
+    if (items.length >= maxItems) break;
+  }
+  return items;
+}
+
+function makeVocabularyPreviewExercise(points: GrammarPoint[]): GrammarExercise | null {
+  const items = lessonVocabulary(points);
+  if (items.length === 0) return null;
+  const firstPoint = points[0];
+  return {
+    id: `${firstPoint.id}:vocabulary-preview`,
+    kind: "vocabulary-preview",
+    pointId: firstPoint.id,
+    pointTitleZh: "本课词汇预习",
+    pointSummaryZh: "先认识这节课会出现的高频词，再进入语法选择题。",
+    promptZh: "本课会用到这些词",
+    instructionZh: "先看泰文、罗马音、中文和词性；遇到例句选择题时就不用盲猜。",
+    explanationZh: "词汇预习完成后再进入语法规则、例句和点选练习。",
+    vocabularyItems: items,
+    choices: [{ id: `${firstPoint.id}:vocabulary-preview:ok`, label: "词看过了，继续", correct: true }],
   };
 }
 
@@ -929,5 +1012,8 @@ export function buildGrammarExercisesForLesson(
   }
 
   const [brief, ...rest] = exercises;
-  return [brief, ...shuffleStrong(rest)].filter(Boolean).slice(0, maxQuestions);
+  const vocabularyPreview = makeVocabularyPreviewExercise(points);
+  return [brief, vocabularyPreview, ...shuffleStrong(rest)]
+    .filter((exercise): exercise is GrammarExercise => Boolean(exercise))
+    .slice(0, maxQuestions);
 }

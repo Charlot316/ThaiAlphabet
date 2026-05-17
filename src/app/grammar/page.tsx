@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpenCheck,
   BookOpenText,
@@ -42,10 +42,9 @@ const LEVEL_LABELS: Record<string, string> = {
 type GrammarView = "courses" | "tracks" | "coverage" | "points";
 
 const GRAMMAR_VIEWS: Array<{ id: GrammarView; icon: typeof Layers3; label: string }> = [
-  { id: "courses", icon: BookOpenText, label: "课程" },
+  { id: "points", icon: BookOpenCheck, label: "条目" },
   { id: "coverage", icon: Layers3, label: "覆盖区" },
   { id: "tracks", icon: Route, label: "学习线" },
-  { id: "points", icon: BookOpenCheck, label: "条目" },
 ];
 
 const GRAMMAR_PROGRESS_KEY = "thai-alphabet:grammar-course-progress:v1";
@@ -104,7 +103,7 @@ function AudioButton({ text, label = "听" }: { text: string; label?: string }) 
 
 export default function GrammarPage() {
   const examResult = useAlphabetFinalExamResult();
-  const [view, setView] = useState<GrammarView>("courses");
+  const [view, setView] = useState<GrammarView>("points");
   const [query, setQuery] = useState("");
   const [completedLessonIds, setCompletedLessonIds] = useState<string[]>(loadCompletedGrammarLessons);
   const [activeLessonId, setActiveLessonId] = useState<string | null>(null);
@@ -115,6 +114,7 @@ export default function GrammarPage() {
   const [submitted, setSubmitted] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
   const courseUnlocked = Boolean(examResult);
+  const lessonFromHashRef = useRef<string | null>(null);
   const currentQuestion = questions[questionIndex];
   const activeLesson = GRAMMAR_LESSON_PLANS.find((lesson) => lesson.id === activeLessonId);
   const complete = activeLessonId && questions.length > 0 && questionIndex >= questions.length;
@@ -137,6 +137,20 @@ export default function GrammarPage() {
 
   useEffect(() => {
     warmupVoices();
+  }, []);
+
+  useEffect(() => {
+    const openLessonFromHash = () => {
+      const lessonId = decodeURIComponent(window.location.hash.replace(/^#lesson=/, ""));
+      if (!lessonId || lessonId === window.location.hash || lessonFromHashRef.current === lessonId) return;
+      if (!GRAMMAR_LESSON_PLANS.some((lesson) => lesson.id === lessonId)) return;
+      lessonFromHashRef.current = lessonId;
+      startLesson(lessonId);
+    };
+
+    openLessonFromHash();
+    window.addEventListener("hashchange", openLessonFromHash);
+    return () => window.removeEventListener("hashchange", openLessonFromHash);
   }, []);
 
   const filteredPoints = useMemo(() => {
@@ -298,6 +312,52 @@ export default function GrammarPage() {
                   </div>
                 </div>
               )}
+              {currentQuestion.kind === "vocabulary-preview" && currentQuestion.vocabularyItems && (
+                <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {currentQuestion.vocabularyItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-lg border p-3"
+                      style={{ background: "var(--surface-subtle)", borderColor: "var(--duo-line)" }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="thai-big text-xl font-semibold">{item.thai}</div>
+                          <div className="mt-1 font-mono text-xs" style={{ color: "var(--duo-blue-d)" }}>
+                            {item.roman}
+                          </div>
+                          <div className="mt-1 text-sm font-semibold">{item.chinese}</div>
+                        </div>
+                        <AudioButton text={item.thai} label="词" />
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="chip" style={{ background: "var(--duo-card)", color: "var(--duo-muted)", borderColor: "var(--duo-line)" }}>
+                          {item.partOfSpeech}
+                        </span>
+                        {item.exampleThai && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              speak(item.exampleThai ?? "", { rate: 0.86 });
+                            }}
+                            className="chip chip-blue"
+                          >
+                            播放例句
+                          </button>
+                        )}
+                      </div>
+                      {item.exampleThai && (
+                        <div className="mt-2 text-xs leading-5" style={{ color: "var(--duo-muted)" }}>
+                          <span className="thai-big">{item.exampleThai}</span>
+                          {item.exampleChinese ? ` · ${item.exampleChinese}` : ""}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </article>
 
             {isTokenQuestion ? (
@@ -423,12 +483,12 @@ export default function GrammarPage() {
             <div className="min-w-0">
               <div className="text-2xl font-semibold">语法</div>
               <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: "var(--duo-muted)" }}>
-                语法条目可以提前浏览；课程现在会用例句自动生成结构识别、缺词选择、翻译匹配和点词排序题。
+                这里是语法资料库：覆盖区、学习线和细条目都可以提前查。真正的上课入口已经移到「课程」里。
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <span className="chip chip-blue">可浏览</span>
                 <span className={courseUnlocked ? "chip chip-high" : "chip chip-low"}>
-                  {courseUnlocked ? "课程已解锁" : "课程未解锁"}
+                  {courseUnlocked ? "课程入口已解锁" : "课程入口未解锁"}
                 </span>
                 <span className="chip" style={{ background: "var(--surface-subtle)", color: "var(--duo-muted)", borderColor: "var(--duo-line)" }}>
                   {GRAMMAR_COVERAGE_SECTIONS.length} 覆盖区 · {GRAMMAR_POINTS.length} 条目

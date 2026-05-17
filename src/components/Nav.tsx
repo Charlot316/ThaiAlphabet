@@ -3,9 +3,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpenText,
-  GraduationCap,
   Home,
   Languages,
+  Map,
   Settings,
 } from "lucide-react";
 import StatusBar from "./StatusBar";
@@ -13,10 +13,10 @@ import StatusBar from "./StatusBar";
 const TABS = [
   { href: "/", icon: Home, label: "首页", match: ["/"] },
   {
-    href: "/alphabet",
-    icon: GraduationCap,
-    label: "字母",
-    match: ["/alphabet", "/overview", "/course", "/endless-match", "/srs", "/flashcards", "/spell", "/quiz"],
+    href: "/courses",
+    icon: Map,
+    label: "课程",
+    match: ["/courses", "/alphabet", "/overview", "/course", "/endless-match", "/srs", "/flashcards", "/spell", "/quiz"],
   },
   { href: "/grammar", icon: BookOpenText, label: "语法", match: ["/grammar"] },
   { href: "/vocabulary", icon: Languages, label: "词汇", match: ["/vocabulary"] },
