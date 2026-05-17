@@ -239,7 +239,6 @@ const candidateFromRow = (row: Row, index: number): VocabularyExpansionCandidate
   const [thai, id, roman, chinese, partOfSpeech, theme, level, collocationThai, collocationRoman, collocationChinese] = row;
   const collocations = [{ thai: collocationThai, roman: collocationRoman, chinese: collocationChinese }];
   const comparisons = relationFor(row);
-  const related = comparisons.map((comparison) => comparison.target);
   const antonyms = comparisons.filter((comparison) => comparison.kind === "反义").map((comparison) => comparison.target);
   const synonyms = comparisons.filter((comparison) => comparison.kind === "近义").map((comparison) => comparison.target);
   const tags = [theme, partOfSpeech, "日常购物", level];
