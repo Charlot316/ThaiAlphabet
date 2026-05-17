@@ -15,9 +15,11 @@ import {
   useMemo,
   useRef,
   useState,
+  Suspense,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import PronounceButton from "@/components/PronounceButton";
 import TraceSvg from "@/components/TraceSvg";
 import { CONSONANT_BY_ID } from "@/data/consonants";
@@ -41,7 +43,6 @@ import {
   filterUnlockedItems,
   homophoneGroups,
   lessonStatus,
-  loadCourseProgress,
   markUnitSkipped,
   nextLesson,
   resetCourseProgress,
@@ -52,6 +53,7 @@ import {
   unlockedItemIds,
   vowelLengthGroups,
 } from "@/lib/curriculum";
+import { getCourseProgressSnapshot, useCourseProgress } from "@/lib/courseProgressStore";
 import {
   MASTERY_TARGET,
   MasteryProgress,
@@ -61,7 +63,6 @@ import {
   recordOutcome,
   resetMastery,
 } from "@/lib/mastery";
-import { installLocationChangeEvents, LOCATION_CHANGE_EVENT } from "@/lib/routeEvents";
 import {
   StudyItem,
   buildStudyItems,
@@ -929,16 +930,30 @@ function makeCourseMatchBoard(items: StudyItem[]): CourseMatchBoard {
   };
 }
 
-function readCourseRoute() {
-  if (typeof window === "undefined") return { unit: null, lessonId: null };
-  const params = new URLSearchParams(window.location.search);
-  return {
-    unit: params.get("unit"),
-    lessonId: params.get("lesson"),
-  };
+export default function CoursePage() {
+  return (
+    <Suspense
+      fallback={
+        <section className="card-soft p-5 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
+          正在读取课程…
+        </section>
+      }
+    >
+      <CoursePageInner />
+    </Suspense>
+  );
 }
 
-export default function CoursePage() {
+function CoursePageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const route = useMemo(
+    () => ({
+      unit: searchParams.get("unit"),
+      lessonId: searchParams.get("lesson"),
+    }),
+    [searchParams]
+  );
   const allItems = useMemo(() => buildStudyItems(), []);
   const romanGroups = useMemo(() => {
     const groups: Record<string, StudyItem[]> = {};
@@ -949,12 +964,7 @@ export default function CoursePage() {
     return groups;
   }, [allItems]);
   const [progress, setProgress] = useState<MasteryProgress>(() => loadMastery());
-  const [courseProgress, setCourseProgress] = useState<CourseProgress>(() => loadCourseProgress());
-  const [localProgressReady, setLocalProgressReady] = useState(false);
-  const [route, setRoute] = useState<{ unit: string | null; lessonId: string | null }>({
-    unit: null,
-    lessonId: null,
-  });
+  const courseProgress = useCourseProgress();
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [index, setIndex] = useState(0);
@@ -972,10 +982,8 @@ export default function CoursePage() {
 
   const refreshLocalProgress = useCallback(() => {
     const nextMastery = loadMastery();
-    const nextCourseProgress = loadCourseProgress();
+    const nextCourseProgress = getCourseProgressSnapshot();
     setProgress(nextMastery);
-    setCourseProgress(nextCourseProgress);
-    setLocalProgressReady(true);
     return { mastery: nextMastery, courseProgress: nextCourseProgress };
   }, []);
 
@@ -1003,12 +1011,12 @@ export default function CoursePage() {
     feedbackComplete();
     if (session?.mode === "challenge" && session.unit && !challengeFailed && skippedRecordedRef.current !== session.unit) {
       skippedRecordedRef.current = session.unit;
-      setCourseProgress(markUnitSkipped(session.unit));
+      markUnitSkipped(session.unit);
       return;
     }
     if (session?.mode === "lesson" && session.lessonId && completedRecordedRef.current !== session.lessonId) {
       completedRecordedRef.current = session.lessonId;
-      setCourseProgress(completeCourseLesson(session.lessonId));
+      completeCourseLesson(session.lessonId);
     }
   }, [complete, session, challengeFailed]);
 
@@ -1141,27 +1149,24 @@ export default function CoursePage() {
 
   useEffect(() => {
     const refresh = () => {
-      setRoute(readCourseRoute());
-      refreshLocalProgress();
+      setProgress(loadMastery());
     };
-    installLocationChangeEvents();
     refresh();
     window.addEventListener("thai-alphabet:mastery", refresh);
-    window.addEventListener("thai-alphabet:course-progress", refresh);
-    window.addEventListener(LOCATION_CHANGE_EVENT, refresh);
     window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", refresh);
     window.addEventListener("storage", refresh);
+    document.addEventListener("visibilitychange", refresh);
     return () => {
       window.removeEventListener("thai-alphabet:mastery", refresh);
-      window.removeEventListener("thai-alphabet:course-progress", refresh);
-      window.removeEventListener(LOCATION_CHANGE_EVENT, refresh);
       window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", refresh);
       window.removeEventListener("storage", refresh);
+      document.removeEventListener("visibilitychange", refresh);
     };
-  }, [refreshLocalProgress]);
+  }, []);
 
   useEffect(() => {
-    if (!localProgressReady) return;
     if (session) return;
     const unit = route.unit;
     if (unit && MAIN_COURSE.some((lesson) => lesson.unit === unit)) {
@@ -1178,14 +1183,12 @@ export default function CoursePage() {
     startCourseLesson(lesson);
     // URL 参数只用于首次落到指定小课；课程内部状态仍由本页控制。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [courseProgress, focusedUnit, localProgressReady, route.lessonId, route.unit, session]);
+  }, [courseProgress, focusedUnit, route.lessonId, route.unit, session]);
 
   function clearFocusedUnit() {
     refreshLocalProgress();
     setFocusedUnit(null);
-    if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", window.location.pathname);
-    }
+    router.replace("/course", { scroll: false });
   }
 
   function gainMastery(itemId: string, amount: number) {
@@ -1545,21 +1548,11 @@ export default function CoursePage() {
     resetCourseProgress();
     const empty = {};
     setProgress(empty);
-    const reset = loadCourseProgress();
-    setCourseProgress(reset);
     setSession(null);
     setQuestions([]);
   }
 
   if (!session) {
-    if (!localProgressReady) {
-      return (
-        <section className="card-soft p-5 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
-          正在读取本地课程进度…
-        </section>
-      );
-    }
-
     return (
       <CourseHome
         progress={courseProgress}

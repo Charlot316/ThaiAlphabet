@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import {
   BookOpen,
   BookOpenText,
@@ -19,15 +18,13 @@ import {
   COURSE_ROADMAP_COVERAGE,
   COURSE_ROADMAP_PHASES,
   MAIN_COURSE,
-  type CourseProgress,
   type CourseRoadmapLesson,
   lessonStatus,
-  loadCourseProgress,
   unitStatus,
 } from "@/lib/curriculum";
 import { GRAMMAR_LESSON_PLANS } from "@/lib/grammarCourse";
 import { ALPHABET_FINAL_EXAM_POLICY, useAlphabetFinalExamResult } from "@/lib/moduleProgress";
-import { installLocationChangeEvents, LOCATION_CHANGE_EVENT } from "@/lib/routeEvents";
+import { useCourseProgress } from "@/lib/courseProgressStore";
 
 const PHASE_ICONS = {
   phonics: GraduationCap,
@@ -244,27 +241,7 @@ function CoursePathNode({
 export default function CoursesPage() {
   const examResult = useAlphabetFinalExamResult();
   const grammarUnlocked = Boolean(examResult);
-  const [courseProgress, setCourseProgress] = useState<CourseProgress>(() => loadCourseProgress());
-  const [localProgressReady, setLocalProgressReady] = useState(false);
-
-  useEffect(() => {
-    const refresh = () => {
-      setCourseProgress(loadCourseProgress());
-      setLocalProgressReady(true);
-    };
-    installLocationChangeEvents();
-    refresh();
-    window.addEventListener("storage", refresh);
-    window.addEventListener("thai-alphabet:course-progress", refresh);
-    window.addEventListener(LOCATION_CHANGE_EVENT, refresh);
-    window.addEventListener("focus", refresh);
-    return () => {
-      window.removeEventListener("storage", refresh);
-      window.removeEventListener("thai-alphabet:course-progress", refresh);
-      window.removeEventListener(LOCATION_CHANGE_EVENT, refresh);
-      window.removeEventListener("focus", refresh);
-    };
-  }, []);
+  const courseProgress = useCourseProgress();
 
   return (
     <div className="space-y-5">
@@ -308,11 +285,7 @@ export default function CoursesPage() {
       </section>
 
       <section className="space-y-5">
-        {!localProgressReady ? (
-          <article className="card-soft p-5 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
-            正在读取本地课程进度…
-          </article>
-        ) : COURSE_ROADMAP_PHASES.map((phase) => {
+        {COURSE_ROADMAP_PHASES.map((phase) => {
           const Icon = PHASE_ICONS[phase.id];
           const locked = phase.id !== "phonics" && !grammarUnlocked;
           const phonicsUnits = phase.id === "phonics" ? phase.units.flatMap((unit) => unit.lessons) : [];
