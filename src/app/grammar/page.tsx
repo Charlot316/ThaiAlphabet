@@ -77,8 +77,12 @@ function isLikelyThai(text: string) {
 
 function thaiTextForQuestion(question: GrammarExercise) {
   if (question.kind === "example-showcase" && question.example?.thai) return question.example.thai;
-  if (question.kind === "cloze-choice") return "";
+  if (question.kind === "cloze-choice" || question.kind === "vocabulary-cloze-choice") return "";
   return isLikelyThai(question.promptZh) ? question.promptZh : "";
+}
+
+function isClozeQuestion(question: GrammarExercise) {
+  return question.kind === "cloze-choice" || question.kind === "vocabulary-cloze-choice";
 }
 
 function AudioButton({ text, label = "听" }: { text: string; label?: string }) {
@@ -293,6 +297,22 @@ export default function GrammarPage() {
                 </div>
                 <AudioButton text={currentAudioText} />
               </div>
+              {isClozeQuestion(currentQuestion) && currentQuestion.example && (
+                <div
+                  className="mt-3 rounded-lg border p-3 text-sm leading-6"
+                  style={{ background: "var(--surface-subtle)", borderColor: "var(--duo-line)" }}
+                >
+                  <div className="text-xs font-semibold" style={{ color: "var(--duo-muted)" }}>
+                    中文意思
+                  </div>
+                  <div className="mt-1 font-semibold">{currentQuestion.example.chinese}</div>
+                  {currentQuestion.example.literalZh && (
+                    <div className="mt-1 text-xs" style={{ color: "var(--duo-muted)" }}>
+                      {currentQuestion.example.literalZh}
+                    </div>
+                  )}
+                </div>
+              )}
               {currentQuestion.kind === "example-showcase" && currentQuestion.example && (
                 <div className="mt-3 rounded-lg border p-3 text-sm leading-6" style={{ background: "var(--surface-subtle)", borderColor: "var(--duo-line)" }}>
                   <div className="flex items-start justify-between gap-3">

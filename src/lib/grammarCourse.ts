@@ -567,7 +567,7 @@ function makeVocabularyClozeExercise(
     pointTitleZh: "本课词汇",
     pointSummaryZh: "把词放回本课例句里。",
     promptZh: prompt,
-    instructionZh: "缺的位置应该填哪个词？",
+    instructionZh: "先看中文意思，再选缺的位置应该填哪个词。",
     explanationZh: `${item.exampleThai}${item.exampleChinese ? `（${item.exampleChinese}）` : ""}`,
     example: {
       thai: item.exampleThai,
@@ -578,22 +578,32 @@ function makeVocabularyClozeExercise(
   };
 }
 
-function makeVocabularyPracticeExercises(points: GrammarPoint[], maxItems = 6): GrammarExercise[] {
+function makeVocabularyPracticeExercises(
+  points: GrammarPoint[],
+  maxItems = 6,
+  options: { allowCloze?: boolean } = {}
+): GrammarExercise[] {
   const items = lessonVocabulary(points, maxItems);
   const point = points[0];
   if (!point || items.length === 0) return [];
 
-  const exercises: GrammarExercise[] = [];
+  const basicExercises: GrammarExercise[] = [];
+  const clozeExercises: GrammarExercise[] = [];
   for (const item of items.slice(0, 4)) {
-    exercises.push(makeVocabularyMeaningExercise(point, item, items));
-    exercises.push(makeVocabularyThaiExercise(point, item, items));
+    basicExercises.push(makeVocabularyMeaningExercise(point, item, items));
+    basicExercises.push(makeVocabularyThaiExercise(point, item, items));
   }
-  for (const item of items) {
-    const cloze = makeVocabularyClozeExercise(point, item, items);
-    if (cloze) exercises.push(cloze);
+  if (options.allowCloze) {
+    for (const item of items) {
+      const cloze = makeVocabularyClozeExercise(point, item, items);
+      if (cloze) clozeExercises.push(cloze);
+    }
   }
 
-  return shuffleStrong(exercises).slice(0, Math.min(8, Math.max(3, items.length + 2)));
+  return [
+    ...shuffleStrong(basicExercises),
+    ...shuffleStrong(clozeExercises),
+  ].slice(0, Math.min(8, Math.max(3, items.length + 2)));
 }
 
 function makeExampleShowcaseExercise(point: GrammarPoint, example: ThaiExample, index: number): GrammarExercise {
@@ -757,7 +767,7 @@ function makeClozeExercise(point: GrammarPoint, example: ThaiExample): GrammarEx
     pointTitleZh: point.titleZh,
     pointSummaryZh: point.summaryZh,
     promptZh: prompt,
-    instructionZh: "点选最自然的缺词。",
+    instructionZh: "先看中文意思，再点选最自然的缺词。",
     explanationZh: `完整句子：${example.thai}（${example.chinese}）`,
     example,
     choices,
@@ -1168,6 +1178,7 @@ export function buildGrammarExercisesForLesson(
         .filter((point): point is GrammarPoint => Boolean(point))
     : points;
   const exercises: GrammarExercise[] = [];
+  const allowClozeAndOrdering = plan.level !== "pre-a1";
 
   for (const point of points) {
     exercises.push(makeLessonBriefExercise(point));
@@ -1181,16 +1192,20 @@ export function buildGrammarExercisesForLesson(
       exercises.push(makeMeaningExercise(point, example));
       exercises.push(makeThaiExercise(point, example));
       exercises.push(makeClassifyExercise(point, example, choicePool));
-      const cloze = makeClozeExercise(point, example);
-      if (cloze) exercises.push(cloze);
-      const order = makeOrderExercise(point, example);
-      if (order) exercises.push(order);
+      if (allowClozeAndOrdering) {
+        const cloze = makeClozeExercise(point, example);
+        if (cloze) exercises.push(cloze);
+        const order = makeOrderExercise(point, example);
+        if (order) exercises.push(order);
+      }
     }
   }
 
   const [brief, ...rest] = exercises;
   const vocabularyPreview = makeVocabularyPreviewExercise(points);
-  const vocabularyPractice = makeVocabularyPracticeExercises(points);
+  const vocabularyPractice = makeVocabularyPracticeExercises(points, 6, {
+    allowCloze: allowClozeAndOrdering,
+  });
   const lessonStart = [brief, vocabularyPreview].filter(
     (exercise): exercise is GrammarExercise => Boolean(exercise)
   );
