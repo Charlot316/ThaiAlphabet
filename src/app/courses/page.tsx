@@ -244,9 +244,13 @@ export default function CoursesPage() {
   const examResult = useAlphabetFinalExamResult();
   const grammarUnlocked = Boolean(examResult);
   const [courseProgress, setCourseProgress] = useState<CourseProgress>(() => loadCourseProgress());
+  const [localProgressReady, setLocalProgressReady] = useState(false);
 
   useEffect(() => {
-    const refresh = () => setCourseProgress(loadCourseProgress());
+    const refresh = () => {
+      setCourseProgress(loadCourseProgress());
+      setLocalProgressReady(true);
+    };
     refresh();
     window.addEventListener("storage", refresh);
     window.addEventListener("thai-alphabet:course-progress", refresh);
@@ -298,7 +302,11 @@ export default function CoursesPage() {
       </section>
 
       <section className="space-y-5">
-        {COURSE_ROADMAP_PHASES.map((phase) => {
+        {!localProgressReady ? (
+          <article className="card-soft p-5 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
+            正在读取本地课程进度…
+          </article>
+        ) : COURSE_ROADMAP_PHASES.map((phase) => {
           const Icon = PHASE_ICONS[phase.id];
           const locked = phase.id !== "phonics" && !grammarUnlocked;
           const phonicsUnits = phase.id === "phonics" ? phase.units.flatMap((unit) => unit.lessons) : [];

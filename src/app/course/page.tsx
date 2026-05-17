@@ -939,6 +939,7 @@ export default function CoursePage() {
   }, [allItems]);
   const [progress, setProgress] = useState<MasteryProgress>(() => loadMastery());
   const [courseProgress, setCourseProgress] = useState<CourseProgress>(() => loadCourseProgress());
+  const [localProgressReady, setLocalProgressReady] = useState(false);
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [index, setIndex] = useState(0);
@@ -1121,6 +1122,7 @@ export default function CoursePage() {
     const refresh = () => {
       setProgress(loadMastery());
       setCourseProgress(loadCourseProgress());
+      setLocalProgressReady(true);
     };
     refresh();
     window.addEventListener("thai-alphabet:mastery", refresh);
@@ -1134,11 +1136,14 @@ export default function CoursePage() {
   }, []);
 
   useEffect(() => {
+    if (!localProgressReady) return;
     if (typeof window === "undefined" || session) return;
     const params = new URLSearchParams(window.location.search);
     const unit = params.get("unit");
     if (unit && MAIN_COURSE.some((lesson) => lesson.unit === unit)) {
-      setFocusedUnit(unit);
+      if (focusedUnit !== unit) setFocusedUnit(unit);
+    } else if (focusedUnit) {
+      setFocusedUnit(null);
     }
     const lessonId = params.get("lesson");
     if (!lessonId || routeLessonStartedRef.current === lessonId) return;
@@ -1149,7 +1154,7 @@ export default function CoursePage() {
     startCourseLesson(lesson);
     // URL 参数只用于首次落到指定小课；课程内部状态仍由本页控制。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [courseProgress, session]);
+  }, [courseProgress, focusedUnit, localProgressReady, session]);
 
   function clearFocusedUnit() {
     setFocusedUnit(null);
@@ -1522,6 +1527,14 @@ export default function CoursePage() {
   }
 
   if (!session) {
+    if (!localProgressReady) {
+      return (
+        <section className="card-soft p-5 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
+          正在读取本地课程进度…
+        </section>
+      );
+    }
+
     return (
       <CourseHome
         progress={courseProgress}
@@ -1749,10 +1762,37 @@ function CourseHome({
   const completed = progress.completedLessonIds.length;
   const completionPct = Math.round((passedLessons / MAIN_COURSE.length) * 100);
   const masteredUnlocked = unlocked.filter((item) => (mastery[item.id] || 0) >= 60).length;
+  const unitEntries = Object.entries(
+    MAIN_COURSE.reduce<Record<string, CourseLesson[]>>((acc, lesson) => {
+      acc[lesson.unit] = [...(acc[lesson.unit] ?? []), lesson];
+      return acc;
+    }, {})
+  );
+  const units = Object.fromEntries(unitEntries) as Record<string, CourseLesson[]>;
   const currentUnit = upcomingLesson?.unit ?? MAIN_COURSE[MAIN_COURSE.length - 1]?.unit;
   const currentLessonNumber = upcomingLesson
     ? MAIN_COURSE.findIndex((lesson) => lesson.id === upcomingLesson.id) + 1
     : MAIN_COURSE.length;
+  const focusedUnitIndex = focusedUnit ? unitEntries.findIndex(([unit]) => unit === focusedUnit) : -1;
+  const focusedUnitLessons = focusedUnit ? units[focusedUnit] ?? [] : [];
+  const focusedUnitStatus = focusedUnit ? unitStatus(focusedUnit, progress) : null;
+  const focusedLesson =
+    focusedUnitLessons.find((lesson) => lessonStatus(lesson, progress) === "current") ?? null;
+  const primaryLesson = focusedUnit ? focusedLesson : upcomingLesson;
+  const headerEyebrow = focusedUnit
+    ? `第 ${focusedUnitIndex >= 0 ? focusedUnitIndex + 1 : 1} / ${unitEntries.length} 阶段`
+    : `第 ${currentLessonNumber} / ${MAIN_COURSE.length} 节`;
+  const headerDetail = focusedUnit
+    ? focusedLesson
+      ? `当前阶段：${focusedLesson.title}`
+      : focusedUnitStatus === "done"
+        ? "本阶段已完成"
+        : focusedUnitStatus === "skipped"
+          ? "本阶段已跳过"
+          : "上一阶段完成后解锁"
+    : upcomingLesson
+      ? `当前：${upcomingLesson.title}`
+      : "";
   const toneRuleConsonants = unlocked.filter((item) => item.pool === "consonant").length;
   const toneRuleVowels = unlocked
     .filter((item) => item.pool === "vowel")
@@ -1766,10 +1806,6 @@ function CourseHome({
     "tone-rule": toneRuleConsonants > 0 && toneRuleVowels > 0 ? toneRuleConsonants + toneRuleVowels : 0,
   };
 
-  const units = MAIN_COURSE.reduce<Record<string, CourseLesson[]>>((acc, lesson) => {
-    acc[lesson.unit] = [...(acc[lesson.unit] ?? []), lesson];
-    return acc;
-  }, {});
   const visibleUnits = focusedUnit && units[focusedUnit] ? { [focusedUnit]: units[focusedUnit] } : units;
 
   return (
@@ -1785,14 +1821,14 @@ function CourseHome({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="text-xs font-semibold" style={{ color: "var(--duo-green-d)" }}>
-              第 {currentLessonNumber} / {MAIN_COURSE.length} 节
+              {headerEyebrow}
             </div>
             <h1 className="mt-0.5 truncate text-xl font-semibold sm:text-2xl">
               {focusedUnit ? focusedUnit.replace(/^第.+?·\s*/, "") : currentUnit ?? "课程路径"}
             </h1>
-            {upcomingLesson && (
+            {headerDetail && (
               <div className="mt-0.5 truncate text-sm font-semibold" style={{ color: "var(--duo-blue-d)" }}>
-                当前：{upcomingLesson.title}
+                {headerDetail}
               </div>
             )}
           </div>
@@ -1831,8 +1867,8 @@ function CourseHome({
               全部阶段
             </button>
           )}
-          {upcomingLesson && (
-            <button onClick={() => onStartLesson(upcomingLesson)} className="btn-primary px-4 py-2 text-xs">
+          {primaryLesson && (
+            <button onClick={() => onStartLesson(primaryLesson)} className="btn-primary px-4 py-2 text-xs">
               继续学习
             </button>
           )}
