@@ -12,6 +12,7 @@ import {
   validateSession,
 } from "@/lib/sync";
 import { installLocationChangeEvents } from "@/lib/routeEvents";
+import { markCourseProgressReady } from "@/lib/courseProgressStore";
 
 function shouldBypassAuthLocally() {
   if (process.env.NODE_ENV === "development") return true;
@@ -26,6 +27,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (shouldBypassAuthLocally()) {
       installLocationChangeEvents();
+      // No remote sync in bypass mode; trust local storage immediately so
+      // pages don't sit on a loading skeleton.
+      markCourseProgressReady();
       setLogged(true);
       setReady(true);
       return;
@@ -60,6 +64,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       await pull();
       if (!alive) return;
       pullStrokes();
+      // Pull has merged remote into localStorage; course progress is now
+      // trustworthy. Flip the store-level ready flag before unblocking
+      // children so their first render sees `ready: true` and renders the
+      // real lock state, not a placeholder.
+      markCourseProgressReady();
       setLogged(isLoggedIn());
       setReady(true);
     };

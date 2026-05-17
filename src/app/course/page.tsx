@@ -53,7 +53,11 @@ import {
   unlockedItemIds,
   vowelLengthGroups,
 } from "@/lib/curriculum";
-import { getCourseProgressSnapshot, useCourseProgress } from "@/lib/courseProgressStore";
+import {
+  getCourseProgressSnapshot,
+  isCourseProgressReady,
+  useCourseProgressState,
+} from "@/lib/courseProgressStore";
 import {
   MASTERY_TARGET,
   MasteryProgress,
@@ -964,7 +968,7 @@ function CoursePageInner() {
     return groups;
   }, [allItems]);
   const [progress, setProgress] = useState<MasteryProgress>(() => loadMastery());
-  const courseProgress = useCourseProgress();
+  const { progress: courseProgress, ready: progressReady } = useCourseProgressState();
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [index, setIndex] = useState(0);
@@ -991,10 +995,16 @@ function CoursePageInner() {
 
   const current = challengeFailed ? undefined : questions[index];
   const complete = (questions.length > 0 && index >= questions.length) || challengeFailed;
-  const upcomingLesson = useMemo(() => nextLesson(courseProgress), [courseProgress]);
+  // Suspend derived progress values until the store has hydrated. Otherwise
+  // `nextLesson` returns the very first lesson against an empty snapshot and
+  // the page reports "back to lesson 1" before the real value lands.
+  const upcomingLesson = useMemo(
+    () => (progressReady ? nextLesson(courseProgress) : null),
+    [courseProgress, progressReady]
+  );
   const unlockedCount = useMemo(
-    () => unlockedItemIds(courseProgress).size,
-    [courseProgress]
+    () => (progressReady ? unlockedItemIds(courseProgress).size : 0),
+    [courseProgress, progressReady]
   );
 
   useEffect(() => {
@@ -1176,14 +1186,20 @@ function CoursePageInner() {
     }
     const lessonId = route.lessonId;
     if (!lessonId || routeLessonStartedRef.current === lessonId) return;
+    // Don't decide locked/unlocked from an unhydrated snapshot — the effect
+    // will re-run once progress lands. Re-check by reading the latest
+    // snapshot synchronously to dodge stale closure values right after
+    // navigation on Safari.
+    if (!progressReady && !isCourseProgressReady()) return;
+    const latestProgress = isCourseProgressReady() ? getCourseProgressSnapshot() : courseProgress;
     const lesson = MAIN_COURSE.find((item) => item.id === lessonId);
     if (!lesson) return;
-    if (lessonStatus(lesson, courseProgress) === "locked") return;
+    if (lessonStatus(lesson, latestProgress) === "locked") return;
     routeLessonStartedRef.current = lessonId;
     startCourseLesson(lesson);
     // URL 参数只用于首次落到指定小课；课程内部状态仍由本页控制。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [courseProgress, focusedUnit, route.lessonId, route.unit, session]);
+  }, [courseProgress, focusedUnit, progressReady, route.lessonId, route.unit, session]);
 
   function clearFocusedUnit() {
     refreshLocalProgress();
@@ -1556,6 +1572,7 @@ function CoursePageInner() {
     return (
       <CourseHome
         progress={courseProgress}
+        progressReady={progressReady}
         mastery={progress}
         unlockedCount={unlockedCount}
         upcomingLesson={upcomingLesson}
@@ -1748,6 +1765,7 @@ function lessonKindMeta(kind: CourseLesson["kind"]): {
 
 function CourseHome({
   progress,
+  progressReady,
   mastery,
   unlockedCount,
   upcomingLesson,
@@ -1760,6 +1778,7 @@ function CourseHome({
   onReset,
 }: {
   progress: CourseProgress;
+  progressReady: boolean;
   mastery: MasteryProgress;
   unlockedCount: number;
   upcomingLesson: CourseLesson | null;
@@ -1771,14 +1790,18 @@ function CourseHome({
   onClearFocusedUnit: () => void;
   onReset: () => void;
 }) {
-  const unlocked = filterUnlockedItems(allItems, progress);
+  const unlocked = progressReady ? filterUnlockedItems(allItems, progress) : [];
   const completedSet = new Set(progress.completedLessonIds);
   const skippedSet = new Set(progress.skippedUnits);
-  const passedLessons = MAIN_COURSE.filter(
-    (lesson) => completedSet.has(lesson.id) || skippedSet.has(lesson.unit)
-  ).length;
-  const completed = progress.completedLessonIds.length;
-  const completionPct = Math.round((passedLessons / MAIN_COURSE.length) * 100);
+  const passedLessons = progressReady
+    ? MAIN_COURSE.filter(
+        (lesson) => completedSet.has(lesson.id) || skippedSet.has(lesson.unit)
+      ).length
+    : 0;
+  const completed = progressReady ? progress.completedLessonIds.length : 0;
+  const completionPct = progressReady
+    ? Math.round((passedLessons / MAIN_COURSE.length) * 100)
+    : 0;
   const masteredUnlocked = unlocked.filter((item) => (mastery[item.id] || 0) >= 60).length;
   const unitEntries = Object.entries(
     MAIN_COURSE.reduce<Record<string, CourseLesson[]>>((acc, lesson) => {
@@ -1793,22 +1816,27 @@ function CourseHome({
     : MAIN_COURSE.length;
   const focusedUnitIndex = focusedUnit ? unitEntries.findIndex(([unit]) => unit === focusedUnit) : -1;
   const focusedUnitLessons = focusedUnit ? units[focusedUnit] ?? [] : [];
-  const focusedUnitStatus = focusedUnit ? unitStatus(focusedUnit, progress) : null;
-  const focusedLesson =
-    focusedUnitLessons.find((lesson) => lessonStatus(lesson, progress) === "current") ?? null;
+  const focusedUnitStatus = focusedUnit && progressReady ? unitStatus(focusedUnit, progress) : null;
+  const focusedLesson = progressReady
+    ? focusedUnitLessons.find((lesson) => lessonStatus(lesson, progress) === "current") ?? null
+    : null;
   const primaryLesson = focusedUnit ? focusedLesson : upcomingLesson;
   const headerEyebrow = focusedUnit
     ? `第 ${focusedUnitIndex >= 0 ? focusedUnitIndex + 1 : 1} / ${unitEntries.length} 阶段`
-    : `第 ${currentLessonNumber} / ${MAIN_COURSE.length} 节`;
+    : progressReady
+      ? `第 ${currentLessonNumber} / ${MAIN_COURSE.length} 节`
+      : "正在同步进度…";
   const headerDetail = focusedUnit
-    ? focusedLesson
-      ? `当前阶段：${focusedLesson.title}`
-      : focusedUnitStatus === "done"
-        ? "本阶段已完成"
-        : focusedUnitStatus === "skipped"
-          ? "本阶段已跳过"
-          : "上一阶段完成后解锁"
-    : upcomingLesson
+    ? !progressReady
+      ? "正在同步进度…"
+      : focusedLesson
+        ? `当前阶段：${focusedLesson.title}`
+        : focusedUnitStatus === "done"
+          ? "本阶段已完成"
+          : focusedUnitStatus === "skipped"
+            ? "本阶段已跳过"
+            : "上一阶段完成后解锁"
+    : progressReady && upcomingLesson
       ? `当前：${upcomingLesson.title}`
       : "";
   const toneRuleConsonants = unlocked.filter((item) => item.pool === "consonant").length;
@@ -1853,15 +1881,21 @@ function CourseHome({
 
           <div className="grid grid-cols-3 gap-2 text-center text-xs sm:min-w-64">
             <div className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--duo-line)", background: "var(--surface-subtle)" }}>
-              <div className="text-lg font-semibold" style={{ color: "var(--duo-green-d)" }}>{completed}</div>
+              <div className="text-lg font-semibold" style={{ color: "var(--duo-green-d)" }}>
+                {progressReady ? completed : "—"}
+              </div>
               <div className="opacity-65">已完成</div>
             </div>
             <div className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--duo-line)", background: "var(--surface-subtle)" }}>
-              <div className="text-lg font-semibold" style={{ color: "var(--duo-blue-d)" }}>{unlockedCount}</div>
+              <div className="text-lg font-semibold" style={{ color: "var(--duo-blue-d)" }}>
+                {progressReady ? unlockedCount : "—"}
+              </div>
               <div className="opacity-65">已解锁</div>
             </div>
             <div className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--duo-line)", background: "var(--surface-subtle)" }}>
-              <div className="text-lg font-semibold" style={{ color: "var(--duo-orange-d)" }}>{masteredUnlocked}</div>
+              <div className="text-lg font-semibold" style={{ color: "var(--duo-orange-d)" }}>
+                {progressReady ? masteredUnlocked : "—"}
+              </div>
               <div className="opacity-65">较熟悉</div>
             </div>
           </div>
@@ -1869,10 +1903,10 @@ function CourseHome({
 
         <div className="mt-3 flex items-center gap-3">
           <div className="progress-track h-2 flex-1">
-            <div className="progress-fill" style={{ width: `${completionPct}%` }} />
+            <div className="progress-fill" style={{ width: `${progressReady ? completionPct : 0}%` }} />
           </div>
           <div className="w-12 text-right text-xs font-semibold" style={{ color: "var(--duo-muted)" }}>
-            {completionPct}%
+            {progressReady ? `${completionPct}%` : "—"}
           </div>
         </div>
 
@@ -1915,6 +1949,7 @@ function CourseHome({
               unitIndex={unitIndex}
               lessons={lessons}
               progress={progress}
+              progressReady={progressReady}
               allItems={allItems}
               onStartLesson={onStartLesson}
               onStartChallenge={onStartChallenge}
@@ -1966,6 +2001,7 @@ function CoursePathUnit({
   unitIndex,
   lessons,
   progress,
+  progressReady,
   allItems,
   onStartLesson,
   onStartChallenge,
@@ -1974,14 +2010,16 @@ function CoursePathUnit({
   unitIndex: number;
   lessons: CourseLesson[];
   progress: CourseProgress;
+  progressReady: boolean;
   allItems: StudyItem[];
   onStartLesson: (lesson: CourseLesson) => void;
   onStartChallenge: (unit: string) => void;
 }) {
-  const currentUnitStatus = unitStatus(unit, progress);
+  const currentUnitStatus = progressReady ? unitStatus(unit, progress) : null;
   const challengeAvailable = currentUnitStatus === "current";
-  const challengeLabel =
-    currentUnitStatus === "done"
+  const challengeLabel = !progressReady
+    ? "同步中…"
+    : currentUnitStatus === "done"
       ? "已完成"
       : currentUnitStatus === "skipped"
         ? "已跳过"
@@ -2060,15 +2098,20 @@ function CoursePathUnit({
 
         {lessons.map((lesson, index) => {
           const x = PATH_X[(index + unitIndex * 2) % PATH_X.length];
+          // Before the store reports ready we render a neutral "available"
+          // node — never "locked" — so a brief unhydrated frame doesn't paint
+          // the entire unit as locked when entering /course?unit=...
+          const status = progressReady ? lessonStatus(lesson, progress) : "available";
           return (
             <CoursePathNode
               key={lesson.id}
               lesson={lesson}
-              status={lessonStatus(lesson, progress)}
+              status={status}
               preview={studyItemsByIds(allItems, lesson.itemIds).slice(0, 5).map((item) => item.front).join(" ")}
               x={x}
               y={index * PATH_ROW_HEIGHT}
               onStartLesson={onStartLesson}
+              progressReady={progressReady}
             />
           );
         })}
@@ -2077,6 +2120,8 @@ function CoursePathUnit({
   );
 }
 
+type CourseLessonNodeStatus = "done" | "skipped" | "current" | "locked" | "available";
+
 function CoursePathNode({
   lesson,
   status,
@@ -2084,13 +2129,15 @@ function CoursePathNode({
   x,
   y,
   onStartLesson,
+  progressReady,
 }: {
   lesson: CourseLesson;
-  status: "done" | "skipped" | "current" | "locked";
+  status: CourseLessonNodeStatus;
   preview: string;
   x: number;
   y: number;
   onStartLesson: (lesson: CourseLesson) => void;
+  progressReady: boolean;
 }) {
   const meta = lessonKindMeta(lesson.kind);
   const Icon =
@@ -2101,7 +2148,9 @@ function CoursePathNode({
         : status === "locked"
           ? LockKeyhole
           : meta.Icon;
-  const disabled = status === "locked";
+  // While we're still hydrating, disable nodes so the user can't enter a
+  // lesson before the real lock state is known.
+  const disabled = status === "locked" || !progressReady;
 
   return (
     <div

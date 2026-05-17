@@ -24,7 +24,7 @@ import {
 } from "@/lib/curriculum";
 import { GRAMMAR_LESSON_PLANS } from "@/lib/grammarCourse";
 import { ALPHABET_FINAL_EXAM_POLICY, useAlphabetFinalExamResult } from "@/lib/moduleProgress";
-import { useCourseProgress } from "@/lib/courseProgressStore";
+import { useCourseProgressState } from "@/lib/courseProgressStore";
 
 const PHASE_ICONS = {
   phonics: GraduationCap,
@@ -241,7 +241,7 @@ function CoursePathNode({
 export default function CoursesPage() {
   const examResult = useAlphabetFinalExamResult();
   const grammarUnlocked = Boolean(examResult);
-  const courseProgress = useCourseProgress();
+  const { progress: courseProgress, ready: progressReady } = useCourseProgressState();
 
   return (
     <div className="space-y-5">
@@ -289,9 +289,11 @@ export default function CoursesPage() {
           const Icon = PHASE_ICONS[phase.id];
           const locked = phase.id !== "phonics" && !grammarUnlocked;
           const phonicsUnits = phase.id === "phonics" ? phase.units.flatMap((unit) => unit.lessons) : [];
-          const phonicsDoneCount = phonicsUnits.filter((lesson) =>
-            lesson.sourceCourseUnit && ["done", "skipped"].includes(unitStatus(lesson.sourceCourseUnit, courseProgress))
-          ).length;
+          const phonicsDoneCount = progressReady
+            ? phonicsUnits.filter((lesson) =>
+                lesson.sourceCourseUnit && ["done", "skipped"].includes(unitStatus(lesson.sourceCourseUnit, courseProgress))
+              ).length
+            : 0;
           return (
             <article key={phase.id} className="card-soft overflow-hidden">
               <div className="border-b p-5" style={{ borderColor: "var(--duo-line)" }}>
@@ -319,7 +321,9 @@ export default function CoursesPage() {
                   </div>
                   <span className={locked ? "chip chip-low" : "chip chip-high"}>
                     {phase.id === "phonics"
-                      ? `${phonicsDoneCount}/${phonicsUnits.length} 阶段已完成`
+                      ? progressReady
+                        ? `${phonicsDoneCount}/${phonicsUnits.length} 阶段已完成`
+                        : "正在同步进度…"
                       : locked
                         ? phase.unlockRuleZh
                         : "已解锁"}
@@ -383,11 +387,16 @@ export default function CoursesPage() {
                         const sourceLesson = lesson.sourceCourseLessonId
                           ? MAIN_COURSE.find((item) => item.id === lesson.sourceCourseLessonId)
                           : undefined;
-                        const phonicsStatus = sourceLesson
-                          ? lesson.sourceCourseUnit
-                            ? unitStatus(lesson.sourceCourseUnit, courseProgress)
-                            : lessonStatus(sourceLesson, courseProgress)
-                          : "available";
+                        // Defer phonics lock state until progress has hydrated.
+                        // Otherwise we briefly paint every-lesson-locked on Safari
+                        // before the initial localStorage read settles.
+                        const phonicsStatus = !progressReady
+                          ? "available"
+                          : sourceLesson
+                            ? lesson.sourceCourseUnit
+                              ? unitStatus(lesson.sourceCourseUnit, courseProgress)
+                              : lessonStatus(sourceLesson, courseProgress)
+                            : "available";
                         const disabled = locked && lesson.kind !== "phonics-path";
                         return {
                           id: lesson.id,
