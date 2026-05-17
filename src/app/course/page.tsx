@@ -954,6 +954,7 @@ export default function CoursePage() {
   const [pendingMemoryCorrect, setPendingMemoryCorrect] = useState(false);
   const completedRecordedRef = useRef<string | null>(null);
   const skippedRecordedRef = useRef<string | null>(null);
+  const routeLessonStartedRef = useRef<string | null>(null);
 
   const challengeFailed = session?.mode === "challenge" && mistakeCount > UNIT_CHALLENGE_MISTAKE_LIMIT;
 
@@ -1129,6 +1130,19 @@ export default function CoursePage() {
       window.removeEventListener("storage", refresh);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || session) return;
+    const lessonId = new URLSearchParams(window.location.search).get("lesson");
+    if (!lessonId || routeLessonStartedRef.current === lessonId) return;
+    const lesson = MAIN_COURSE.find((item) => item.id === lessonId);
+    if (!lesson) return;
+    if (lessonStatus(lesson, courseProgress) === "locked") return;
+    routeLessonStartedRef.current = lessonId;
+    startCourseLesson(lesson);
+    // URL 参数只用于首次落到指定小课；课程内部状态仍由本页控制。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseProgress, session]);
 
   function gainMastery(itemId: string, amount: number) {
     setProgress(recordMastery(itemId, amount));

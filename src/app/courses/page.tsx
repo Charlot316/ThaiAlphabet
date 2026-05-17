@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   BookOpen,
   BookOpenText,
@@ -17,7 +18,11 @@ import {
 import {
   COURSE_ROADMAP_COVERAGE,
   COURSE_ROADMAP_PHASES,
+  MAIN_COURSE,
+  type CourseProgress,
   type CourseRoadmapLesson,
+  lessonStatus,
+  loadCourseProgress,
 } from "@/lib/curriculum";
 import { GRAMMAR_LESSON_PLANS } from "@/lib/grammarCourse";
 import { ALPHABET_FINAL_EXAM_POLICY, useAlphabetFinalExamResult } from "@/lib/moduleProgress";
@@ -30,7 +35,9 @@ const PHASE_ICONS = {
 };
 
 function lessonHref(lesson: CourseRoadmapLesson) {
-  if (lesson.kind === "phonics-path") return "/course";
+  if (lesson.kind === "phonics-path") return lesson.sourceCourseLessonId
+    ? `/course?lesson=${lesson.sourceCourseLessonId}`
+    : "/course";
   const focusPointId = lesson.grammarPointIds?.length === 1 ? lesson.grammarPointIds[0] : undefined;
   const focusLesson = focusPointId
     ? GRAMMAR_LESSON_PLANS.find((item) => item.focusPointId === focusPointId)
@@ -66,6 +73,7 @@ interface PathLesson {
   href: string;
   level: string;
   disabled: boolean;
+  status: "done" | "skipped" | "current" | "available" | "locked";
   kind: CourseRoadmapLesson["kind"] | "grammar-point";
   note?: string;
 }
@@ -120,7 +128,7 @@ function CoursePath({ lessons, offset = 0 }: { lessons: PathLesson[]; offset?: n
           <CoursePathNode
             key={lesson.id}
             lesson={lesson}
-            active={index === 0 && !lesson.disabled}
+            active={lesson.status === "current" || (lesson.status === "available" && index === 0)}
             x={x}
             y={index * PATH_ROW_HEIGHT}
           />
@@ -143,8 +151,15 @@ function CoursePathNode({
 }) {
   const meta = pathLessonMeta(lesson.kind);
   const color = colorVars(meta.color);
-  const disabled = lesson.disabled;
-  const Icon = disabled ? LockKeyhole : active ? meta.Icon : CheckCircle2;
+  const disabled = lesson.disabled || lesson.status === "locked";
+  const Icon =
+    lesson.status === "done"
+      ? CheckCircle2
+      : lesson.status === "skipped"
+        ? Sparkles
+        : disabled
+          ? LockKeyhole
+          : meta.Icon;
   const labelSide = x > 55 ? "right" : x < 45 ? "left" : "center";
 
   return (
@@ -178,6 +193,10 @@ function CoursePathNode({
         style={{
           background: active
             ? color.main
+            : lesson.status === "done"
+              ? "color-mix(in srgb, var(--duo-green) 14%, var(--duo-card))"
+            : lesson.status === "skipped"
+              ? "color-mix(in srgb, var(--duo-orange) 14%, var(--duo-card))"
             : disabled
               ? "color-mix(in srgb, var(--duo-muted) 12%, var(--duo-card))"
               : `color-mix(in srgb, ${color.main} 13%, var(--duo-card))`,
@@ -222,6 +241,22 @@ function CoursePathNode({
 export default function CoursesPage() {
   const examResult = useAlphabetFinalExamResult();
   const grammarUnlocked = Boolean(examResult);
+  const [courseProgress, setCourseProgress] = useState<CourseProgress>({
+    completedLessonIds: [],
+    skippedUnits: [],
+    updatedAt: 0,
+  });
+
+  useEffect(() => {
+    const refresh = () => setCourseProgress(loadCourseProgress());
+    refresh();
+    window.addEventListener("storage", refresh);
+    window.addEventListener("thai-alphabet:course-progress", refresh);
+    return () => {
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("thai-alphabet:course-progress", refresh);
+    };
+  }, []);
 
   return (
     <div className="space-y-5">
@@ -268,6 +303,10 @@ export default function CoursesPage() {
         {COURSE_ROADMAP_PHASES.map((phase) => {
           const Icon = PHASE_ICONS[phase.id];
           const locked = phase.id !== "phonics" && !grammarUnlocked;
+          const phonicsDoneCount = MAIN_COURSE.filter((lesson) =>
+            courseProgress.completedLessonIds.includes(lesson.id) ||
+            courseProgress.skippedUnits.includes(lesson.unit)
+          ).length;
           return (
             <article key={phase.id} className="card-soft overflow-hidden">
               <div className="border-b p-5" style={{ borderColor: "var(--duo-line)" }}>
@@ -294,7 +333,11 @@ export default function CoursesPage() {
                     </div>
                   </div>
                   <span className={locked ? "chip chip-low" : "chip chip-high"}>
-                    {locked ? phase.unlockRuleZh : "可进入"}
+                    {phase.id === "phonics"
+                      ? `${phonicsDoneCount}/${MAIN_COURSE.length} 已完成`
+                      : locked
+                        ? phase.unlockRuleZh
+                        : "已解锁"}
                   </span>
                 </div>
               </div>
@@ -324,6 +367,7 @@ export default function CoursesPage() {
                         href: `/grammar#lesson=${lesson.id}`,
                         level: lesson.level,
                         disabled: locked,
+                        status: locked ? "locked" : "available",
                         kind: "grammar-point",
                         note: "逐点课",
                       }))}
@@ -351,6 +395,12 @@ export default function CoursesPage() {
                     <CoursePath
                       offset={unit.order * 2}
                       lessons={unit.lessons.map((lesson) => {
+                        const sourceLesson = lesson.sourceCourseLessonId
+                          ? MAIN_COURSE.find((item) => item.id === lesson.sourceCourseLessonId)
+                          : undefined;
+                        const phonicsStatus = sourceLesson
+                          ? lessonStatus(sourceLesson, courseProgress)
+                          : "available";
                         const disabled = locked && lesson.kind !== "phonics-path";
                         return {
                           id: lesson.id,
@@ -359,6 +409,11 @@ export default function CoursesPage() {
                           href: lessonHref(lesson),
                           level: lesson.level,
                           disabled,
+                          status: lesson.kind === "phonics-path"
+                            ? phonicsStatus
+                            : disabled
+                              ? "locked"
+                              : "available",
                           kind: lesson.kind,
                           note: lesson.vocabularyPlan
                             ? `词汇 ${lesson.vocabularyPlan.rankRange[0]}-${lesson.vocabularyPlan.rankRange[1]}`

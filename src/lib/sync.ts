@@ -76,11 +76,11 @@ export function subscribe(fn: (status: SyncStatus, msg?: string) => void): () =>
 
 export function getToken(): string {
   if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(TOKEN_KEY) || "";
+  return window.localStorage.getItem(TOKEN_KEY) || readCookie(TOKEN_KEY);
 }
 export function getUsername(): string {
   if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(USER_KEY) || "";
+  return window.localStorage.getItem(USER_KEY) || readCookie(USER_KEY);
 }
 export function getLastPullAt(): number {
   if (typeof window === "undefined") return 0;
@@ -123,6 +123,8 @@ export async function login(username: string, password: string): Promise<LoginRe
     }
     window.localStorage.setItem(TOKEN_KEY, data.token);
     window.localStorage.setItem(USER_KEY, data.username || username);
+    writeCookie(TOKEN_KEY, data.token, 60 * 60 * 24 * 30);
+    writeCookie(USER_KEY, data.username || username, 60 * 60 * 24 * 30);
     emitAuth();
     return { ok: true };
   } catch (e) {
@@ -144,10 +146,31 @@ export async function logout() {
   }
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
+  clearCookie(TOKEN_KEY);
+  clearCookie(USER_KEY);
   window.localStorage.removeItem(SINCE_KEY);
   window.localStorage.removeItem(META_KEY);
   emit("off");
   emitAuth();
+}
+
+function readCookie(name: string): string {
+  if (typeof document === "undefined") return "";
+  const encodedName = encodeURIComponent(name);
+  const part = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith(`${encodedName}=`));
+  return part ? decodeURIComponent(part.slice(encodedName.length + 1)) : "";
+}
+
+function writeCookie(name: string, value: string, maxAgeSeconds: number) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; Max-Age=${maxAgeSeconds}; Path=/; SameSite=Lax; Secure`;
+}
+
+function clearCookie(name: string) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${encodeURIComponent(name)}=; Max-Age=0; Path=/; SameSite=Lax; Secure`;
 }
 
 function loadMeta(): Record<string, number> {
