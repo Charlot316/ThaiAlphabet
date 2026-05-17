@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import {
   BookOpen,
   Check,
@@ -1554,6 +1555,13 @@ export default function CoursePage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/courses"
+            className="btn-ghost h-9 px-3 text-xs"
+            aria-label="返回总课程列表"
+          >
+            总课程
+          </Link>
           <button
             onClick={() => setSession(null)}
             className="btn-ghost h-9 px-3 text-xs"
@@ -1791,9 +1799,14 @@ function CourseHome({
         </div>
 
         {upcomingLesson && (
-          <button onClick={() => onStartLesson(upcomingLesson)} className="btn-primary mt-3 px-4 py-2 text-xs">
-            继续学习
-          </button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link href="/courses" className="btn-ghost px-4 py-2 text-xs">
+              返回总课程
+            </Link>
+            <button onClick={() => onStartLesson(upcomingLesson)} className="btn-primary px-4 py-2 text-xs">
+              继续学习
+            </button>
+          </div>
         )}
       </section>
 
