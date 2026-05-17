@@ -18,6 +18,33 @@ export interface BuiltSyllable {
 }
 
 const PLACEHOLDER = /◌/g;
+const THAI_VOWEL_SIGNS_BEFORE_TONE = new Set([
+  "ั",
+  "ิ",
+  "ี",
+  "ึ",
+  "ื",
+  "ุ",
+  "ู",
+  "็",
+]);
+
+function toneMarkInsertIndex(s: string, replacement: string, vowel: Vowel): number {
+  const baseIndex = s.indexOf(replacement);
+  if (baseIndex < 0) return s.length;
+
+  let insertAt = baseIndex + replacement.length;
+
+  // Thai logical order is base consonant + vowel sign(s) + tone mark for
+  // ordinary above/below vowels, e.g. กึ๊. SARA AM is the exception in this
+  // data set: Thai writes น้ำ as น + tone mark + ำ, so do not step over ำ.
+  if (vowel.id === "am") return insertAt;
+
+  while (insertAt < s.length && THAI_VOWEL_SIGNS_BEFORE_TONE.has(s[insertAt])) {
+    insertAt += 1;
+  }
+  return insertAt;
+}
 
 /**
  * 生成 Thai 字符串：
@@ -44,9 +71,9 @@ export function renderSyllableThai(
 
   const markSymbol = TONE_MARKS.find((m) => m.id === mark)?.symbol ?? "";
   if (mark !== "none" && markSymbol) {
-    // 声调符号放在「最上面那个辅音」之后。ห-引导时仍放在 ห 之后（按规则）。
-    // 这里采用粗略策略：放在替换串结尾位置。
-    const insertAt = s.indexOf(replacement) + replacement.length;
+    // 声调符号的 Unicode 顺序必须跟在上/下元音符号之后；
+    // 如果插在元音符号前面，Safari/iOS 会把它渲染成单独飘在上方。
+    const insertAt = toneMarkInsertIndex(s, replacement, vowel);
     s = s.slice(0, insertAt) + markSymbol + s.slice(insertAt);
   }
   if (finalConsonant) s += finalConsonant.letter;
