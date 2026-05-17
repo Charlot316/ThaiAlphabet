@@ -110,6 +110,7 @@ type QuestionKind =
   | "final-sound"
   | "tone-mark-symbol"
   | "tone-mark-name"
+  | "tone-guide"
   | "tone-derive"
   | "live-dead";
 
@@ -156,6 +157,8 @@ interface Question {
   kind: QuestionKind;
   item: StudyItem;
   choices: StudyItem[];
+  guided?: boolean;
+  toneGuide?: ToneGuideKind;
   fontVariant?: ThaiFontVariant;
   syllable?: SyllableChoice;
   syllableChoices?: SyllableChoice[];
@@ -163,6 +166,8 @@ interface Question {
   toneMarkChoices?: ToneMarkChoice[];
   toneSyllable?: ToneSyllable;
 }
+
+type ToneGuideKind = "tone-system" | "mid-tone" | "high-tone" | "low-tone" | "live-dead";
 
 interface ActiveSession {
   title: string;
@@ -474,6 +479,26 @@ function makeToneMarkQuestion(
   };
 }
 
+function toneGuideKindForSession(session: ActiveSession): ToneGuideKind {
+  const label = `${session.title} ${session.subtitle}`;
+  if (/活音|死音|活死|尾辅音|尾音|塞音尾/.test(label)) return "live-dead";
+  if (/中辅音/.test(label)) return "mid-tone";
+  if (/高辅音/.test(label)) return "high-tone";
+  if (/低辅音/.test(label)) return "low-tone";
+  return "tone-system";
+}
+
+function makeToneGuideQuestion(session: ActiveSession, fallbackItem: StudyItem): Question {
+  return {
+    id: `tone-guide:${session.title}:${toneGuideKindForSession(session)}`,
+    kind: "tone-guide",
+    item: fallbackItem,
+    choices: [fallbackItem],
+    guided: true,
+    toneGuide: toneGuideKindForSession(session),
+  };
+}
+
 const TONE_SYLLABLE_BLOCKED_FINAL_IDS = new Set([
   "cho-chan",
   "cho-ching",
@@ -590,28 +615,38 @@ function buildToneSyllableFromItems(
   return { initial, vowel, finalConsonant, toneMark: mark, thai, roman, tone, life };
 }
 
-function makeToneDeriveQuestion(syllable: ToneSyllable, fallbackItem: StudyItem): Question {
+function makeToneDeriveQuestion(
+  syllable: ToneSyllable,
+  fallbackItem: StudyItem,
+  guided = true
+): Question {
   return {
     id: `tone-derive:${syllable.thai}:${syllable.toneMark}:${Math.random().toString(36).slice(2, 8)}`,
     kind: "tone-derive",
     item: fallbackItem,
     choices: [fallbackItem],
+    guided,
     toneSyllable: syllable,
   };
 }
 
-function makeLiveDeadQuestion(syllable: ToneSyllable, fallbackItem: StudyItem): Question {
+function makeLiveDeadQuestion(
+  syllable: ToneSyllable,
+  fallbackItem: StudyItem,
+  guided = true
+): Question {
   return {
     id: `live-dead:${syllable.thai}:${Math.random().toString(36).slice(2, 8)}`,
     kind: "live-dead",
     item: fallbackItem,
     choices: [fallbackItem],
+    guided,
     toneSyllable: syllable,
   };
 }
 
 function isToneRuleLesson(session: ActiveSession): boolean {
-  return /声调|声调推导|声调拼读|声调规则/.test(`${session.title} ${session.subtitle}`);
+  return /声调推导|声调拼读|声调规则|声调综合|真实声调/.test(`${session.title} ${session.subtitle}`);
 }
 
 function isLiveDeadLesson(session: ActiveSession): boolean {
@@ -722,6 +757,11 @@ function buildQuestions(session: ActiveSession): Question[] {
     : [];
 
   const wantsTonePractice = session.kind === "tone-rule" || isToneRuleLesson(session);
+  const guidedTonePractice = !isChallenge;
+  const toneGuideRound =
+    wantsTonePractice && guidedTonePractice && focusItems[0]
+      ? [makeToneGuideQuestion(session, focusItems[0])]
+      : [];
 
   const toneDeriveTarget = session.kind === "tone-rule" ? 8 : isChallenge ? 5 : 4;
   const toneDeriveRound: Question[] = [];
@@ -731,7 +771,7 @@ function buildQuestions(session: ActiveSession): Question[] {
         withFinal: i % 2 === 1,
         allowMark: true,
       });
-      if (syllable) toneDeriveRound.push(makeToneDeriveQuestion(syllable, focusItems[0]));
+      if (syllable) toneDeriveRound.push(makeToneDeriveQuestion(syllable, focusItems[0], guidedTonePractice));
     }
   }
 
@@ -746,7 +786,7 @@ function buildQuestions(session: ActiveSession): Question[] {
         allowMark: false,
         requireFinal: i % 2 === 0,
       });
-      if (syllable) liveDeadRound.push(makeLiveDeadQuestion(syllable, focusItems[0]));
+      if (syllable) liveDeadRound.push(makeLiveDeadQuestion(syllable, focusItems[0], guidedTonePractice));
     }
   }
 
@@ -764,7 +804,7 @@ function buildQuestions(session: ActiveSession): Question[] {
   if (session.kind === "tone-rule") {
     const tonePracticeBody = shuffleStrong([...toneDeriveRound, ...liveDeadRound]);
     if (tonePracticeBody.length === 0) return [];
-    return tonePracticeBody;
+    return toneGuideRound.concat(tonePracticeBody);
   }
 
   return introRound.concat(
@@ -777,6 +817,7 @@ function buildQuestions(session: ActiveSession): Question[] {
       ...classOrLengthRound,
       ...finalSoundRound,
       ...toneMarkRound,
+      ...toneGuideRound,
       ...toneDeriveRound,
       ...liveDeadRound,
     ]),
@@ -2326,6 +2367,7 @@ function QuestionCard({
         question.kind === "final-sound" ||
         question.kind === "tone-derive" ||
         question.kind === "live-dead" ||
+        question.kind === "tone-guide" ||
         question.kind === "tone-mark-symbol" ||
         question.kind === "tone-mark-name"
       ) {
@@ -2582,6 +2624,16 @@ function QuestionCard({
         feedback={feedback}
         praise={praise}
         onAnswer={onAnswerToneMark}
+        onNext={onNext}
+      />
+    );
+  }
+
+  if (question.kind === "tone-guide") {
+    return (
+      <ToneGuideCard
+        key={question.id}
+        guide={question.toneGuide ?? "tone-system"}
         onNext={onNext}
       />
     );
@@ -3232,6 +3284,80 @@ const TONE_OPTIONS: { id: ToneName; symbol: string; sub: string }[] = [
   { id: "rising", symbol: TONE_SYMBOL.rising, sub: "จัตวา" },
 ];
 
+const TONE_GUIDES: Record<ToneGuideKind, { title: string; subtitle: string; bullets: string[] }> = {
+  "tone-system": {
+    title: "声调先看三件事",
+    subtitle: "泰语声调不是只看符号；要先判断初辅音类别、活/死音节，再看有没有声调符号。",
+    bullets: [
+      "第一步：看开头辅音是中、高、低哪一类。",
+      "第二步：看音节是活音节还是死音节。",
+      "第三步：看声调符号；无符号也有自己的默认声调。",
+    ],
+  },
+  "mid-tone": {
+    title: "中辅音声调规律",
+    subtitle: "中辅音最像标准表：无符号活音节是 0 平声，声调符号基本一一对应。",
+    bullets: [
+      "中辅音 + 活音节：无符号 0；่ 1；้ 2；๊ 3；๋ 4。",
+      "中辅音 + 死音节：无符号通常读 1 低声；่ 仍是 1；้ 是 2。",
+      "所以先把 ก จ ด ต ฎ ฏ บ ป อ 认成中辅音，再套表。",
+    ],
+  },
+  "high-tone": {
+    title: "高辅音声调规律",
+    subtitle: "高辅音无符号时会往高处走：活音节默认 4 升声，死音节默认 1 低声。",
+    bullets: [
+      "高辅音 + 活音节：无符号 4；่ 1；้ 2。",
+      "高辅音 + 死音节：无符号 1；่ 1；้ 2。",
+      "先记住高辅音这组：ข ฉ ถ ฐ ผ ฝ ศ ษ ส ห。",
+    ],
+  },
+  "low-tone": {
+    title: "低辅音声调规律",
+    subtitle: "低辅音最容易乱：无符号活音节是 0，死音节还要看元音长短。",
+    bullets: [
+      "低辅音 + 活音节：无符号 0；่ 2；้ 3。",
+      "低辅音 + 死短：无符号 3；低辅音 + 死长：无符号 2。",
+      "低辅音带 ่ 通常读 2，带 ้ 通常读 3。",
+    ],
+  },
+  "live-dead": {
+    title: "活音节 / 死音节怎么分",
+    subtitle: "活死音节会影响无符号声调，尤其是高辅音和低辅音。",
+    bullets: [
+      "活音节：长元音无尾音，或尾音是 n / m / ng / y / w。",
+      "死音节：短元音无尾音，或尾音是 k / t / p。",
+      "判断声调前先判断活死，不要直接看声调符号。",
+    ],
+  },
+};
+
+function toneRuleBucket(syllable: ToneSyllable): "mid-live" | "mid-dead" | "high-live" | "high-dead" | "low-live" | "low-dead-short" | "low-dead-long" {
+  if (syllable.initial.class === "mid") return syllable.life === "live" ? "mid-live" : "mid-dead";
+  if (syllable.initial.class === "high") return syllable.life === "live" ? "high-live" : "high-dead";
+  if (syllable.life === "live") return "low-live";
+  return syllable.vowel.length === "short" ? "low-dead-short" : "low-dead-long";
+}
+
+function toneBucketLabel(bucket: ReturnType<typeof toneRuleBucket>): string {
+  const labels: Record<ReturnType<typeof toneRuleBucket>, string> = {
+    "mid-live": "中辅音 + 活音节",
+    "mid-dead": "中辅音 + 死音节",
+    "high-live": "高辅音 + 活音节",
+    "high-dead": "高辅音 + 死音节",
+    "low-live": "低辅音 + 活音节",
+    "low-dead-short": "低辅音 + 死短",
+    "low-dead-long": "低辅音 + 死长",
+  };
+  return labels[bucket];
+}
+
+function toneRuleExplanation(syllable: ToneSyllable): string {
+  const mark = toneMarkLabel(syllable.toneMark);
+  const tone = `${TONE_SYMBOL[syllable.tone]} ${TONE_NAMES[syllable.tone].cn}`;
+  return `${toneBucketLabel(toneRuleBucket(syllable))}，${mark} → ${tone}`;
+}
+
 function toneMarkLabel(mark: ToneMark): string {
   if (mark === "none") return "无符号";
   return TONE_MARKS.find((m) => m.id === mark)?.symbol ?? "";
@@ -3246,8 +3372,63 @@ function describeFinalForRule(finalConsonant: Consonant | null): string {
   return `响音尾 (${sound})`;
 }
 
-function ToneRuleCheatsheet() {
-  const [open, setOpen] = useState(false);
+function ToneGuideCard({
+  guide,
+  onNext,
+}: {
+  guide: ToneGuideKind;
+  onNext: () => void;
+}) {
+  const content = TONE_GUIDES[guide];
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isShortcutBlocked(event)) return;
+      if (isSpaceKey(event) || event.key === "Enter") {
+        event.preventDefault();
+        onNext();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onNext]);
+
+  return (
+    <section className="space-y-4">
+      <div className="card-soft p-6 sm:p-7">
+        <div className="chip chip-blue">规则讲解</div>
+        <h2 className="mt-4 text-2xl font-extrabold">{content.title}</h2>
+        <p className="mt-2 text-sm leading-6" style={{ color: "var(--duo-muted)" }}>
+          {content.subtitle}
+        </p>
+        <div className="mt-5 grid gap-3">
+          {content.bullets.map((bullet, index) => (
+            <div
+              key={bullet}
+              className="flex gap-3 rounded-lg border p-3 text-sm leading-6"
+              style={{ background: "var(--surface-subtle)", borderColor: "var(--duo-line)" }}
+            >
+              <span
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-extrabold"
+                style={{ background: "var(--duo-blue)", color: "#041517" }}
+              >
+                {index + 1}
+              </span>
+              <span>{bullet}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <ToneRuleCheatsheet defaultOpen />
+      <button onClick={onNext} className="btn-primary w-full py-4">
+        开始带提示练习
+      </button>
+    </section>
+  );
+}
+
+function ToneRuleCheatsheet({ defaultOpen = false }: { defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div
       className="rounded-lg border text-xs"
@@ -3353,13 +3534,14 @@ function ToneDeriveCard({
   const classLabel = CONSONANT_CLASS_LABEL[syllable.initial.class];
   const vowelLengthLabel = syllable.vowel.length === "long" ? "长元音" : "短元音";
   const lifeLabel = syllable.life === "live" ? "活音节" : "死音节";
+  const guided = question.guided !== false;
   const ruleSummary = `${classLabel} + ${vowelLengthLabel} + ${describeFinalForRule(
     syllable.finalConsonant
   )} + ${toneMarkLabel(syllable.toneMark)} → ${lifeLabel} → ${TONE_SYMBOL[syllable.tone]} (${TONE_NAMES[syllable.tone].th})`;
 
   return (
     <section className="space-y-4">
-      <ToneRuleCheatsheet />
+      {guided && <ToneRuleCheatsheet defaultOpen />}
       <div className={`card-soft p-7 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
         <div className="chip chip-blue">声调拼读</div>
         <div className="thai-big mt-4 text-7xl leading-none">{syllable.thai}</div>
@@ -3374,6 +3556,19 @@ function ToneDeriveCard({
         <div className="mt-3 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
           这个音节读什么声调？
         </div>
+        {guided && (
+          <div
+            className="mt-4 rounded-lg border px-3 py-3 text-left text-xs leading-5"
+            style={{ background: "var(--surface-subtle)", borderColor: "var(--duo-line)", color: "var(--duo-muted)" }}
+          >
+            <div className="font-semibold" style={{ color: "var(--duo-blue-d)" }}>
+              带提示推导
+            </div>
+            <div className="mt-1">
+              1. {syllable.initial.letter} 是 <b>{classLabel}</b>；2. {vowelLengthLabel} + {describeFinalForRule(syllable.finalConsonant)}，所以是 <b>{lifeLabel}</b>；3. 查表：<b>{toneRuleExplanation(syllable)}</b>。
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-5 gap-2">
@@ -3471,21 +3666,27 @@ function LiveDeadCard({
   });
 
   const vowelLengthLabel = syllable.vowel.length === "long" ? "长元音" : "短元音";
+  const guided = question.guided !== false;
   const ruleSummary = `${vowelLengthLabel} ${syllable.vowel.display} + ${describeFinalForRule(
     syllable.finalConsonant
   )} → ${syllable.life === "live" ? "活音节 (เป็น)" : "死音节 (ตาย)"}`;
 
   return (
     <section className="space-y-4">
-      <div
-        className="rounded-lg border px-3 py-2 text-xs leading-5"
-        style={{ background: "var(--surface-subtle)", borderColor: "var(--duo-line)", color: "var(--duo-muted)" }}
-      >
-        <span className="font-semibold" style={{ color: "var(--duo-green-d)" }}>活 (เป็น)</span>
-        ：长元音 或 响音/滑音尾。
-        <span className="ml-2 font-semibold" style={{ color: "var(--duo-orange-d)" }}>死 (ตาย)</span>
-        ：短元音裸 或 塞音尾 (k/t/p)。
-      </div>
+      {guided && (
+        <div
+          className="rounded-lg border px-3 py-2 text-xs leading-5"
+          style={{ background: "var(--surface-subtle)", borderColor: "var(--duo-line)", color: "var(--duo-muted)" }}
+        >
+          <div className="font-semibold" style={{ color: "var(--duo-blue-d)" }}>
+            先判断活死音节
+          </div>
+          <span className="font-semibold" style={{ color: "var(--duo-green-d)" }}>活 (เป็น)</span>
+          ：长元音 或 响音/滑音尾 n/m/ng/y/w。
+          <span className="ml-2 font-semibold" style={{ color: "var(--duo-orange-d)" }}>死 (ตาย)</span>
+          ：短元音裸 或 塞音尾 k/t/p。
+        </div>
+      )}
       <div className={`card-soft p-7 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
         <div className="chip chip-blue">活音节 / 死音节</div>
         <div className="thai-big mt-4 text-7xl leading-none">{syllable.thai}</div>
@@ -3498,6 +3699,14 @@ function LiveDeadCard({
         <div className="mt-3 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
           这是活音节还是死音节？
         </div>
+        {guided && (
+          <div
+            className="mt-4 rounded-lg border px-3 py-3 text-left text-xs leading-5"
+            style={{ background: "var(--surface-subtle)", borderColor: "var(--duo-line)", color: "var(--duo-muted)" }}
+          >
+            <b>{syllable.vowel.display}</b> 是 {vowelLengthLabel}；尾音是 <b>{describeFinalForRule(syllable.finalConsonant)}</b>。按上面的定义判断。
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
