@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BookOpenCheck,
   BookOpenText,
@@ -10,6 +10,7 @@ import {
   LockKeyhole,
   Route,
   Search,
+  Volume2,
   XCircle,
 } from "lucide-react";
 import {
@@ -25,6 +26,7 @@ import {
   type GrammarExercise,
 } from "@/lib/grammarCourse";
 import { ALPHABET_FINAL_EXAM_POLICY, useAlphabetFinalExamResult } from "@/lib/moduleProgress";
+import { speak, warmupVoices } from "@/lib/tts";
 
 const LEVEL_LABELS: Record<string, string> = {
   "pre-a1": "Pre-A1",
@@ -70,6 +72,36 @@ function saveCompletedGrammarLessons(ids: string[]) {
   }
 }
 
+function isLikelyThai(text: string) {
+  return /[\u0E00-\u0E7F]/.test(text);
+}
+
+function thaiTextForQuestion(question: GrammarExercise) {
+  if (question.kind === "example-showcase" && question.example?.thai) return question.example.thai;
+  if (question.kind === "cloze-choice") return "";
+  return isLikelyThai(question.promptZh) ? question.promptZh : "";
+}
+
+function AudioButton({ text, label = "听" }: { text: string; label?: string }) {
+  if (!text) return null;
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        speak(text, { rate: 0.86 });
+      }}
+      className="btn-blue h-9 shrink-0 px-3 py-0 text-xs"
+      aria-label={`播放 ${text}`}
+      title="播放泰语"
+    >
+      <Volume2 size={15} strokeWidth={2.2} />
+      {label}
+    </button>
+  );
+}
+
 export default function GrammarPage() {
   const examResult = useAlphabetFinalExamResult();
   const [view, setView] = useState<GrammarView>("courses");
@@ -100,6 +132,12 @@ export default function GrammarPage() {
   const choiceCorrect =
     currentQuestion?.choices?.find((choice) => choice.id === selectedChoiceId)?.correct ?? false;
   const answerCorrect = isTokenQuestion ? orderCorrect : choiceCorrect;
+  const currentAudioText = currentQuestion ? thaiTextForQuestion(currentQuestion) : "";
+  const feedbackAudioText = currentQuestion ? currentQuestion.example?.thai ?? currentAudioText : "";
+
+  useEffect(() => {
+    warmupVoices();
+  }, []);
 
   const filteredPoints = useMemo(() => {
     if (!query.trim()) return GRAMMAR_POINTS;
@@ -235,12 +273,29 @@ export default function GrammarPage() {
               <div className="mt-4 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
                 {currentQuestion.instructionZh}
               </div>
-              <div className="mt-3 text-2xl font-semibold leading-relaxed">
-                {currentQuestion.promptZh}
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 whitespace-pre-line text-2xl font-semibold leading-relaxed">
+                  {currentQuestion.promptZh}
+                </div>
+                <AudioButton text={currentAudioText} />
               </div>
-              {currentQuestion.example?.roman && (
-                <div className="mt-2 font-mono text-sm" style={{ color: "var(--duo-blue-d)" }}>
-                  {currentQuestion.example.roman}
+              {currentQuestion.kind === "example-showcase" && currentQuestion.example && (
+                <div className="mt-3 rounded-lg border p-3 text-sm leading-6" style={{ background: "var(--surface-subtle)", borderColor: "var(--duo-line)" }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="thai-big text-lg font-semibold">{currentQuestion.example.thai}</div>
+                      <div className="font-mono text-xs" style={{ color: "var(--duo-blue-d)" }}>
+                        {currentQuestion.example.roman}
+                      </div>
+                      <div className="mt-1">{currentQuestion.example.chinese}</div>
+                      {currentQuestion.example.literalZh && (
+                        <div className="mt-1 text-xs" style={{ color: "var(--duo-muted)" }}>
+                          {currentQuestion.example.literalZh}
+                        </div>
+                      )}
+                    </div>
+                    <AudioButton text={currentQuestion.example.thai} label="例句" />
+                  </div>
                 </div>
               )}
             </article>
@@ -334,6 +389,9 @@ export default function GrammarPage() {
                       <span>{answerCorrect ? "答对了" : "这里要再看一眼"}</span>
                     </div>
                     <div className="mt-1 text-sm leading-6 opacity-80">{currentQuestion.explanationZh}</div>
+                    <div className="mt-2">
+                      <AudioButton text={feedbackAudioText} label="再听" />
+                    </div>
                   </div>
                   <button type="button" onClick={nextQuestion} className={answerCorrect ? "btn-primary px-5" : "btn-red px-5"}>
                     继续
