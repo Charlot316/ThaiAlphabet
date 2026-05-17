@@ -12,7 +12,7 @@ import { CONSONANTS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import type { StudyItem } from "@/lib/study";
 
-export type LessonKind = "consonant" | "vowel" | "blend" | "review";
+export type LessonKind = "consonant" | "vowel" | "blend" | "review" | "tone-rule";
 
 export interface CourseLesson {
   id: string;
@@ -26,12 +26,15 @@ export interface CourseLesson {
 
 export interface CourseProgress {
   completedLessonIds: string[];
+  skippedUnits: string[];
   updatedAt: number;
   resetAt?: number;
 }
 
+export const UNIT_CHALLENGE_MISTAKE_LIMIT = 2;
+
 export interface PracticeMode {
-  id: "random" | "homophone" | "shape" | "consonant-class" | "vowel-length";
+  id: "random" | "homophone" | "shape" | "consonant-class" | "vowel-length" | "tone-rule";
   title: string;
   subtitle: string;
 }
@@ -170,6 +173,11 @@ export const PRACTICE_MODES: PracticeMode[] = [
     title: "元音长短",
     subtitle: "把同一口型的短元音和长元音放在一起练",
   },
+  {
+    id: "tone-rule",
+    title: "声调拼读",
+    subtitle: "辅音类别 + 元音长短 + 尾辅音 + 声调符号合起来推真实读音",
+  },
 ];
 
 function uniq(ids: string[]): string[] {
@@ -235,7 +243,7 @@ function makeMainCourse(): CourseLesson[] {
     unit: string,
     title: string,
     subtitle: string,
-    kind: "blend" | "review",
+    kind: "blend" | "review" | "tone-rule",
     ids: string[]
   ) => {
     add(unit, {
@@ -274,14 +282,17 @@ function makeMainCourse(): CourseLesson[] {
   addPractice("第 3 课 · 中辅音声调", "声调符号认识", "先记 -่ -้ -๊ -๋ 四个声调符号和它们出现的位置。", "review", chapter1Core);
   addPractice("第 3 课 · 中辅音声调", "中辅音 + 短元音", "用中辅音和短元音做声调规则预备。", "blend", [...c(MID_CONSONANTS), ...v(["a-short", "i-short", "ue-short", "u-short"])]);
   addPractice("第 3 课 · 中辅音声调", "中辅音 + 长元音", "用中辅音和长元音做声调规则预备。", "blend", [...c(MID_CONSONANTS), ...v(["a-long", "i-long", "ue-long", "u-long"])]);
+  addPractice("第 3 课 · 中辅音声调", "中辅音声调推导", "全是声调推导题：看辅音类别 + 元音长短 + 声调符号，选出真实读出来是哪个声调。", "tone-rule", [...c(MID_CONSONANTS), ...v(BASIC_VOWELS_1)]);
   addPractice("第 3 课 · 中辅音声调", "中辅音声调复习", "把中辅音、短长元音、声调标记之间的关系再洗一遍。", "review", chapter1Core);
 
   addChunks("第 4 课 · 高辅音和声调", "高辅音", "consonant", chapter4Core, 4, "分批认识高辅音，持续判断高中低。");
   addPractice("第 4 课 · 高辅音和声调", "高辅音拼读（一）", "高辅音搭配基础短长元音，先建立读音连接。", "blend", [...chapter4Core.slice(0, 6), ...v(BASIC_VOWELS_1)]);
+  addPractice("第 4 课 · 高辅音和声调", "高辅音声调推导", "高辅音活音节默认升声、死音节低声；这一节专门做声调推导题。", "tone-rule", [...chapter4Core, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2.slice(0, 4))]);
   addPractice("第 4 课 · 高辅音和声调", "高辅音声调预备", "把高辅音与中辅音放在一起，对照类别差异。", "review", uniq([...chapter4Core, ...c(MID_CONSONANTS)]));
 
   addChunks("第 5 课 · 低辅音（一）和声调", "低辅音（一）", "consonant", chapter5Core, 4, "低辅音数量多，按 4 个左右一组推进。");
   addPractice("第 5 课 · 低辅音（一）和声调", "低辅音（一）拼读", "低辅音（一）搭配已学元音，先练读音连接。", "blend", [...chapter5Core, ...v(BASIC_VOWELS_1)]);
+  addPractice("第 5 课 · 低辅音（一）和声调", "低辅音声调推导", "低辅音活音节默认平声、死短高声、死长降声；这一节集中做推导题。", "tone-rule", [...chapter5Core, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2.slice(0, 4))]);
   addPractice("第 5 课 · 低辅音（一）和声调", "低辅音（一）声调预备", "把低辅音（一）和中/高辅音混合判断。", "review", uniq([...chapter5Core, ...c(MID_CONSONANTS), ...chapter4Core]));
 
   addChunks("第 6 课 · 低辅音（二）", "低辅音（二）", "consonant", chapter6Core, 3, "响音类低辅音更常见，拆小组反复见。");
@@ -304,7 +315,9 @@ function makeMainCourse(): CourseLesson[] {
 
   addPractice("第 10 课 · 浊尾辅音", "塞音尾规则", "集中练 แม่กก แม่กด แม่กบ，读音只保留 k / t / p。", "review", consonantsByFinalSound(["k", "t", "p"]));
   addPractice("第 10 课 · 浊尾辅音", "塞音尾 + 短元音", "塞音尾和短元音组合，准备活音/死音判断。", "blend", uniq([...consonantsByFinalSound(["k", "t", "p"]), ...v(["a-short", "i-short", "u-short", "e-short", "o-short"])]));
+  addPractice("第 10 课 · 浊尾辅音", "活音节 / 死音节判断", "全是活/死音节判断题：看元音长短和尾辅音类型，决定整个音节算活还是死。", "tone-rule", uniq([...c(MID_CONSONANTS), ...chapter4Core, ...chapter5Core, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2.slice(0, 4))]));
   addPractice("第 10 课 · 浊尾辅音", "尾辅音对照", "把响音尾和塞音尾混在一起，练最终读音而不是字母形状。", "blend", uniq([...allConsonants, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2)]));
+  addPractice("第 10 课 · 浊尾辅音", "尾辅音 + 声调综合", "全单元综合推导：辅音类别 + 元音长短 + 尾辅音类型 + 声调符号 → 真实声调。", "tone-rule", uniq([...allConsonants, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2)]));
 
   addPractice("第 11 课 · 前引字", "不发音前引字 อ / ห", "อ / ห 作前引字时影响声调或读法，先抓住两个前引核心字。", "review", c(["o-ang", "ho-hip", ...LOW_CONSONANTS_2]));
   addPractice("第 11 课 · 前引字", "高辅音前引字", "ข ฉ ถ ฐ ผ ฝ ศ ส ษ 作前引字时，先用高辅音类别帮助记忆。", "review", c(["kho-khai", "cho-ching", "tho-thung", "tho-than", "pho-phueng", "fo-fa", "so-sala", "so-suea", "so-rusi"]));
@@ -329,16 +342,17 @@ function makeMainCourse(): CourseLesson[] {
 export const MAIN_COURSE = makeMainCourse();
 
 export function loadCourseProgress(): CourseProgress {
-  if (typeof window === "undefined") return { completedLessonIds: [], updatedAt: 0 };
+  if (typeof window === "undefined") return { completedLessonIds: [], skippedUnits: [], updatedAt: 0 };
   try {
     const raw = JSON.parse(window.localStorage.getItem(COURSE_PROGRESS_KEY) || "null") as Partial<CourseProgress> | null;
     return {
       completedLessonIds: Array.isArray(raw?.completedLessonIds) ? raw.completedLessonIds : [],
+      skippedUnits: Array.isArray(raw?.skippedUnits) ? raw.skippedUnits : [],
       updatedAt: typeof raw?.updatedAt === "number" ? raw.updatedAt : 0,
       resetAt: typeof raw?.resetAt === "number" ? raw.resetAt : undefined,
     };
   } catch {
-    return { completedLessonIds: [], updatedAt: 0 };
+    return { completedLessonIds: [], skippedUnits: [], updatedAt: 0 };
   }
 }
 
@@ -351,7 +365,25 @@ export function saveCourseProgress(progress: CourseProgress) {
 export function completeCourseLesson(lessonId: string): CourseProgress {
   const current = loadCourseProgress();
   const completedLessonIds = uniq([...current.completedLessonIds, lessonId]);
-  const next = { completedLessonIds, updatedAt: Date.now(), resetAt: current.resetAt };
+  const next = {
+    completedLessonIds,
+    skippedUnits: current.skippedUnits,
+    updatedAt: Date.now(),
+    resetAt: current.resetAt,
+  };
+  saveCourseProgress(next);
+  return next;
+}
+
+export function markUnitSkipped(unit: string): CourseProgress {
+  const current = loadCourseProgress();
+  const skippedUnits = uniq([...current.skippedUnits, unit]);
+  const next = {
+    completedLessonIds: current.completedLessonIds,
+    skippedUnits,
+    updatedAt: Date.now(),
+    resetAt: current.resetAt,
+  };
   saveCourseProgress(next);
   return next;
 }
@@ -359,22 +391,47 @@ export function completeCourseLesson(lessonId: string): CourseProgress {
 export function resetCourseProgress() {
   if (typeof window === "undefined") return;
   const now = Date.now();
-  saveCourseProgress({ completedLessonIds: [], updatedAt: now, resetAt: now });
+  saveCourseProgress({ completedLessonIds: [], skippedUnits: [], updatedAt: now, resetAt: now });
+}
+
+function isLessonPassed(lesson: CourseLesson, progress: CourseProgress): boolean {
+  return progress.completedLessonIds.includes(lesson.id) || progress.skippedUnits.includes(lesson.unit);
 }
 
 export function nextLesson(progress: CourseProgress, lessons: CourseLesson[] = MAIN_COURSE): CourseLesson | null {
-  const completed = new Set(progress.completedLessonIds);
-  return lessons.find((lesson) => !completed.has(lesson.id)) ?? null;
+  return lessons.find((lesson) => !isLessonPassed(lesson, progress)) ?? null;
 }
 
 export function lessonStatus(
   lesson: CourseLesson,
   progress: CourseProgress,
   lessons: CourseLesson[] = MAIN_COURSE
-): "done" | "current" | "locked" {
+): "done" | "skipped" | "current" | "locked" {
   if (progress.completedLessonIds.includes(lesson.id)) return "done";
+  if (progress.skippedUnits.includes(lesson.unit)) return "skipped";
   const next = nextLesson(progress, lessons);
   return next?.id === lesson.id ? "current" : "locked";
+}
+
+export function unitStatus(
+  unit: string,
+  progress: CourseProgress,
+  lessons: CourseLesson[] = MAIN_COURSE
+): "done" | "skipped" | "current" | "locked" {
+  const unitLessons = lessons.filter((lesson) => lesson.unit === unit);
+  if (unitLessons.length === 0) return "locked";
+  if (progress.skippedUnits.includes(unit)) return "skipped";
+  if (unitLessons.every((lesson) => progress.completedLessonIds.includes(lesson.id))) return "done";
+  const next = nextLesson(progress, lessons);
+  return next && next.unit === unit ? "current" : "locked";
+}
+
+export function unitStudyItemIds(unit: string, lessons: CourseLesson[] = MAIN_COURSE): string[] {
+  return uniq(
+    lessons
+      .filter((lesson) => lesson.unit === unit)
+      .flatMap((lesson) => lesson.itemIds)
+  );
 }
 
 export function unlockedItemIds(
@@ -382,7 +439,6 @@ export function unlockedItemIds(
   throughLessonId?: string,
   lessons: CourseLesson[] = MAIN_COURSE
 ): Set<string> {
-  const completed = new Set(progress.completedLessonIds);
   const targetIndex = throughLessonId ? lessons.findIndex((lesson) => lesson.id === throughLessonId) : -1;
   const next = nextLesson(progress, lessons);
   const nextIndex = next ? lessons.findIndex((lesson) => lesson.id === next.id) : lessons.length - 1;
@@ -390,7 +446,7 @@ export function unlockedItemIds(
   const ids = new Set<string>();
 
   lessons.forEach((lesson, index) => {
-    if (completed.has(lesson.id) || index <= maxIndex) {
+    if (isLessonPassed(lesson, progress) || index <= maxIndex) {
       for (const id of lesson.itemIds) ids.add(id);
     }
   });

@@ -19,7 +19,13 @@ import {
 import PronounceButton from "@/components/PronounceButton";
 import TraceSvg from "@/components/TraceSvg";
 import { CONSONANT_BY_ID } from "@/data/consonants";
-import { TONE_MARKS } from "@/data/tones";
+import {
+  TONE_MARKS,
+  TONE_NAMES,
+  calculateTone,
+  syllableLifetime,
+} from "@/data/tones";
+import type { Consonant, ToneMark, ToneName, Vowel } from "@/data/types";
 import { VOWEL_BY_ID } from "@/data/vowels";
 import {
   CourseLesson,
@@ -27,16 +33,20 @@ import {
   MAIN_COURSE,
   PRACTICE_MODES,
   PracticeMode,
+  UNIT_CHALLENGE_MISTAKE_LIMIT,
   completeCourseLesson,
   consonantClassItems,
   filterUnlockedItems,
   homophoneGroups,
   lessonStatus,
   loadCourseProgress,
+  markUnitSkipped,
   nextLesson,
   resetCourseProgress,
   shapeGroups,
   studyItemsByIds,
+  unitStatus,
+  unitStudyItemIds,
   unlockedItemIds,
   vowelLengthGroups,
 } from "@/lib/curriculum";
@@ -56,7 +66,7 @@ import {
   shuffleStrong,
   uniqueChoices,
 } from "@/lib/study";
-import { renderSyllableThai } from "@/lib/syllable";
+import { renderSyllableThai, romanizeSyllable } from "@/lib/syllable";
 import { markActive } from "@/lib/stats";
 import { speak, warmupVoices } from "@/lib/tts";
 import {
@@ -91,7 +101,9 @@ type QuestionKind =
   | "syllable-initial"
   | "final-sound"
   | "tone-mark-symbol"
-  | "tone-mark-name";
+  | "tone-mark-name"
+  | "tone-derive"
+  | "live-dead";
 
 interface SyllableChoice {
   id: string;
@@ -114,6 +126,17 @@ interface ToneMarkChoice {
   roman: string;
 }
 
+interface ToneSyllable {
+  initial: Consonant;
+  vowel: Vowel;
+  finalConsonant: Consonant | null;
+  toneMark: ToneMark;
+  thai: string;
+  roman: string;
+  tone: ToneName;
+  life: "live" | "dead";
+}
+
 interface ThaiFontVariant {
   label: string;
   className: string;
@@ -130,13 +153,15 @@ interface Question {
   syllableChoices?: SyllableChoice[];
   toneMark?: ToneMarkChoice;
   toneMarkChoices?: ToneMarkChoice[];
+  toneSyllable?: ToneSyllable;
 }
 
 interface ActiveSession {
   title: string;
   subtitle: string;
   lessonId?: string;
-  mode: "lesson" | "practice";
+  unit?: string;
+  mode: "lesson" | "practice" | "challenge";
   kind: CourseLesson["kind"] | PracticeMode["id"];
   items: StudyItem[];
   choiceItems: StudyItem[];
@@ -441,20 +466,168 @@ function makeToneMarkQuestion(
   };
 }
 
+const TONE_SYLLABLE_BLOCKED_FINAL_IDS = new Set([
+  "cho-chan",
+  "cho-ching",
+  "cho-chang",
+  "do-chada",
+  "to-patak",
+  "tho-montho",
+  "tho-phuthao",
+  "so-so",
+  "so-sala",
+  "so-rusi",
+  "so-suea",
+  "kho-khuat",
+  "kho-khon",
+  "ho-hip",
+  "ho-nokhuk",
+  "fo-fa",
+  "fo-fan",
+  "pho-phueng",
+  "pho-samphao",
+  "o-ang",
+]);
+
+const TONE_SYLLABLE_ALLOWED_VOWELS = new Set([
+  "a-short",
+  "a-long",
+  "i-short",
+  "i-long",
+  "ue-short",
+  "ue-long",
+  "u-short",
+  "u-long",
+  "e-short",
+  "e-long",
+  "ae-short",
+  "ae-long",
+  "o-short",
+  "o-long",
+  "oe-short",
+  "or-long",
+  "er-short",
+  "er-long",
+  "am",
+  "ai-maimalai",
+  "ao",
+]);
+
+const TONE_SYLLABLE_NO_FINAL_VOWELS = new Set(["am", "ai-maimalai", "ao"]);
+
+function consonantsFromItems(items: StudyItem[]): Consonant[] {
+  const seen = new Set<string>();
+  const out: Consonant[] = [];
+  for (const item of items) {
+    if (item.pool !== "consonant") continue;
+    const rawId = item.id.slice(2);
+    const consonant = CONSONANT_BY_ID[rawId];
+    if (!consonant || consonant.obsolete || seen.has(rawId)) continue;
+    seen.add(rawId);
+    out.push(consonant);
+  }
+  return out;
+}
+
+function vowelsFromItems(items: StudyItem[]): Vowel[] {
+  const seen = new Set<string>();
+  const out: Vowel[] = [];
+  for (const item of items) {
+    if (item.pool !== "vowel") continue;
+    const rawId = item.id.slice(2);
+    if (!TONE_SYLLABLE_ALLOWED_VOWELS.has(rawId)) continue;
+    const vowel = VOWEL_BY_ID[rawId];
+    if (!vowel || seen.has(rawId)) continue;
+    seen.add(rawId);
+    out.push(vowel);
+  }
+  return out;
+}
+
+function buildToneSyllableFromItems(
+  items: StudyItem[],
+  options: { withFinal?: boolean; allowMark?: boolean; requireFinal?: boolean } = {}
+): ToneSyllable | null {
+  const { withFinal = true, allowMark = true, requireFinal = false } = options;
+  const initials = consonantsFromItems(items);
+  const vowels = vowelsFromItems(items);
+  if (initials.length === 0 || vowels.length === 0) return null;
+
+  const initial = shuffleStrong(initials)[0];
+  const vowel = shuffleStrong(vowels)[0];
+
+  let finalConsonant: Consonant | null = null;
+  if ((withFinal || requireFinal) && !TONE_SYLLABLE_NO_FINAL_VOWELS.has(vowel.id)) {
+    const finalCandidates = initials.filter(
+      (c) => c.finalSound !== "none" && !TONE_SYLLABLE_BLOCKED_FINAL_IDS.has(c.id)
+    );
+    if (finalCandidates.length > 0) {
+      if (requireFinal || Math.random() < 0.55) finalConsonant = shuffleStrong(finalCandidates)[0];
+    }
+  }
+
+  const possibleMarks: ToneMark[] = ["none"];
+  if (allowMark) {
+    if (initial.class === "mid") possibleMarks.push("ek", "tho", "tri", "chattawa");
+    else possibleMarks.push("ek", "tho");
+  }
+  const mark = shuffleStrong(possibleMarks)[0];
+
+  const finalSound = finalConsonant ? finalConsonant.finalSound : "none";
+  const tone = calculateTone(initial.class, vowel.length, finalSound, mark);
+  const life = syllableLifetime(vowel.length, finalSound);
+  const thai = renderSyllableThai(initial, null, vowel, finalConsonant, mark);
+  const roman = romanizeSyllable(initial, vowel, finalConsonant, tone);
+
+  return { initial, vowel, finalConsonant, toneMark: mark, thai, roman, tone, life };
+}
+
+function makeToneDeriveQuestion(syllable: ToneSyllable, fallbackItem: StudyItem): Question {
+  return {
+    id: `tone-derive:${syllable.thai}:${syllable.toneMark}:${Math.random().toString(36).slice(2, 8)}`,
+    kind: "tone-derive",
+    item: fallbackItem,
+    choices: [fallbackItem],
+    toneSyllable: syllable,
+  };
+}
+
+function makeLiveDeadQuestion(syllable: ToneSyllable, fallbackItem: StudyItem): Question {
+  return {
+    id: `live-dead:${syllable.thai}:${Math.random().toString(36).slice(2, 8)}`,
+    kind: "live-dead",
+    item: fallbackItem,
+    choices: [fallbackItem],
+    toneSyllable: syllable,
+  };
+}
+
+function isToneRuleLesson(session: ActiveSession): boolean {
+  return /声调|声调推导|声调拼读|声调规则/.test(`${session.title} ${session.subtitle}`);
+}
+
+function isLiveDeadLesson(session: ActiveSession): boolean {
+  return /活音|死音|活死|塞音尾|尾辅音|尾音/.test(`${session.title} ${session.subtitle}`);
+}
+
 function buildQuestions(session: ActiveSession): Question[] {
   const lessonItems = session.items;
   const choiceItems = session.choiceItems.length ? session.choiceItems : lessonItems;
+  const isChallenge = session.mode === "challenge";
   const focusItems =
     session.mode === "practice" && session.kind === "random"
       ? lessonItems.slice(0, Math.min(6, lessonItems.length))
       : lessonItems;
 
-  const introRound: Question[] = focusItems.map((item) => ({
-    id: `${item.id}:look`,
-    kind: "look",
-    item,
-    choices: [item],
-  }));
+  // 挑战测试跳过 introRound（"look" 卡只是预览，不算测试）
+  const introRound: Question[] = isChallenge
+    ? []
+    : focusItems.map((item) => ({
+        id: `${item.id}:look`,
+        kind: "look",
+        item,
+        choices: [item],
+      }));
 
   const pickRound = focusItems.map((item, idx) =>
     makeQuestion(item, idx % 2 === 0 ? "sound" : "letter", choiceItems)
@@ -466,12 +639,15 @@ function buildQuestions(session: ActiveSession): Question[] {
       makeQuestion(item, idx % 2 === 0 ? "fontSound" : "fontLetter", choiceItems)
     );
 
-  const memoryRound = shuffleStrong(focusItems)
-    .slice(0, Math.min(4, focusItems.length))
-    .map((item) => makeQuestion(item, "memory", choiceItems));
+  // 挑战测试中跳过 memory / writing 这种自评题型，只保留严格判定的题目
+  const memoryRound = isChallenge
+    ? []
+    : shuffleStrong(focusItems)
+        .slice(0, Math.min(4, focusItems.length))
+        .map((item) => makeQuestion(item, "memory", choiceItems));
 
   const writingRound =
-    session.kind === "homophone" || session.kind === "shape"
+    isChallenge || session.kind === "homophone" || session.kind === "shape"
       ? []
       : shuffleStrong(focusItems)
           .slice(0, Math.min(session.kind === "vowel-length" ? 0 : 2, focusItems.length))
@@ -537,6 +713,35 @@ function buildQuestions(session: ActiveSession): Question[] {
       )
     : [];
 
+  const wantsTonePractice = session.kind === "tone-rule" || isToneRuleLesson(session);
+
+  const toneDeriveTarget = session.kind === "tone-rule" ? 8 : isChallenge ? 5 : 4;
+  const toneDeriveRound: Question[] = [];
+  if (wantsTonePractice) {
+    for (let i = 0; i < toneDeriveTarget * 3 && toneDeriveRound.length < toneDeriveTarget; i++) {
+      const syllable = buildToneSyllableFromItems(focusItems, {
+        withFinal: i % 2 === 1,
+        allowMark: true,
+      });
+      if (syllable) toneDeriveRound.push(makeToneDeriveQuestion(syllable, focusItems[0]));
+    }
+  }
+
+  const wantsLiveDeadPractice = session.kind === "tone-rule" || isLiveDeadLesson(session);
+
+  const liveDeadTarget = session.kind === "tone-rule" ? 4 : 3;
+  const liveDeadRound: Question[] = [];
+  if (wantsLiveDeadPractice) {
+    for (let i = 0; i < liveDeadTarget * 3 && liveDeadRound.length < liveDeadTarget; i++) {
+      const syllable = buildToneSyllableFromItems(focusItems, {
+        withFinal: true,
+        allowMark: false,
+        requireFinal: i % 2 === 0,
+      });
+      if (syllable) liveDeadRound.push(makeLiveDeadQuestion(syllable, focusItems[0]));
+    }
+  }
+
   const finalMatch =
     focusItems.length >= 2
       ? [{
@@ -546,6 +751,13 @@ function buildQuestions(session: ActiveSession): Question[] {
           choices: focusItems,
         }]
       : [];
+
+  // 声调规则专项练习：题目里只有 tone-derive / live-dead，不要其他题型
+  if (session.kind === "tone-rule") {
+    const tonePracticeBody = shuffleStrong([...toneDeriveRound, ...liveDeadRound]);
+    if (tonePracticeBody.length === 0) return [];
+    return tonePracticeBody;
+  }
 
   return introRound.concat(
     shuffleStrong(pickRound),
@@ -557,6 +769,8 @@ function buildQuestions(session: ActiveSession): Question[] {
       ...classOrLengthRound,
       ...finalSoundRound,
       ...toneMarkRound,
+      ...toneDeriveRound,
+      ...liveDeadRound,
     ]),
     finalMatch
   );
@@ -725,6 +939,7 @@ export default function CoursePage() {
   const [progress, setProgress] = useState<MasteryProgress>({});
   const [courseProgress, setCourseProgress] = useState<CourseProgress>({
     completedLessonIds: [],
+    skippedUnits: [],
     updatedAt: 0,
   });
   const [session, setSession] = useState<ActiveSession | null>(null);
@@ -735,11 +950,15 @@ export default function CoursePage() {
   const [feedback, setFeedback] = useState<"ok" | "bad" | null>(null);
   const [praise, setPraise] = useState("");
   const [correctCount, setCorrectCount] = useState(0);
+  const [mistakeCount, setMistakeCount] = useState(0);
   const [pendingMemoryCorrect, setPendingMemoryCorrect] = useState(false);
   const completedRecordedRef = useRef<string | null>(null);
+  const skippedRecordedRef = useRef<string | null>(null);
 
-  const current = questions[index];
-  const complete = questions.length > 0 && index >= questions.length;
+  const challengeFailed = session?.mode === "challenge" && mistakeCount > UNIT_CHALLENGE_MISTAKE_LIMIT;
+
+  const current = challengeFailed ? undefined : questions[index];
+  const complete = (questions.length > 0 && index >= questions.length) || challengeFailed;
   const upcomingLesson = useMemo(() => nextLesson(courseProgress), [courseProgress]);
   const unlockedCount = useMemo(
     () => unlockedItemIds(courseProgress).size,
@@ -753,12 +972,21 @@ export default function CoursePage() {
   // 完成时来一发庆祝音
   useEffect(() => {
     if (!complete) return;
+    if (session?.mode === "challenge" && challengeFailed) {
+      feedbackWrong();
+      return;
+    }
     feedbackComplete();
+    if (session?.mode === "challenge" && session.unit && !challengeFailed && skippedRecordedRef.current !== session.unit) {
+      skippedRecordedRef.current = session.unit;
+      setCourseProgress(markUnitSkipped(session.unit));
+      return;
+    }
     if (session?.mode === "lesson" && session.lessonId && completedRecordedRef.current !== session.lessonId) {
       completedRecordedRef.current = session.lessonId;
       setCourseProgress(completeCourseLesson(session.lessonId));
     }
-  }, [complete, session]);
+  }, [complete, session, challengeFailed]);
 
   // 自动朗读：look / sound / write 进入题目时自动播放目标字母音
   useEffect(() => {
@@ -774,6 +1002,7 @@ export default function CoursePage() {
 
   function beginSession(nextSession: ActiveSession) {
     completedRecordedRef.current = null;
+    skippedRecordedRef.current = null;
     setSession(nextSession);
     setQuestions(buildQuestions(nextSession));
     setIndex(0);
@@ -782,7 +1011,23 @@ export default function CoursePage() {
     setFeedback(null);
     setPraise("");
     setCorrectCount(0);
+    setMistakeCount(0);
     setPendingMemoryCorrect(false);
+  }
+
+  function startUnitChallenge(unit: string) {
+    const allUnitItemIds = unitStudyItemIds(unit);
+    const items = studyItemsByIds(allItems, allUnitItemIds);
+    if (items.length === 0) return;
+    beginSession({
+      title: `${unit} · 挑战测试`,
+      subtitle: `全单元混合测试，失误 ≤ ${UNIT_CHALLENGE_MISTAKE_LIMIT} 即可跳过本单元`,
+      unit,
+      mode: "challenge",
+      kind: "review",
+      items,
+      choiceItems: items,
+    });
   }
 
   function selectLessonItems(lesson: CourseLesson): StudyItem[] {
@@ -841,6 +1086,21 @@ export default function CoursePage() {
         .slice(0, Math.min(8, consonants.length));
     } else if (mode === "vowel-length") {
       items = weakestGroup(vowelLengthGroups(unlocked)) ?? [];
+    } else if (mode === "tone-rule") {
+      // 声调拼读：需要至少一个辅音 + 一个元音作为拼读原料；
+      // 优先使用熟练度较低的字母组合让推导更有针对性。
+      const consonants = unlocked.filter((item) => item.pool === "consonant");
+      const vowels = unlocked
+        .filter((item) => item.pool === "vowel")
+        .filter((item) => TONE_SYLLABLE_ALLOWED_VOWELS.has(item.id.slice(2)));
+      if (consonants.length === 0 || vowels.length === 0) return;
+      const consonantPick = [...consonants]
+        .sort((a, b) => (progress[a.id] || 0) - (progress[b.id] || 0))
+        .slice(0, Math.min(10, consonants.length));
+      const vowelPick = [...vowels]
+        .sort((a, b) => (progress[a.id] || 0) - (progress[b.id] || 0))
+        .slice(0, Math.min(8, vowels.length));
+      items = [...consonantPick, ...vowelPick];
     }
 
     if (items.length === 0) return;
@@ -888,7 +1148,11 @@ export default function CoursePage() {
   }
 
   // 答错后把同题型的 replay 题压到队列后面（重新抽选项）。
+  // 挑战测试模式下，每次答错都累加失误数。
   function queueReplay(question: Question) {
+    if (session?.mode === "challenge") {
+      setMistakeCount((value) => value + 1);
+    }
     const replayPool = session?.choiceItems ?? allItems;
     const fresh: Question = {
       ...question,
@@ -1057,6 +1321,54 @@ export default function CoursePage() {
     }
   }
 
+  function answerToneDerive(correct: boolean) {
+    if (!current || submitted || !current.toneSyllable) return;
+    setSubmitted(true);
+    const initialId = `c:${current.toneSyllable.initial.id}`;
+    const vowelId = `v:${current.toneSyllable.vowel.id}`;
+    if (correct) {
+      let next = progress;
+      next = recordMastery(initialId, 1);
+      next = recordMastery(vowelId, 1);
+      setProgress(next);
+      setCorrectCount((v) => v + 1);
+      setFeedback("ok");
+      setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+      markActive();
+      feedbackCorrect();
+    } else {
+      setProgress(applyWrongAnswer(initialId));
+      setProgress(applyWrongAnswer(vowelId));
+      setFeedback("bad");
+      feedbackWrong();
+      queueReplay(current);
+    }
+  }
+
+  function answerLiveDead(correct: boolean) {
+    if (!current || submitted || !current.toneSyllable) return;
+    setSubmitted(true);
+    const initialId = `c:${current.toneSyllable.initial.id}`;
+    const vowelId = `v:${current.toneSyllable.vowel.id}`;
+    if (correct) {
+      let next = progress;
+      next = recordMastery(initialId, 1);
+      next = recordMastery(vowelId, 1);
+      setProgress(next);
+      setCorrectCount((v) => v + 1);
+      setFeedback("ok");
+      setPraise(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+      markActive();
+      feedbackCorrect();
+    } else {
+      setProgress(applyWrongAnswer(initialId));
+      setProgress(applyWrongAnswer(vowelId));
+      setFeedback("bad");
+      feedbackWrong();
+      queueReplay(current);
+    }
+  }
+
   // memory: 选 不认识 / 模糊 / 认识。中途点 "听音" 算偷看 → 结果只能算"模糊"或更差。
   // grade: 1=不认识, 2=模糊, 3=认识
   function answerMemory(grade: number, peeked: boolean) {
@@ -1191,24 +1503,44 @@ export default function CoursePage() {
         allItems={allItems}
         onStartLesson={startCourseLesson}
         onStartPractice={startPractice}
+        onStartChallenge={startUnitChallenge}
         onReset={resetProgress}
       />
     );
   }
 
   return (
-    <div className="course-session flex min-h-full min-w-0 flex-col gap-4 overflow-x-hidden">
+    <div className="course-session flex min-h-full min-w-0 flex-col gap-4 overflow-x-clip">
       {/* 进度条 + 重置 */}
       <div className="shrink-0">
         <div className="flex items-center justify-between gap-3 mb-1 px-1">
           <div className="min-w-0">
             <div className="text-[10px] font-bold opacity-40 tracking-wider uppercase">
-              {session.mode === "lesson" ? "主线课程" : "专项练习"}
+              {session.mode === "lesson" ? "主线课程" : session.mode === "challenge" ? "挑战测试" : "专项练习"}
             </div>
             <div className="truncate text-sm font-semibold">{session.title}</div>
           </div>
-          <div className="text-[10px] font-bold opacity-40">
-            {index < questions.length ? `${index + 1} / ${questions.length}` : "完成"}
+          <div className="flex shrink-0 items-center gap-2 text-[10px] font-bold">
+            {session.mode === "challenge" && (
+              <span
+                className="rounded-full px-2 py-0.5"
+                style={{
+                  background:
+                    mistakeCount > UNIT_CHALLENGE_MISTAKE_LIMIT
+                      ? "color-mix(in srgb, var(--duo-orange) 20%, transparent)"
+                      : "color-mix(in srgb, var(--duo-blue) 16%, transparent)",
+                  color:
+                    mistakeCount > UNIT_CHALLENGE_MISTAKE_LIMIT
+                      ? "var(--duo-orange-d)"
+                      : "var(--duo-blue-d)",
+                }}
+              >
+                失误 {mistakeCount} / {UNIT_CHALLENGE_MISTAKE_LIMIT}
+              </span>
+            )}
+            <span className="opacity-40">
+              {index < questions.length ? `${index + 1} / ${questions.length}` : "完成"}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -1226,32 +1558,73 @@ export default function CoursePage() {
       </div>
 
       {/* 中间：主要内容 */}
-      <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden" style={{ touchAction: "pan-y" }}>
+      <div
+        className="min-h-0 min-w-0 flex-1"
+        style={{ overflowX: "clip", overflowY: "visible", touchAction: "pan-y" }}
+      >
         {complete ? (
-          <section className="card-soft p-7 text-center animate-pop">
-            <div className="text-6xl">🎉</div>
-            <div className="mt-3 text-xl font-extrabold" style={{ color: "var(--duo-green)" }}>
-              本轮完成！
-            </div>
-            <div className="mt-1 text-sm opacity-70">
-              答对 {correctCount} / {questions.length}
-            </div>
-            <div className="mt-5 flex flex-wrap justify-center gap-3">
-              {session.mode === "lesson" && upcomingLesson && (
-                <button onClick={() => startCourseLesson(upcomingLesson)} className="btn-primary px-6">
-                  下一课
+          session.mode === "challenge" && challengeFailed ? (
+            <section className="card-soft p-7 text-center animate-pop">
+              <div className="text-6xl">💪</div>
+              <div className="mt-3 text-xl font-extrabold" style={{ color: "var(--duo-orange)" }}>
+                还差一点
+              </div>
+              <div className="mt-1 text-sm opacity-70">
+                失误 {mistakeCount}（上限 {UNIT_CHALLENGE_MISTAKE_LIMIT}） · 答错的字母已记进薄弱清单
+              </div>
+              <div className="mt-3 text-xs" style={{ color: "var(--duo-muted)" }}>
+                可以无限次重试；也可以回到列表，把不熟的字母再练几节再来。
+              </div>
+              <div className="mt-5 flex flex-wrap justify-center gap-3">
+                <button onClick={() => beginSession(session)} className="btn-primary px-6">
+                  再试一次
                 </button>
-              )}
-              <button onClick={() => beginSession(session)} className="btn-ghost px-5">
-                复习本课
-              </button>
-              <button onClick={() => setSession(null)} className="btn-ghost px-5">
-                回到列表
-              </button>
-            </div>
-          </section>
+                <button onClick={() => setSession(null)} className="btn-ghost px-5">
+                  回到列表
+                </button>
+              </div>
+            </section>
+          ) : session.mode === "challenge" ? (
+            <section className="card-soft p-7 text-center animate-pop">
+              <div className="text-6xl">🏆</div>
+              <div className="mt-3 text-xl font-extrabold" style={{ color: "var(--duo-green)" }}>
+                跳关成功！
+              </div>
+              <div className="mt-1 text-sm opacity-70">
+                失误 {mistakeCount} / {UNIT_CHALLENGE_MISTAKE_LIMIT} · 整单元已解锁
+              </div>
+              <div className="mt-5 flex flex-wrap justify-center gap-3">
+                <button onClick={() => setSession(null)} className="btn-primary px-6">
+                  回到列表
+                </button>
+              </div>
+            </section>
+          ) : (
+            <section className="card-soft p-7 text-center animate-pop">
+              <div className="text-6xl">🎉</div>
+              <div className="mt-3 text-xl font-extrabold" style={{ color: "var(--duo-green)" }}>
+                本轮完成！
+              </div>
+              <div className="mt-1 text-sm opacity-70">
+                答对 {correctCount} / {questions.length}
+              </div>
+              <div className="mt-5 flex flex-wrap justify-center gap-3">
+                {session.mode === "lesson" && upcomingLesson && (
+                  <button onClick={() => startCourseLesson(upcomingLesson)} className="btn-primary px-6">
+                    下一课
+                  </button>
+                )}
+                <button onClick={() => beginSession(session)} className="btn-ghost px-5">
+                  复习本课
+                </button>
+                <button onClick={() => setSession(null)} className="btn-ghost px-5">
+                  回到列表
+                </button>
+              </div>
+            </section>
+          )
         ) : current ? (
-          <div className="course-question-shell min-w-0 max-w-full overflow-x-hidden">
+          <div className="course-question-shell min-w-0 max-w-full overflow-x-clip">
             <QuestionCard
               question={current}
               picked={picked}
@@ -1268,6 +1641,8 @@ export default function CoursePage() {
               onAnswerLength={answerLength}
               onAnswerFinalSound={answerFinalSound}
               onAnswerToneMark={answerToneMark}
+              onAnswerToneDerive={answerToneDerive}
+              onAnswerLiveDead={answerLiveDead}
               onAnswerSyllable={answerSyllable}
               onAnswerLook={answerLook}
               onCompleteMatch={completeMatch}
@@ -1299,6 +1674,7 @@ function lessonKindMeta(kind: CourseLesson["kind"]): {
   if (kind === "consonant") return { label: "辅音", Icon: Star, chip: "chip-high" };
   if (kind === "vowel") return { label: "元音", Icon: BookOpen, chip: "chip-yellow" };
   if (kind === "blend") return { label: "拼读", Icon: Sparkles, chip: "chip-blue" };
+  if (kind === "tone-rule") return { label: "声调推导", Icon: Sparkles, chip: "chip-high" };
   return { label: "复习", Icon: Dumbbell, chip: "chip-low" };
 }
 
@@ -1310,6 +1686,7 @@ function CourseHome({
   allItems,
   onStartLesson,
   onStartPractice,
+  onStartChallenge,
   onReset,
 }: {
   progress: CourseProgress;
@@ -1319,22 +1696,33 @@ function CourseHome({
   allItems: StudyItem[];
   onStartLesson: (lesson: CourseLesson) => void;
   onStartPractice: (mode: PracticeMode["id"]) => void;
+  onStartChallenge: (unit: string) => void;
   onReset: () => void;
 }) {
   const unlocked = filterUnlockedItems(allItems, progress);
+  const completedSet = new Set(progress.completedLessonIds);
+  const skippedSet = new Set(progress.skippedUnits);
+  const passedLessons = MAIN_COURSE.filter(
+    (lesson) => completedSet.has(lesson.id) || skippedSet.has(lesson.unit)
+  ).length;
   const completed = progress.completedLessonIds.length;
-  const completionPct = Math.round((completed / MAIN_COURSE.length) * 100);
+  const completionPct = Math.round((passedLessons / MAIN_COURSE.length) * 100);
   const masteredUnlocked = unlocked.filter((item) => (mastery[item.id] || 0) >= 60).length;
   const currentUnit = upcomingLesson?.unit ?? MAIN_COURSE[MAIN_COURSE.length - 1]?.unit;
   const currentLessonNumber = upcomingLesson
     ? MAIN_COURSE.findIndex((lesson) => lesson.id === upcomingLesson.id) + 1
     : MAIN_COURSE.length;
+  const toneRuleConsonants = unlocked.filter((item) => item.pool === "consonant").length;
+  const toneRuleVowels = unlocked
+    .filter((item) => item.pool === "vowel")
+    .filter((item) => TONE_SYLLABLE_ALLOWED_VOWELS.has(item.id.slice(2))).length;
   const practiceAvailability: Record<PracticeMode["id"], number> = {
     random: unlocked.length,
     homophone: homophoneGroups(unlocked).length,
     shape: shapeGroups(unlocked).length,
     "consonant-class": consonantClassItems(unlocked).length,
     "vowel-length": vowelLengthGroups(unlocked).length,
+    "tone-rule": toneRuleConsonants > 0 && toneRuleVowels > 0 ? toneRuleConsonants + toneRuleVowels : 0,
   };
 
   const units = MAIN_COURSE.reduce<Record<string, CourseLesson[]>>((acc, lesson) => {
@@ -1347,10 +1735,9 @@ function CourseHome({
       <section
         className="sticky top-0 z-10 overflow-hidden rounded-lg border p-3 sm:p-4"
         style={{
-          background:
-            "radial-gradient(circle at 84% 20%, rgba(40, 215, 244, 0.18), transparent 14rem), linear-gradient(135deg, rgba(8, 32, 44, 0.98), rgba(4, 14, 21, 0.98))",
+          background: "var(--duo-card)",
           borderColor: "var(--duo-line-d)",
-          boxShadow: "0 18px 36px rgba(0, 9, 16, 0.28)",
+          boxShadow: "var(--shadow-soft)",
         }}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1369,15 +1756,15 @@ function CourseHome({
           </div>
 
           <div className="grid grid-cols-3 gap-2 text-center text-xs sm:min-w-64">
-            <div className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--duo-line)", background: "rgba(255,255,255,0.025)" }}>
+            <div className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--duo-line)", background: "var(--surface-subtle)" }}>
               <div className="text-lg font-semibold" style={{ color: "var(--duo-green-d)" }}>{completed}</div>
               <div className="opacity-65">已完成</div>
             </div>
-            <div className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--duo-line)", background: "rgba(255,255,255,0.025)" }}>
+            <div className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--duo-line)", background: "var(--surface-subtle)" }}>
               <div className="text-lg font-semibold" style={{ color: "var(--duo-blue-d)" }}>{unlockedCount}</div>
               <div className="opacity-65">已解锁</div>
             </div>
-            <div className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--duo-line)", background: "rgba(255,255,255,0.025)" }}>
+            <div className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--duo-line)", background: "var(--surface-subtle)" }}>
               <div className="text-lg font-semibold" style={{ color: "var(--duo-orange-d)" }}>{masteredUnlocked}</div>
               <div className="opacity-65">较熟悉</div>
             </div>
@@ -1404,14 +1791,13 @@ function CourseHome({
         className="relative overflow-hidden rounded-lg border px-2 py-4 sm:px-5"
         style={{
           borderColor: "var(--duo-line)",
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.004)), rgba(2, 10, 15, 0.38)",
+          background: "color-mix(in srgb, var(--surface-subtle) 72%, var(--duo-bg))",
         }}
       >
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-40"
+          className="pointer-events-none absolute inset-x-4 top-0 h-1 rounded-full"
           style={{
-            background: "linear-gradient(180deg, rgba(40, 215, 244, 0.08), transparent)",
+            background: "var(--duo-line-d)",
           }}
           aria-hidden
         />
@@ -1425,6 +1811,7 @@ function CourseHome({
               progress={progress}
               allItems={allItems}
               onStartLesson={onStartLesson}
+              onStartChallenge={onStartChallenge}
             />
           ))}
         </div>
@@ -1475,6 +1862,7 @@ function CoursePathUnit({
   progress,
   allItems,
   onStartLesson,
+  onStartChallenge,
 }: {
   unit: string;
   unitIndex: number;
@@ -1482,7 +1870,18 @@ function CoursePathUnit({
   progress: CourseProgress;
   allItems: StudyItem[];
   onStartLesson: (lesson: CourseLesson) => void;
+  onStartChallenge: (unit: string) => void;
 }) {
+  const currentUnitStatus = unitStatus(unit, progress);
+  const challengeAvailable = currentUnitStatus === "current";
+  const challengeLabel =
+    currentUnitStatus === "done"
+      ? "已完成"
+      : currentUnitStatus === "skipped"
+        ? "已跳过"
+        : currentUnitStatus === "locked"
+          ? "未解锁"
+          : "挑战跳关";
   const height = lessons.length * PATH_ROW_HEIGHT + 28;
   const points = lessons
     .map((_, index) => {
@@ -1497,18 +1896,42 @@ function CoursePathUnit({
         className="mx-auto mb-3 flex max-w-sm items-center justify-between gap-3 rounded-lg border px-4 py-2.5"
         style={{
           borderColor: "var(--duo-line-d)",
-          background: "linear-gradient(180deg, rgba(40, 215, 244, 0.09), rgba(40, 215, 244, 0.025))",
+          background: "var(--duo-card)",
+          boxShadow: "var(--shadow-small)",
         }}
       >
-        <div>
+        <div className="min-w-0">
           <div className="text-xs font-semibold" style={{ color: "var(--duo-green-d)" }}>
-            第 {unitIndex + 1} 阶段
+            第 {unitIndex + 1} 阶段 · {lessons.length} 节
           </div>
-          <div className="mt-0.5 text-sm font-semibold sm:text-base">{unit.replace(/^第.+?·\s*/, "")}</div>
+          <div className="mt-0.5 truncate text-sm font-semibold sm:text-base">
+            {unit.replace(/^第.+?·\s*/, "")}
+          </div>
         </div>
-        <div className="text-xs" style={{ color: "var(--duo-muted)" }}>
-          {lessons.length} 节
-        </div>
+        <button
+          type="button"
+          onClick={() => challengeAvailable && onStartChallenge(unit)}
+          disabled={!challengeAvailable}
+          className="shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
+          style={{
+            background: challengeAvailable
+              ? "color-mix(in srgb, var(--duo-orange) 14%, var(--duo-card))"
+              : "var(--surface-subtle)",
+            borderColor: challengeAvailable
+              ? "color-mix(in srgb, var(--duo-orange) 50%, var(--duo-line))"
+              : "var(--duo-line)",
+            color: challengeAvailable ? "var(--duo-orange-d)" : "var(--duo-muted)",
+          }}
+          title={
+            challengeAvailable
+              ? `挑战测试：失误 ≤ ${UNIT_CHALLENGE_MISTAKE_LIMIT} 可跳过本单元`
+              : currentUnitStatus === "locked"
+                ? "上一单元解锁后再挑战"
+                : "本单元已通过/跳过"
+          }
+        >
+          {challengeLabel}
+        </button>
       </div>
 
       <div className="relative mx-auto max-w-xl" style={{ height }}>
@@ -1521,7 +1944,7 @@ function CoursePathUnit({
           <polyline
             points={points}
             fill="none"
-            stroke="rgba(130, 220, 245, 0.18)"
+            stroke="color-mix(in srgb, var(--duo-line-d) 62%, transparent)"
             strokeWidth="2.2"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -1557,14 +1980,21 @@ function CoursePathNode({
   onStartLesson,
 }: {
   lesson: CourseLesson;
-  status: "done" | "current" | "locked";
+  status: "done" | "skipped" | "current" | "locked";
   preview: string;
   x: number;
   y: number;
   onStartLesson: (lesson: CourseLesson) => void;
 }) {
   const meta = lessonKindMeta(lesson.kind);
-  const Icon = status === "done" ? Check : status === "locked" ? LockKeyhole : meta.Icon;
+  const Icon =
+    status === "done"
+      ? Check
+      : status === "skipped"
+        ? Sparkles
+        : status === "locked"
+          ? LockKeyhole
+          : meta.Icon;
   const disabled = status === "locked";
 
   return (
@@ -1577,7 +2007,7 @@ function CoursePathNode({
           className="absolute -top-9 rounded-lg border px-3 py-1.5 text-xs font-semibold"
           style={{
             background: "var(--surface-solid)",
-            borderColor: "rgba(40, 215, 244, 0.42)",
+            borderColor: "color-mix(in srgb, var(--duo-green) 42%, var(--duo-line))",
             color: "var(--duo-green-d)",
             boxShadow: "var(--shadow-cyan)",
           }}
@@ -1593,31 +2023,50 @@ function CoursePathNode({
         style={{
           background:
             status === "done"
-              ? "linear-gradient(180deg, rgba(40, 215, 244, 0.28), rgba(40, 215, 244, 0.12))"
+              ? "color-mix(in srgb, var(--duo-green) 16%, var(--duo-card))"
+              : status === "skipped"
+              ? "color-mix(in srgb, var(--duo-orange) 14%, var(--duo-card))"
               : status === "current"
-              ? "linear-gradient(180deg, #4be7fb, #20c8eb)"
-              : "linear-gradient(180deg, rgba(142, 167, 181, 0.18), rgba(142, 167, 181, 0.08))",
+              ? "var(--duo-green)"
+              : "color-mix(in srgb, var(--duo-muted) 12%, var(--duo-card))",
           borderColor:
             status === "current"
-              ? "rgba(151, 242, 255, 0.78)"
+              ? "var(--duo-green)"
               : status === "done"
-              ? "rgba(40, 215, 244, 0.34)"
-              : "rgba(130, 220, 245, 0.12)",
+              ? "color-mix(in srgb, var(--duo-green) 38%, var(--duo-line))"
+              : status === "skipped"
+              ? "color-mix(in srgb, var(--duo-orange) 42%, var(--duo-line))"
+              : "var(--duo-line)",
           boxShadow:
             status === "current"
-              ? "0 0 0 7px rgba(40, 215, 244, 0.1), 0 16px 32px rgba(40, 215, 244, 0.18)"
-              : status === "done"
-              ? "0 12px 26px rgba(0, 9, 16, 0.24)"
+              ? "var(--shadow-cyan)"
+              : status === "done" || status === "skipped"
+              ? "var(--shadow-small)"
               : "none",
-          color: status === "current" ? "#021016" : status === "locked" ? "var(--duo-muted)" : "var(--duo-green-d)",
+          color:
+            status === "current"
+              ? "#143000"
+              : status === "skipped"
+              ? "var(--duo-orange-d)"
+              : status === "locked"
+              ? "var(--duo-muted)"
+              : "var(--duo-green-d)",
         }}
-        aria-label={`${lesson.title}${status === "done" ? "，复习" : status === "current" ? "，开始" : "，未解锁"}`}
-        title={`${lesson.title} · ${meta.label} · ${preview}`}
+        aria-label={`${lesson.title}${
+          status === "done"
+            ? "，复习"
+            : status === "skipped"
+            ? "，已跳过，可补练"
+            : status === "current"
+            ? "，开始"
+            : "，未解锁"
+        }`}
+        title={`${lesson.title} · ${meta.label}${status === "skipped" ? " · 已通过挑战跳过" : ""} · ${preview}`}
       >
         {status === "current" && (
           <span
             className="absolute inset-[-7px] rounded-full border"
-            style={{ borderColor: "rgba(40, 215, 244, 0.36)" }}
+            style={{ borderColor: "color-mix(in srgb, var(--duo-green) 36%, transparent)" }}
             aria-hidden
           />
         )}
@@ -1644,6 +2093,8 @@ function QuestionCard({
   onAnswerLength,
   onAnswerFinalSound,
   onAnswerToneMark,
+  onAnswerToneDerive,
+  onAnswerLiveDead,
   onAnswerSyllable,
   onAnswerLook,
   onCompleteMatch,
@@ -1669,6 +2120,8 @@ function QuestionCard({
   onAnswerLength: (correct: boolean) => void;
   onAnswerFinalSound: (correct: boolean) => void;
   onAnswerToneMark: (correct: boolean) => void;
+  onAnswerToneDerive: (correct: boolean) => void;
+  onAnswerLiveDead: (correct: boolean) => void;
   onAnswerSyllable: (id: string) => void;
   onAnswerLook: (correct: boolean) => void;
   onCompleteMatch: () => void;
@@ -1716,6 +2169,8 @@ function QuestionCard({
         question.kind === "class" ||
         question.kind === "length" ||
         question.kind === "final-sound" ||
+        question.kind === "tone-derive" ||
+        question.kind === "live-dead" ||
         question.kind === "tone-mark-symbol" ||
         question.kind === "tone-mark-name"
       ) {
@@ -1972,6 +2427,34 @@ function QuestionCard({
         feedback={feedback}
         praise={praise}
         onAnswer={onAnswerToneMark}
+        onNext={onNext}
+      />
+    );
+  }
+
+  if (question.kind === "tone-derive") {
+    return (
+      <ToneDeriveCard
+        key={question.id}
+        question={question}
+        submitted={submitted}
+        feedback={feedback}
+        praise={praise}
+        onAnswer={onAnswerToneDerive}
+        onNext={onNext}
+      />
+    );
+  }
+
+  if (question.kind === "live-dead") {
+    return (
+      <LiveDeadCard
+        key={question.id}
+        question={question}
+        submitted={submitted}
+        feedback={feedback}
+        praise={praise}
+        onAnswer={onAnswerLiveDead}
         onNext={onNext}
       />
     );
@@ -2563,6 +3046,346 @@ function ToneMarkCard({
               </div>
             </div>
             <button onClick={onNext} className={feedback === "ok" ? "btn-primary px-5" : "btn-red px-5"}>
+              继续
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const CONSONANT_CLASS_LABEL: Record<"mid" | "high" | "low", string> = {
+  mid: "中辅音",
+  high: "高辅音",
+  low: "低辅音",
+};
+
+const TONE_SYMBOL: Record<ToneName, string> = {
+  mid: "0",
+  low: "1",
+  falling: "2",
+  high: "3",
+  rising: "4",
+};
+
+const TONE_OPTIONS: { id: ToneName; symbol: string; sub: string }[] = [
+  { id: "mid", symbol: TONE_SYMBOL.mid, sub: "สามัญ" },
+  { id: "low", symbol: TONE_SYMBOL.low, sub: "เอก" },
+  { id: "falling", symbol: TONE_SYMBOL.falling, sub: "โท" },
+  { id: "high", symbol: TONE_SYMBOL.high, sub: "ตรี" },
+  { id: "rising", symbol: TONE_SYMBOL.rising, sub: "จัตวา" },
+];
+
+function toneMarkLabel(mark: ToneMark): string {
+  if (mark === "none") return "无符号";
+  return TONE_MARKS.find((m) => m.id === mark)?.symbol ?? "";
+}
+
+function describeFinalForRule(finalConsonant: Consonant | null): string {
+  if (!finalConsonant) return "无尾音";
+  const sound = finalConsonant.finalSound;
+  if (sound === "k" || sound === "t" || sound === "p") return `塞音尾 (${sound})`;
+  if (sound === "y" || sound === "w") return `滑音尾 (${sound})`;
+  if (sound === "none") return "无尾音";
+  return `响音尾 (${sound})`;
+}
+
+function ToneRuleCheatsheet() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      className="rounded-lg border text-xs"
+      style={{ background: "var(--surface-subtle)", borderColor: "var(--duo-line)" }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-3 py-2"
+        style={{ color: "var(--duo-muted)" }}
+      >
+        <span className="font-semibold">声调规则速查</span>
+        <span className="opacity-70">{open ? "收起 ▲" : "展开 ▼"}</span>
+      </button>
+      {open && (
+        <div className="border-t px-3 py-2" style={{ borderColor: "var(--duo-line)" }}>
+          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 leading-5">
+            <span className="font-semibold" style={{ color: "var(--duo-blue-d)" }}>中辅音 活</span>
+            <span>
+              无符号 → <b>{TONE_SYMBOL.mid}</b> ｜ ่ → <b>{TONE_SYMBOL.low}</b> ｜ ้ → <b>{TONE_SYMBOL.falling}</b> ｜ ๊ → <b>{TONE_SYMBOL.high}</b> ｜ ๋ → <b>{TONE_SYMBOL.rising}</b>
+            </span>
+            <span className="font-semibold" style={{ color: "var(--duo-blue-d)" }}>中辅音 死</span>
+            <span>
+              无符号 → <b>{TONE_SYMBOL.low}</b> ｜ ่ → <b>{TONE_SYMBOL.low}</b> ｜ ้ → <b>{TONE_SYMBOL.falling}</b>
+            </span>
+            <span className="font-semibold" style={{ color: "var(--duo-green-d)" }}>高辅音 活</span>
+            <span>
+              无符号 → <b>{TONE_SYMBOL.rising}</b> ｜ ่ → <b>{TONE_SYMBOL.low}</b> ｜ ้ → <b>{TONE_SYMBOL.falling}</b>
+            </span>
+            <span className="font-semibold" style={{ color: "var(--duo-green-d)" }}>高辅音 死</span>
+            <span>
+              无符号 → <b>{TONE_SYMBOL.low}</b> ｜ ่ → <b>{TONE_SYMBOL.low}</b> ｜ ้ → <b>{TONE_SYMBOL.falling}</b>
+            </span>
+            <span className="font-semibold" style={{ color: "var(--duo-orange-d)" }}>低辅音 活</span>
+            <span>
+              无符号 → <b>{TONE_SYMBOL.mid}</b> ｜ ่ → <b>{TONE_SYMBOL.falling}</b> ｜ ้ → <b>{TONE_SYMBOL.high}</b>
+            </span>
+            <span className="font-semibold" style={{ color: "var(--duo-orange-d)" }}>低辅音 死短</span>
+            <span>
+              无符号 → <b>{TONE_SYMBOL.high}</b> ｜ ่ → <b>{TONE_SYMBOL.falling}</b> ｜ ้ → <b>{TONE_SYMBOL.high}</b>
+            </span>
+            <span className="font-semibold" style={{ color: "var(--duo-orange-d)" }}>低辅音 死长</span>
+            <span>
+              无符号 → <b>{TONE_SYMBOL.falling}</b> ｜ ่ → <b>{TONE_SYMBOL.falling}</b> ｜ ้ → <b>{TONE_SYMBOL.high}</b>
+            </span>
+          </div>
+          <div className="mt-2 text-[11px] opacity-75">
+            声调编号：<b>0</b> สามัญ 平 ｜ <b>1</b> เอก 低 ｜ <b>2</b> โท 降 ｜ <b>3</b> ตรี 高 ｜ <b>4</b> จัตวา 升。活音节 = 长元音 或 响音/滑音尾 (n/m/ng/y/w)；死音节 = 短元音裸 或 塞音尾 (k/t/p)。
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToneDeriveCard({
+  question,
+  submitted,
+  feedback,
+  praise,
+  onAnswer,
+  onNext,
+}: {
+  question: Question;
+  submitted: boolean;
+  feedback: "ok" | "bad" | null;
+  praise: string;
+  onAnswer: (correct: boolean) => void;
+  onNext: () => void;
+}) {
+  const syllable = question.toneSyllable!;
+  const [picked, setPicked] = useState<ToneName | null>(null);
+
+  useEffect(() => {
+    setPicked(null);
+  }, [question.id]);
+
+  const handlePick = (id: ToneName) => {
+    if (submitted) return;
+    setPicked(id);
+    onAnswer(id === syllable.tone);
+  };
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isShortcutBlocked(event)) return;
+      if (submitted) {
+        if (isSpaceKey(event) || event.key === "Enter") {
+          event.preventDefault();
+          onNext();
+        }
+        return;
+      }
+      const index = choiceIndexFromKey(event, TONE_OPTIONS.length);
+      if (index === null) return;
+      event.preventDefault();
+      handlePick(TONE_OPTIONS[index].id);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
+  const classLabel = CONSONANT_CLASS_LABEL[syllable.initial.class];
+  const vowelLengthLabel = syllable.vowel.length === "long" ? "长元音" : "短元音";
+  const lifeLabel = syllable.life === "live" ? "活音节" : "死音节";
+  const ruleSummary = `${classLabel} + ${vowelLengthLabel} + ${describeFinalForRule(
+    syllable.finalConsonant
+  )} + ${toneMarkLabel(syllable.toneMark)} → ${lifeLabel} → ${TONE_SYMBOL[syllable.tone]} (${TONE_NAMES[syllable.tone].th})`;
+
+  return (
+    <section className="space-y-4">
+      <ToneRuleCheatsheet />
+      <div className={`card-soft p-7 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
+        <div className="chip chip-blue">声调拼读</div>
+        <div className="thai-big mt-4 text-7xl leading-none">{syllable.thai}</div>
+        <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
+          <span className="chip chip-blue">{classLabel} {syllable.initial.letter}</span>
+          <span className="chip chip-yellow">{vowelLengthLabel} {syllable.vowel.display}</span>
+          <span className="chip chip-low">
+            {syllable.finalConsonant ? `尾 ${syllable.finalConsonant.letter}` : "无尾"}
+          </span>
+          <span className="chip chip-high">符号 {toneMarkLabel(syllable.toneMark)}</span>
+        </div>
+        <div className="mt-3 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
+          这个音节读什么声调？
+        </div>
+      </div>
+
+      <div className="grid grid-cols-5 gap-2">
+        {TONE_OPTIONS.map((option) => {
+          const isCorrect = option.id === syllable.tone;
+          const isPicked = picked === option.id;
+          let cls = "btn-ghost border-2";
+          if (submitted) {
+            if (isCorrect) cls = "btn-primary";
+            else if (isPicked) cls = "btn-red";
+            else cls = "btn-ghost opacity-40";
+          }
+          return (
+            <button
+              key={option.id}
+              onClick={() => handlePick(option.id)}
+              disabled={submitted}
+              className={`${cls} min-h-[68px] flex-col px-2 py-3 font-bold`}
+            >
+              <span className="text-2xl leading-none">{option.symbol}</span>
+              <span className="mt-1 text-[10px] font-normal opacity-65">{option.sub}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {submitted && (
+        <div className={`course-action-feedback feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 text-sm">
+              {feedback === "ok" ? <span>✅ {praise}</span> : <span>❌ 正确：{TONE_SYMBOL[syllable.tone]} ({TONE_NAMES[syllable.tone].th})</span>}
+              <div className="mt-1 text-xs opacity-80">{ruleSummary}</div>
+            </div>
+            <button
+              onClick={onNext}
+              className={`shrink-0 ${feedback === "ok" ? "btn-primary px-5" : "btn-red px-5"}`}
+            >
+              继续
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LiveDeadCard({
+  question,
+  submitted,
+  feedback,
+  praise,
+  onAnswer,
+  onNext,
+}: {
+  question: Question;
+  submitted: boolean;
+  feedback: "ok" | "bad" | null;
+  praise: string;
+  onAnswer: (correct: boolean) => void;
+  onNext: () => void;
+}) {
+  const syllable = question.toneSyllable!;
+  const [picked, setPicked] = useState<"live" | "dead" | null>(null);
+
+  useEffect(() => {
+    setPicked(null);
+  }, [question.id]);
+
+  const handlePick = (id: "live" | "dead") => {
+    if (submitted) return;
+    setPicked(id);
+    onAnswer(id === syllable.life);
+  };
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isShortcutBlocked(event)) return;
+      if (submitted) {
+        if (isSpaceKey(event) || event.key === "Enter") {
+          event.preventDefault();
+          onNext();
+        }
+        return;
+      }
+      if (event.key === "1") {
+        event.preventDefault();
+        handlePick("live");
+      } else if (event.key === "2") {
+        event.preventDefault();
+        handlePick("dead");
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
+  const vowelLengthLabel = syllable.vowel.length === "long" ? "长元音" : "短元音";
+  const ruleSummary = `${vowelLengthLabel} ${syllable.vowel.display} + ${describeFinalForRule(
+    syllable.finalConsonant
+  )} → ${syllable.life === "live" ? "活音节 (เป็น)" : "死音节 (ตาย)"}`;
+
+  return (
+    <section className="space-y-4">
+      <div
+        className="rounded-lg border px-3 py-2 text-xs leading-5"
+        style={{ background: "var(--surface-subtle)", borderColor: "var(--duo-line)", color: "var(--duo-muted)" }}
+      >
+        <span className="font-semibold" style={{ color: "var(--duo-green-d)" }}>活 (เป็น)</span>
+        ：长元音 或 响音/滑音尾。
+        <span className="ml-2 font-semibold" style={{ color: "var(--duo-orange-d)" }}>死 (ตาย)</span>
+        ：短元音裸 或 塞音尾 (k/t/p)。
+      </div>
+      <div className={`card-soft p-7 text-center ${feedback === "bad" ? "animate-shake" : ""}`}>
+        <div className="chip chip-blue">活音节 / 死音节</div>
+        <div className="thai-big mt-4 text-7xl leading-none">{syllable.thai}</div>
+        <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
+          <span className="chip chip-yellow">{vowelLengthLabel}</span>
+          <span className="chip chip-low">
+            {syllable.finalConsonant ? `尾 ${syllable.finalConsonant.letter}` : "无尾音"}
+          </span>
+        </div>
+        <div className="mt-3 text-sm font-semibold" style={{ color: "var(--duo-muted)" }}>
+          这是活音节还是死音节？
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {(["live", "dead"] as const).map((id) => {
+          const isCorrect = id === syllable.life;
+          const isPicked = picked === id;
+          let cls = "btn-ghost border-2";
+          if (submitted) {
+            if (isCorrect) cls = "btn-primary";
+            else if (isPicked) cls = "btn-red";
+            else cls = "btn-ghost opacity-40";
+          }
+          return (
+            <button
+              key={id}
+              onClick={() => handlePick(id)}
+              disabled={submitted}
+              className={`${cls} min-h-[68px] flex-col px-3 py-4 text-base font-bold`}
+            >
+              <span>{id === "live" ? "活音节" : "死音节"}</span>
+              <span className="text-[10px] font-normal opacity-65">
+                {id === "live" ? "เป็น" : "ตาย"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {submitted && (
+        <div className={`course-action-feedback feedback ${feedback === "ok" ? "feedback-ok" : "feedback-bad"} animate-pop`}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 text-sm">
+              {feedback === "ok" ? (
+                <span>✅ {praise}</span>
+              ) : (
+                <span>❌ 正确：{syllable.life === "live" ? "活音节" : "死音节"}</span>
+              )}
+              <div className="mt-1 text-xs opacity-80">{ruleSummary}</div>
+            </div>
+            <button
+              onClick={onNext}
+              className={`shrink-0 ${feedback === "ok" ? "btn-primary px-5" : "btn-red px-5"}`}
+            >
               继续
             </button>
           </div>

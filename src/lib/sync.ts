@@ -44,6 +44,7 @@ interface KvRow {
 
 interface CourseProgressSyncValue {
   completedLessonIds?: unknown;
+  skippedUnits?: unknown;
   updatedAt?: unknown;
   resetAt?: unknown;
 }
@@ -189,18 +190,23 @@ function writeNumberKey(key: string, value: number) {
 
 function parseCourseProgress(raw: string | null): {
   completedLessonIds: string[];
+  skippedUnits: string[];
   updatedAt: number;
   resetAt: number;
 } | null {
-  if (!raw) return { completedLessonIds: [], updatedAt: 0, resetAt: 0 };
+  if (!raw) return { completedLessonIds: [], skippedUnits: [], updatedAt: 0, resetAt: 0 };
   try {
     const parsed = JSON.parse(raw) as CourseProgressSyncValue | null;
     if (!parsed || typeof parsed !== "object") return null;
     const completedLessonIds = Array.isArray(parsed.completedLessonIds)
       ? parsed.completedLessonIds.filter((id): id is string => typeof id === "string")
       : [];
+    const skippedUnits = Array.isArray(parsed.skippedUnits)
+      ? parsed.skippedUnits.filter((id): id is string => typeof id === "string")
+      : [];
     return {
       completedLessonIds,
+      skippedUnits,
       updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : 0,
       resetAt: typeof parsed.resetAt === "number" ? parsed.resetAt : 0,
     };
@@ -239,14 +245,27 @@ function mergeCourseProgressRow(row: KvRow, meta: Record<string, number>): boole
   const mergedIds = sortLessonIds([...localIds, ...remoteIds]);
   const localSorted = sortLessonIds(localIds);
   const remoteSorted = sortLessonIds(remoteIds);
+  const localSkipped = local.resetAt === resetAt || local.updatedAt >= resetAt ? local.skippedUnits : [];
+  const remoteSkipped = remote.resetAt === resetAt || remote.updatedAt >= resetAt ? remote.skippedUnits : [];
+  const mergedSkipped = Array.from(new Set([...localSkipped, ...remoteSkipped])).sort();
+  const localSkippedSorted = [...localSkipped].sort();
+  const remoteSkippedSorted = [...remoteSkipped].sort();
   const localChanged =
-    !sameStringArray(localSorted, mergedIds) || local.resetAt !== resetAt || local.completedLessonIds.length !== localSorted.length;
-  const remoteNeedsPush = !sameStringArray(remoteSorted, mergedIds) || remote.resetAt !== resetAt;
+    !sameStringArray(localSorted, mergedIds) ||
+    !sameStringArray(localSkippedSorted, mergedSkipped) ||
+    local.resetAt !== resetAt ||
+    local.completedLessonIds.length !== localSorted.length ||
+    local.skippedUnits.length !== localSkippedSorted.length;
+  const remoteNeedsPush =
+    !sameStringArray(remoteSorted, mergedIds) ||
+    !sameStringArray(remoteSkippedSorted, mergedSkipped) ||
+    remote.resetAt !== resetAt;
   const nextUpdatedAt = remoteNeedsPush
     ? Math.max(Date.now(), local.updatedAt, remote.updatedAt, row.updated_at) + 1
     : Math.max(local.updatedAt, remote.updatedAt, row.updated_at);
   const nextValue = JSON.stringify({
     completedLessonIds: mergedIds,
+    skippedUnits: mergedSkipped,
     updatedAt: nextUpdatedAt,
     ...(resetAt ? { resetAt } : {}),
   });
