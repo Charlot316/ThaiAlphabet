@@ -189,10 +189,10 @@ export default function SrsPage() {
             style={
               pool === p
                 ? {
-                    background: "rgba(40, 215, 244, 0.1)",
-                    borderColor: "rgba(40, 215, 244, 0.26)",
+                    background: "var(--duo-card)",
+                    borderColor: "var(--duo-line-d)",
                     color: "var(--duo-green-d)",
-                    boxShadow: "inset 0 -1px 0 var(--duo-green)",
+                    boxShadow: "0 2px 0 var(--surface-raised-edge)",
                   }
                 : { background: "transparent", borderColor: "transparent" }
             }
@@ -236,8 +236,7 @@ export default function SrsPage() {
           <div
             className="card-soft animate-pop flex min-h-[22rem] flex-col items-center justify-center p-8 text-center"
             style={{
-              background:
-                "radial-gradient(circle at 50% 18%, rgba(40, 215, 244, 0.11), transparent 16rem), linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.008)), var(--duo-card)",
+              background: "var(--duo-card)",
             }}
           >
             <div className="chip chip-low">记忆 · 不偷看答案</div>

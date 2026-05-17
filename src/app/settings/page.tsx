@@ -9,17 +9,42 @@ import {
   subscribe,
 } from "@/lib/sync";
 
+type ThemeMode = "system" | "light" | "dark";
+
+const THEME_OPTIONS: Array<{ value: ThemeMode; label: string }> = [
+  { value: "system", label: "跟随系统" },
+  { value: "light", label: "浅色" },
+  { value: "dark", label: "深色" },
+];
+
 export default function SettingsPage() {
   const [user, setUser] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [tone, setTone] = useState<"ok" | "bad" | "info">("info");
   const [status, setStatus] = useState<SyncStatus>("off");
+  const [theme, setTheme] = useState<ThemeMode>("system");
 
   useEffect(() => {
     setUser(getUsername());
     return subscribe((s) => setStatus(s));
   }, []);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("thai-theme");
+    if (saved === "light" || saved === "dark") setTheme(saved);
+  }, []);
+
+  function handleTheme(next: ThemeMode) {
+    setTheme(next);
+    if (next === "system") {
+      window.localStorage.removeItem("thai-theme");
+      document.documentElement.removeAttribute("data-theme");
+      return;
+    }
+    window.localStorage.setItem("thai-theme", next);
+    document.documentElement.dataset.theme = next;
+  }
 
   async function handlePush() {
     setBusy(true); setMsg("正在推送..."); setTone("info");
@@ -49,6 +74,33 @@ export default function SettingsPage() {
         <p className="mt-1 text-xs opacity-70">
           学习数据自动同步到 Cloudflare D1，多设备共用。
         </p>
+      </section>
+
+      <section className="card-soft p-5 space-y-3">
+        <div>
+          <div className="text-sm font-semibold">界面主题</div>
+          <div className="mt-2 grid grid-cols-3 rounded-lg border p-1" style={{ background: "var(--surface-subtle)", borderColor: "var(--duo-line)" }}>
+            {THEME_OPTIONS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => handleTheme(value)}
+                className="rounded-md px-2 py-2 text-xs font-semibold transition"
+                style={
+                  theme === value
+                    ? {
+                        background: "var(--duo-card)",
+                        color: "var(--duo-green-d)",
+                        boxShadow: "0 2px 0 var(--surface-raised-edge)",
+                      }
+                    : { color: "var(--duo-muted)" }
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="card-soft p-5 space-y-3">
@@ -98,9 +150,9 @@ export default function SettingsPage() {
           style={
             tone === "info"
               ? {
-                  background: "rgba(28,176,246,0.1)",
+                  background: "color-mix(in srgb, var(--duo-blue) 10%, var(--duo-card))",
                   color: "var(--duo-blue)",
-                  border: "2px solid rgba(28,176,246,0.3)",
+                  border: "2px solid color-mix(in srgb, var(--duo-blue) 30%, var(--duo-line))",
                 }
               : undefined
           }

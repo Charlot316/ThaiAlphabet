@@ -1,0 +1,152 @@
+export type VocabularyExpansionPartOfSpeech = "名词" | "动词" | "形容词" | "副词" | "短语";
+export type VocabularyExpansionLevel = "a1";
+export type VocabularyExpansionTheme = "人" | "事物" | "地方" | "时间" | "基础动作" | "生活搭配";
+export type VocabularyExpansionReviewStatus = "candidate-draft";
+export type VocabularyExpansionComparisonKind = "near-synonym" | "antonym" | "confusable" | "usage";
+export type VocabularyExpansionRelated = { thai: string; roman: string; chinese: string; notesZh?: string };
+export type VocabularyExpansionExample = { thai: string; roman: string; chinese: string };
+export type VocabularyExpansionComparison = { kind: VocabularyExpansionComparisonKind; target: VocabularyExpansionRelated; distinctionZh: string };
+export type VocabularyExpansionCollocation = { thai: string; roman: string; chinese: string };
+export type VocabularyExpansionSense = { id: string; chinese: string; examples: VocabularyExpansionExample[]; synonyms: VocabularyExpansionRelated[]; antonyms: VocabularyExpansionRelated[]; comparisons: VocabularyExpansionComparison[]; collocations: VocabularyExpansionCollocation[]; tags: string[] };
+export type VocabularyExpansionCandidate = { id: string; thai: string; roman: string; chinese: string; partOfSpeech: VocabularyExpansionPartOfSpeech; theme: VocabularyExpansionTheme; level: VocabularyExpansionLevel; priority: number; senses: VocabularyExpansionSense[]; synonyms: VocabularyExpansionRelated[]; antonyms: VocabularyExpansionRelated[]; comparisons: VocabularyExpansionComparison[]; collocations: VocabularyExpansionCollocation[]; tags: string[]; sourceRefs: string[]; reviewStatus: VocabularyExpansionReviewStatus };
+
+type Row = readonly [string, string, string, string, VocabularyExpansionPartOfSpeech, VocabularyExpansionTheme, string, string, string, string, string, string];
+
+const CORE_REFS = ["worker-a-a1-core-nouns-verbs-02", "basic-thai-core-actions"];
+
+const rows: Row[] = [
+  ["khon-ruu-jak", "คนรู้จัก", "khon ruu-jak", "认识的人；熟人", "名词", "人", "เมื่อวานฉันเจอคนรู้จักที่ตลาดใกล้บ้าน", "muea-waan chan joe khon ruu-jak thii dta-laat glai baan", "昨天我在家附近的市场遇到熟人。", "เพื่อน", "phuean", "朋友"],
+  ["phuean-baan", "เพื่อนบ้าน", "phuean baan", "邻居", "名词", "人", "เพื่อนบ้านช่วยรับของให้แม่ตอนเราไม่อยู่บ้าน", "phuean-baan chuai rap khaawng hai maae dtaawn rao mai yuu baan", "我们不在家时，邻居帮妈妈收东西。", "คนข้างบ้าน", "khon khaang baan", "隔壁的人"],
+  ["khon-khaai-khaawng", "คนขายของ", "khon khaai khaawng", "卖东西的人；店主/摊主", "名词", "人", "คนขายของบอกว่ามะม่วงวันนี้หวานมาก", "khon khaai khaawng baawk waa ma-muang wan-nii waan maak", "卖东西的人说今天的芒果很甜。", "ลูกค้า", "luuk-khaa", "顾客"],
+  ["luuk-khaa", "ลูกค้า", "luuk khaa", "顾客", "名词", "人", "ลูกค้าหลายคนรอจ่ายเงินหน้าร้าน", "luuk-khaa laai khon raaw jaai ngoen naa raan", "很多顾客在店前等着付款。", "คนขายของ", "khon khaai khaawng", "卖东西的人"],
+  ["khon-khap-rot", "คนขับรถ", "khon khap rot", "司机", "名词", "人", "คนขับรถเมล์จอดให้ผู้โดยสารลงที่ป้าย", "khon khap rot-mee jaawt hai phuu-dooi-saan long thii bpaai", "公交司机停车让乘客在站牌下车。", "ผู้โดยสาร", "phuu dooi-saan", "乘客"],
+  ["phuu-doi-saan", "ผู้โดยสาร", "phuu dooi-saan", "乘客", "名词", "人", "ผู้โดยสารควรต่อแถวก่อนขึ้นรถ", "phuu-dooi-saan khuan dtaaw thaaeo gaawn kheun rot", "乘客上车前应该排队。", "คนขับรถ", "khon khap rot", "司机"],
+  ["phuu-chai", "ผู้ชาย", "phuu chaai", "男人；男性", "名词", "人", "ผู้ชายคนนั้นยืนรอเพื่อนหน้าสถานี", "phuu-chaai khon nan yuen raaw phuean naa sa-thaa-nii", "那个男人站在车站前等朋友。", "ผู้หญิง", "phuu ying", "女人；女性"],
+  ["phuu-ying", "ผู้หญิง", "phuu ying", "女人；女性", "名词", "人", "ผู้หญิงคนนี้เป็นครูภาษาไทยของฉัน", "phuu-ying khon nii bpen khruu phaa-saa thai khaawng chan", "这位女士是我的泰语老师。", "ผู้ชาย", "phuu chaai", "男人；男性"],
+  ["dek-phuu-chaai", "เด็กผู้ชาย", "dek phuu chaai", "男孩", "名词", "人", "เด็กผู้ชายสองคนเล่นฟุตบอลหลังเลิกเรียน", "dek phuu-chaai saawng khon len foot-baawn lang loek riian", "两个男孩放学后踢足球。", "เด็กผู้หญิง", "dek phuu ying", "女孩"],
+  ["dek-phuu-ying", "เด็กผู้หญิง", "dek phuu ying", "女孩", "名词", "人", "เด็กผู้หญิงใส่กระโปรงสีชมพูไปงานวันเกิด", "dek phuu-ying sai gra-bproong sii chom-phuu bpai ngaan wan-goet", "女孩穿粉色裙子去生日会。", "เด็กผู้ชาย", "dek phuu chaai", "男孩"],
+  ["khon-gaae", "คนแก่", "khon gaae", "老人；年纪大的人", "名词", "人", "บนรถเมล์เราควรให้ที่นั่งแก่คนแก่", "bon rot-mee rao khuan hai thii-nang gaae khon gaae", "在公交车上我们应该给老人让座。", "เด็ก", "dek", "孩子"],
+  ["khon-dio", "คนเดียว", "khon diao", "一个人；独自", "短语", "人", "วันนี้ฉันกินข้าวคนเดียวเพราะเพื่อนไม่ว่าง", "wan-nii chan gin khaao khon diao phraw phuean mai waang", "今天我一个人吃饭，因为朋友没空。", "ด้วยกัน", "duai gan", "一起"],
+  ["khon-eun", "คนอื่น", "khon euen", "别人；其他人", "名词", "人", "อย่าเอาของคนอื่นไปโดยไม่บอก", "yaa ao khaawng khon euen bpai dooi mai baawk", "不要不说一声就拿别人的东西。", "ตัวเอง", "dtua eeng", "自己"],
+  ["dtua-eeng", "ตัวเอง", "dtua eeng", "自己；本人", "名词", "人", "ฉันทำการบ้านด้วยตัวเองก่อนถามครู", "chan tham gaan-baan duai dtua eeng gaawn thaam khruu", "我先自己做作业，再问老师。", "คนอื่น", "khon euen", "别人"],
+  ["khaawng-chai", "ของใช้", "khaawng chai", "日用品；用的东西", "名词", "事物", "ก่อนย้ายบ้าน แม่เก็บของใช้ใส่กล่อง", "gaawn yaai baan maae gep khaawng chai sai glaawng", "搬家前，妈妈把日用品收进箱子。", "ของกิน", "khaawng gin", "吃的东西"],
+  ["khaawng-gin", "ของกิน", "khaawng gin", "吃的东西；食物", "名词", "事物", "ตลาดเช้ามีของกินหลายอย่างให้เลือก", "dta-laat chaao mii khaawng gin laai yaang hai leuak", "早市有很多吃的东西可选。", "ของใช้", "khaawng chai", "日用品"],
+  ["khaawng-len", "ของเล่น", "khaawng len", "玩具", "名词", "事物", "น้องเก็บของเล่นเข้ากล่องหลังเล่นเสร็จ", "naawng gep khaawng len khao glaawng lang len set", "弟弟玩完后把玩具收进盒子。", "หนังสือ", "nang-sue", "书"],
+  ["khaawng-fak", "ของฝาก", "khaawng faak", "伴手礼；带给别人的东西", "名词", "事物", "พ่อซื้อของฝากจากเชียงใหม่ให้เพื่อนบ้าน", "phaaw sue khaawng faak jaak chiiang-mai hai phuean-baan", "爸爸从清迈买伴手礼给邻居。", "ของขวัญ", "khaawng khwan", "礼物"],
+  ["khaawng-suan-dtua", "ของส่วนตัว", "khaawng suan dtua", "私人物品", "名词", "事物", "กรุณาอย่าเปิดกระเป๋าที่มีของส่วนตัวของฉัน", "ga-ru-naa yaa bpoet gra-bpao thii mii khaawng suan dtua khaawng chan", "请不要打开装有我私人物品的包。", "ของส่วนรวม", "khaawng suan ruam", "公共物品"],
+  ["khaawng-suan-ruam", "ของส่วนรวม", "khaawng suan ruam", "公用物品；公共物品", "名词", "事物", "หนังสือในห้องนี้เป็นของส่วนรวม ต้องใช้ดี ๆ", "nang-sue nai haawng nii bpen khaawng suan ruam dtawng chai dii dii", "这个房间里的书是公用物品，要好好使用。", "ของส่วนตัว", "khaawng suan dtua", "私人物品"],
+  ["bai-set", "ใบเสร็จ", "bai set", "收据；小票", "名词", "事物", "หลังจ่ายเงินแล้วอย่าลืมเก็บใบเสร็จ", "lang jaai ngoen laaeo yaa leum gep bai set", "付款后别忘了收好小票。", "ตั๋ว", "dtua", "票"],
+  ["bai-sang", "ใบสั่ง", "bai sang", "单子；订购单", "名词", "事物", "คนขายดูใบสั่งก่อนเตรียมอาหารให้ลูกค้า", "khon khaai duu bai sang gaawn dtriiam aa-haan hai luuk-khaa", "卖家先看单子，再给顾客准备食物。", "ใบเสร็จ", "bai set", "收据"],
+  ["bai-jaeng", "ใบแจ้ง", "bai jaaeng", "通知单；告知单", "名词", "事物", "โรงเรียนส่งใบแจ้งเรื่องวันหยุดให้ผู้ปกครอง", "roong-riian song bai jaaeng rueang wan-yut hai phuu-bpok-khraawng", "学校把假日通知单发给家长。", "จดหมาย", "jot-maai", "信"],
+  ["jot-maai", "จดหมาย", "jot maai", "信；书信", "名词", "事物", "คุณยายเขียนจดหมายสั้น ๆ ถึงหลาน", "khun-yaai khiian jot-maai san san theung laan", "外婆给孙辈写了一封短信。", "ข้อความ", "khaaw-khwaam", "消息；短信"],
+  ["khaaw-khwaam", "ข้อความ", "khaaw khwaam", "文字消息；内容", "名词", "事物", "ฉันอ่านข้อความจากครูก่อนออกจากบ้าน", "chan aan khaaw-khwaam jaak khruu gaawn aawk jaak baan", "我出门前读了老师发来的消息。", "จดหมาย", "jot maai", "信"],
+  ["ruup-thaai", "รูปถ่าย", "ruup thaai", "照片", "名词", "事物", "แม่เก็บรูปถ่ายครอบครัวไว้ในกล่อง", "maae gep ruup-thaai khraawp-khrua wai nai glaawng", "妈妈把家庭照片收在盒子里。", "รูปวาด", "ruup waat", "画"],
+  ["ruup-waat", "รูปวาด", "ruup waat", "画；图画", "名词", "事物", "น้องให้รูปวาดดอกไม้เป็นของขวัญแม่", "naawng hai ruup waat daawk-maai bpen khaawng-khwan maae", "弟弟把花的画送给妈妈当礼物。", "รูปถ่าย", "ruup thaai", "照片"],
+  ["siiang", "เสียง", "siiang", "声音", "名词", "事物", "เสียงรถดังมากจนฉันอ่านหนังสือไม่ไหว", "siiang rot dang maak jon chan aan nang-sue mai wai", "车声很大，大到我没法看书。", "ความเงียบ", "khwaam ngiiap", "安静"],
+  ["glin", "กลิ่น", "glin", "气味", "名词", "事物", "ในครัวมีกลิ่นอาหารหอมมาก", "nai khrua mii glin aa-haan haawm maak", "厨房里有很香的饭菜味。", "รส", "rot", "味道"],
+  ["rot-chaat", "รสชาติ", "rot chaat", "味道；口味", "名词", "事物", "รสชาติของแกงถ้วยนี้ไม่เผ็ดมาก", "rot-chaat khaawng gaaeng thuai nii mai phet maak", "这碗咖喱的味道不太辣。", "กลิ่น", "glin", "气味"],
+  ["mueang", "เมือง", "mueang", "城市；城镇", "名词", "地方", "เมืองนี้มีตลาดใหญ่และสถานีรถไฟ", "mueang nii mii dta-laat yai lae sa-thaa-nii rot-fai", "这座城市有大市场和火车站。", "หมู่บ้าน", "muu-baan", "村子；小区"],
+  ["muu-baan", "หมู่บ้าน", "muu baan", "村子；小区", "名词", "地方", "หมู่บ้านของฉันอยู่ใกล้ภูเขา", "muu-baan khaawng chan yuu glai phuu-khao", "我的村子靠近山。", "เมือง", "mueang", "城市"],
+  ["chum-chon", "ชุมชน", "chum chon", "社区", "名词", "地方", "คนในชุมชนช่วยกันทำความสะอาดถนน", "khon nai chum-chon chuai gan tham khwaam-sa-aat tha-non", "社区里的人一起打扫街道。", "หมู่บ้าน", "muu-baan", "村子；小区"],
+  ["thi-phak", "ที่พัก", "thii phak", "住宿处；住的地方", "名词", "地方", "ที่พักของเราอยู่ไม่ไกลจากสถานี", "thii phak khaawng rao yuu mai glai jaak sa-thaa-nii", "我们的住宿处离车站不远。", "บ้าน", "baan", "家；房子"],
+  ["thi-tham-ngaan", "ที่ทำงาน", "thii tham ngaan", "工作地点；单位", "名词", "地方", "ที่ทำงานของพ่ออยู่ใกล้โรงพยาบาล", "thii tham-ngaan khaawng phaaw yuu glai roong-pha-yaa-baan", "爸爸的工作地点在医院附近。", "โรงเรียน", "roong-riian", "学校"],
+  ["thi-riian", "ที่เรียน", "thii riian", "学习地点；上课的地方", "名词", "地方", "ที่เรียนภาษาไทยของฉันอยู่ชั้นสอง", "thii riian phaa-saa thai khaawng chan yuu chan saawng", "我学泰语的地方在二楼。", "ที่ทำงาน", "thii tham-ngaan", "工作地点"],
+  ["thi-nang", "ที่นั่ง", "thii nang", "座位；坐的地方", "名词", "地方", "บนรถเมล์ยังมีที่นั่งว่างสองที่", "bon rot-mee yang mii thii-nang waang saawng thii", "公交车上还有两个空座位。", "ที่ยืน", "thii yuen", "站位"],
+  ["thi-yuen", "ที่ยืน", "thii yuen", "站位；站的地方", "名词", "地方", "รถไฟฟ้าแน่นมากจนไม่มีที่ยืน", "rot-fai-faa naaen maak jon mai mii thii yuen", "轻轨很挤，连站的地方都没有。", "ที่นั่ง", "thii nang", "座位"],
+  ["muea-gii", "เมื่อกี้", "muea gii", "刚才", "副词", "时间", "เมื่อกี้ใครโทรมาหาคุณ", "muea-gii khrai thoo maa haa khun", "刚才谁给你打电话？", "ตอนนี้", "dtaawn nii", "现在"],
+  ["dtaawn-nii", "ตอนนี้", "dtaawn nii", "现在；此刻", "副词", "时间", "ตอนนี้ฉันรอเพื่อนอยู่หน้าร้าน", "dtaawn-nii chan raaw phuean yuu naa raan", "现在我在店前等朋友。", "เมื่อกี้", "muea gii", "刚才"],
+  ["diaao-nii", "เดี๋ยวนี้", "diaao nii", "如今；现在这段时间", "副词", "时间", "เดี๋ยวนี้ฉันเดินไปโรงเรียนทุกวัน", "diaao-nii chan doen bpai roong-riian thuk wan", "现在这段时间我每天走路去学校。", "เมื่อก่อน", "muea gaawn", "以前"],
+  ["muea-gaawn", "เมื่อก่อน", "muea gaawn", "以前；从前", "副词", "时间", "เมื่อก่อนฉันอ่านภาษาไทยช้ามาก", "muea-gaawn chan aan phaa-saa thai chaa maak", "以前我读泰语很慢。", "เดี๋ยวนี้", "diaao nii", "如今"],
+  ["reua-reua", "เรื่อย ๆ", "reuuai reuuai", "一直；慢慢持续", "副词", "时间", "ฝึกพูดเรื่อย ๆ แล้วจะเก่งขึ้น", "feuk phuut reuuai reuuai laaeo ja geng kheun", "一直练习说，就会变厉害。", "หยุด", "yut", "停止"],
+  ["than-thii", "ทันที", "than thii", "立刻；马上", "副词", "时间", "ถ้ามีปัญหา ให้บอกครูทันที", "thaa mii bpan-haa hai baawk khruu than-thii", "如果有问题，马上告诉老师。", "ทีหลัง", "thii lang", "以后；之后"],
+  ["thii-lang", "ทีหลัง", "thii lang", "以后；之后；下次", "副词", "时间", "เรื่องนี้เราค่อยคุยกันทีหลังได้ไหม", "rueang nii rao khaawy khui gan thii-lang dai mai", "这件事我们以后再聊可以吗？", "ทันที", "than thii", "立刻"],
+  ["gaawn-naa-nii", "ก่อนหน้านี้", "gaawn naa nii", "在这之前；先前", "副词", "时间", "ก่อนหน้านี้ฉันไม่เคยมาที่นี่", "gaawn naa nii chan mai khoei maa thii nii", "在这之前我从没来过这里。", "หลังจากนี้", "lang jaak nii", "从今以后"],
+  ["lang-jaak-nii", "หลังจากนี้", "lang jaak nii", "从今以后；之后", "副词", "时间", "หลังจากนี้ฉันจะตื่นเช้ากว่าเดิม", "lang jaak nii chan ja dteun chaao gwaa doem", "从今以后我会比以前起得更早。", "ก่อนหน้านี้", "gaawn naa nii", "先前"],
+  ["hai", "ให้", "hai", "给；让；为", "动词", "基础动作", "แม่ให้เงินฉันไปซื้อขนมปัง", "maae hai ngoen chan bpai sue kha-nom-bpang", "妈妈给我钱去买面包。", "รับ", "rap", "接收；收"],
+  ["rap", "รับ", "rap", "接；收；接受", "动词", "基础动作", "ฉันรับของจากคนขายแล้วจ่ายเงิน", "chan rap khaawng jaak khon khaai laaeo jaai ngoen", "我从卖家那里接过东西后付款。", "ให้", "hai", "给"],
+  ["yip", "หยิบ", "yip", "拿起；顺手拿", "动词", "基础动作", "ช่วยหยิบแก้วน้ำบนโต๊ะให้หน่อย", "chuai yip gaaeow naam bon dto hai naawy", "请帮忙拿一下桌上的水杯。", "วาง", "waang", "放下"],
+  ["ao", "เอา", "ao", "拿；要；带走", "动词", "基础动作", "เอาร่มไปด้วย เพราะวันนี้อาจฝนตก", "ao rom bpai duai phraw wan-nii aat fon dtok", "把伞也带上，因为今天可能下雨。", "ทิ้ง", "thing", "丢掉"],
+  ["tham-ao", "เอาไว้", "ao wai", "留着；放着以后用", "短语", "基础动作", "เก็บใบเสร็จเอาไว้ เผื่อต้องเปลี่ยนของ", "gep bai-set ao wai pheuua dtawng bpliian khaawng", "把收据留着，以防需要换东西。", "ทิ้ง", "thing", "扔掉"],
+  ["waang", "วาง", "waang", "放；放置", "动词", "基础动作", "อย่าวางกระเป๋ากลางทางเดิน", "yaa waang gra-bpao glaang thaang-doen", "不要把包放在走道中间。", "หยิบ", "yip", "拿起"],
+  ["gep", "เก็บ", "gep", "收；保存；捡起", "动词", "基础动作", "หลังเล่นเสร็จ เด็ก ๆ เก็บของเล่นเข้ากล่อง", "lang len set dek dek gep khaawng-len khao glaawng", "玩完后，孩子们把玩具收进盒子。", "วาง", "waang", "放"],
+  ["haa", "หา", "haa", "找；寻找", "动词", "基础动作", "ฉันหากุญแจไม่เจอในกระเป๋า", "chan haa goon-jaae mai joe nai gra-bpao", "我在包里找不到钥匙。", "เจอ", "joe", "遇到；找到"],
+  ["joe", "เจอ", "joe", "遇见；找到", "动词", "基础动作", "สุดท้ายฉันเจอกุญแจใต้โต๊ะ", "sut-thaai chan joe goon-jaae dtai dto", "最后我在桌子下面找到了钥匙。", "หา", "haa", "找"],
+  ["phop", "พบ", "phop", "见到；发现", "动词", "基础动作", "คุณหมอพบว่าคนไข้ต้องพักผ่อนมากขึ้น", "khun-maaw phop waa khon-khai dtawng phak-phaawn maak kheun", "医生发现病人需要更多休息。", "เจอ", "joe", "遇见；找到"],
+  ["duu", "ดู", "duu", "看；照看", "动词", "基础动作", "ช่วยดูน้องให้หน่อยตอนแม่ไปตลาด", "chuai duu naawng hai naawy dtaawn maae bpai dta-laat", "妈妈去市场时请帮忙看一下弟弟。", "มอง", "maawng", "看；望"],
+  ["maawng", "มอง", "maawng", "看；望向", "动词", "基础动作", "เขามองป้ายรถเมล์จากอีกฝั่งถนน", "khao maawng bpaai rot-mee jaak iik fang tha-non", "他从马路另一边看公交站牌。", "ดู", "duu", "看"],
+  ["fang", "ฟัง", "fang", "听", "动词", "基础动作", "กรุณาฟังครูพูดก่อนตอบคำถาม", "ga-ru-naa fang khruu phuut gaawn dtaawp kham-thaam", "回答问题前请先听老师说。", "พูด", "phuut", "说"],
+  ["phuut", "พูด", "phuut", "说；讲话", "动词", "基础动作", "ถ้าไม่เข้าใจ ให้พูดช้า ๆ ได้ไหม", "thaa mai khao-jai hai phuut chaa chaa dai mai", "如果不明白，可以说慢一点吗？", "ฟัง", "fang", "听"],
+  ["thaam", "ถาม", "thaam", "问", "动词", "基础动作", "นักเรียนถามครูเรื่องการบ้าน", "nak-riian thaam khruu rueang gaan-baan", "学生问老师关于作业的事。", "ตอบ", "dtaawp", "回答"],
+  ["dtaawp", "ตอบ", "dtaawp", "回答", "动词", "基础动作", "เขาตอบคำถามเป็นภาษาไทยง่าย ๆ", "khao dtaawp kham-thaam bpen phaa-saa thai ngaai ngaai", "他用简单泰语回答问题。", "ถาม", "thaam", "问"],
+  ["baawk", "บอก", "baawk", "告诉；说", "动词", "基础动作", "แม่บอกให้ฉันกลับบ้านก่อนหกโมง", "maae baawk hai chan glap baan gaawn hok moong", "妈妈告诉我要六点前回家。", "ฟัง", "fang", "听"],
+  ["riiak", "เรียก", "riiak", "叫；称呼；呼叫", "动词", "基础动作", "ถ้าต้องการแท็กซี่ ให้เรียกรถผ่านแอป", "thaa dtawng-gaan thaek-sii hai riiak rot phaan aaep", "如果需要出租车，就通过应用叫车。", "ตอบ", "dtaawp", "回答"],
+  ["khiian", "เขียน", "khiian", "写", "动词", "基础动作", "กรุณาเขียนชื่อและวันที่บนกระดาษ", "ga-ru-naa khiian chue lae wan-thii bon gra-daat", "请在纸上写名字和日期。", "อ่าน", "aan", "读"],
+  ["aan", "อ่าน", "aan", "读；阅读", "动词", "基础动作", "ฉันอ่านป้ายราคาให้แม่ฟัง", "chan aan bpaai raa-khaa hai maae fang", "我把价格标签读给妈妈听。", "เขียน", "khiian", "写"],
+  ["bpoet", "เปิด", "bpoet", "开；打开", "动词", "基础动作", "ตอนเช้าแม่เปิดหน้าต่างให้ลมเข้า", "dtaawn chaao maae bpoet naa-dtaang hai lom khao", "早上妈妈打开窗户让风进来。", "ปิด", "bpit", "关"],
+  ["bpit", "ปิด", "bpit", "关；关闭", "动词", "基础动作", "ก่อนนอนอย่าลืมปิดไฟในห้อง", "gaawn naawn yaa leum bpit fai nai haawng", "睡前别忘了关房间里的灯。", "เปิด", "bpoet", "开"],
+  ["khit", "คิด", "khit", "想；思考", "动词", "基础动作", "ฉันคิดอยู่สักครู่ก่อนตอบครู", "chan khit yuu sak khruu gaawn dtaawp khruu", "我想了一会儿才回答老师。", "จำ", "jam", "记"],
+  ["jam", "จำ", "jam", "记；记住", "动词", "基础动作", "เขาจำทางไปโรงเรียนใหม่ได้แล้ว", "khao jam thaang bpai roong-riian mai dai laaeo", "他已经记住去新学校的路了。", "ลืม", "leum", "忘记"],
+  ["leum", "ลืม", "leum", "忘记", "动词", "基础动作", "ฉันลืมเอาร่มมา จึงเปียกฝน", "chan leum ao rom maa jeung bpiiak fon", "我忘了带伞，所以被雨淋湿了。", "จำ", "jam", "记住"],
+  ["rian", "เรียน", "riian", "学习；上课", "动词", "基础动作", "เรายังเรียนภาษาไทยทุกวันพุธ", "rao yang riian phaa-saa thai thuk wan phut", "我们仍然每周三学泰语。", "สอน", "saawn", "教"],
+  ["saawn", "สอน", "saawn", "教", "动词", "基础动作", "ครูสอนคำใหม่ด้วยตัวอย่างง่าย ๆ", "khruu saawn kham mai duai dtua-yaang ngaai ngaai", "老师用简单例子教新词。", "เรียน", "riian", "学"],
+  ["tham", "ทำ", "tham", "做；制作", "动词", "基础动作", "วันนี้ฉันทำอาหารเย็นให้ครอบครัว", "wan-nii chan tham aa-haan yen hai khraawp-khrua", "今天我给家人做晚饭。", "พัก", "phak", "休息"],
+  ["chai", "ใช้", "chai", "用；使用；花费", "动词", "基础动作", "จากบ้านไปตลาดใช้เวลาสิบนาที", "jaak baan bpai dta-laat chai wee-laa sip naa-thii", "从家到市场花十分钟。", "เก็บ", "gep", "收；保存"],
+  ["sue", "ซื้อ", "sue", "买", "动词", "基础动作", "แม่ซื้อผักสดที่ตลาดตอนเช้า", "maae sue phak sot thii dta-laat dtaawn chaao", "妈妈早上在市场买新鲜蔬菜。", "ขาย", "khaai", "卖"],
+  ["khaai", "ขาย", "khaai", "卖", "动词", "基础动作", "ร้านนี้ขายน้ำและขนมหน้าโรงเรียน", "raan nii khaai naam lae kha-nom naa roong-riian", "这家店在学校门口卖水和点心。", "ซื้อ", "sue", "买"],
+  ["jaai-ngoen", "จ่ายเงิน", "jaai ngoen", "付钱", "动词", "生活搭配", "หลังเลือกเสื้อแล้ว ฉันไปจ่ายเงินที่เคาน์เตอร์", "lang leuak seua laaeo chan bpai jaai ngoen thii khao-dtoe", "选好衣服后，我去柜台付钱。", "รับเงิน", "rap ngoen", "收钱"],
+  ["rap-ngoen", "รับเงิน", "rap ngoen", "收钱；领钱", "动词", "生活搭配", "คนขายรับเงินแล้วให้ใบเสร็จ", "khon khaai rap ngoen laaeo hai bai-set", "卖家收钱后给收据。", "จ่ายเงิน", "jaai ngoen", "付钱"],
+  ["thaawn-ngoen", "ทอนเงิน", "thaawn ngoen", "找钱；找零", "动词", "生活搭配", "ร้านค้าทอนเงินให้ฉันสิบบาท", "raan khaa thaawn ngoen hai chan sip baat", "商店找给我十泰铢。", "จ่ายเงิน", "jaai ngoen", "付钱"],
+  ["rap-ngoen-thaawn", "รับเงินทอน", "rap ngoen thaawn", "收找零", "动词", "生活搭配", "อย่าลืมรับเงินทอนก่อนออกจากร้าน", "yaa leum rap ngoen thaawn gaawn aawk jaak raan", "离开店前别忘了收找零。", "ทอนเงิน", "thaawn ngoen", "找钱"],
+  ["dern-thaang", "เดินทาง", "doen thaang", "出行；旅行", "动词", "生活搭配", "วันหยุดยาวหลายคนเดินทางกลับบ้าน", "wan-yut yaao laai khon doen-thaang glap baan", "长假很多人出行回家。", "พักผ่อน", "phak phaawn", "休息放松"],
+  ["phak", "พัก", "phak", "休息；停留", "动词", "生活搭配", "ถ้าเหนื่อยมาก เราพักที่ร้านกาแฟก่อน", "thaa neuuai maak rao phak thii raan gaa-faae gaawn", "如果很累，我们先在咖啡店休息。", "ทำ", "tham", "做"],
+  ["raaw", "รอ", "raaw", "等；等待", "动词", "生活搭配", "ฉันรอเพื่อนอยู่หน้าสถานีรถไฟ", "chan raaw phuean yuu naa sa-thaa-nii rot-fai", "我在火车站前等朋友。", "ไปก่อน", "bpai gaawn", "先走"],
+  ["dtaam", "ตาม", "dtaam", "跟随；按照", "动词", "生活搭配", "เด็ก ๆ เดินตามครูไปห้องสมุด", "dek dek doen dtaam khruu bpai haawng-sa-mut", "孩子们跟着老师去图书馆。", "นำ", "nam", "带领"],
+  ["nam", "นำ", "nam", "带；带领；拿来", "动词", "生活搭配", "กรุณานำบัตรนักเรียนมาด้วย", "ga-ru-naa nam bat nak-riian maa duai", "请把学生证也带来。", "ตาม", "dtaam", "跟随"],
+  ["song", "ส่ง", "song", "送；发送；递交", "动词", "生活搭配", "นักเรียนส่งการบ้านให้ครูก่อนเที่ยง", "nak-riian song gaan-baan hai khruu gaawn thiiang", "学生中午前把作业交给老师。", "รับ", "rap", "接收"],
+  ["rap-song", "รับส่ง", "rap song", "接送", "动词", "生活搭配", "พ่อรับส่งน้องที่โรงเรียนทุกวัน", "phaaw rap song naawng thii roong-riian thuk wan", "爸爸每天接送弟弟上学。", "เดินทางเอง", "doen-thaang eeng", "自己出行"],
+  ["phaa-bpai", "พาไป", "phaa bpai", "带去", "动词", "生活搭配", "แม่พาฉันไปซื้อรองเท้าคู่ใหม่", "maae phaa chan bpai sue raawng-thaao khuu mai", "妈妈带我去买一双新鞋。", "ไปรับ", "bpai rap", "去接"],
+  ["phaa-maa", "พามา", "phaa maa", "带来", "动词", "生活搭配", "ครูพานักเรียนใหม่มาที่ห้องเรียน", "khruu phaa nak-riian mai maa thii haawng-riian", "老师把新学生带到教室来。", "พาไป", "phaa bpai", "带去"],
+  ["riip", "รีบ", "riip", "赶快；急着", "动词", "生活搭配", "เราต้องรีบออกจากบ้านเพราะกลัวรถติด", "rao dtawng riip aawk jaak baan phraw glua rot dtit", "我们得赶快出门，因为怕堵车。", "ค่อย ๆ", "khaawy khaawy", "慢慢地"],
+  ["khaawy-khaawy", "ค่อย ๆ", "khaawy khaawy", "慢慢地；轻轻地", "副词", "生活搭配", "คุณยายเดินค่อย ๆ ขึ้นบันได", "khun-yaai doen khaawy khaawy kheun ban-dai", "外婆慢慢地上楼梯。", "รีบ", "riip", "赶快"],
+  ["thuk", "ถูก", "thuuk", "正确；便宜；被", "形容词", "生活搭配", "คำตอบของเธอถูก แต่ต้องเขียนให้ชัด", "kham-dtaawp khaawng thoe thuuk dtaae dtawng khiian hai chat", "她的答案是对的，但要写清楚。", "ผิด", "phit", "错"],
+  ["phit", "ผิด", "phit", "错；不对", "形容词", "生活搭配", "ถ้าตอบผิด ครูจะอธิบายอีกครั้ง", "thaa dtaawp phit khruu ja a-thi-baai iik khrang", "如果答错，老师会再解释一次。", "ถูก", "thuuk", "对"],
+  ["loek", "เลิก", "loek", "结束；停止", "动词", "时间", "โรงเรียนเลิกตอนสี่โมงเย็น", "roong-riian loek dtaawn sii moong yen", "学校下午四点放学。", "เริ่ม", "roem", "开始"],
+  ["roem", "เริ่ม", "roem", "开始", "动词", "时间", "หนังเริ่มตอนสองทุ่มพอดี", "nang roem dtaawn saawng thum phaaw-dii", "电影正好晚上八点开始。", "เลิก", "loek", "结束"],
+  ["jop", "จบ", "jop", "结束；完成", "动词", "时间", "เมื่อเรียนจบ เราไปกินข้าวด้วยกัน", "muea riian jop rao bpai gin khaao duai gan", "下课后，我们一起去吃饭。", "เริ่ม", "roem", "开始"],
+  ["dtaaw", "ต่อ", "dtaaw", "继续；接着；对着", "动词", "生活搭配", "หลังพักสิบนาที เราเรียนต่อ", "lang phak sip naa-thii rao riian dtaaw", "休息十分钟后，我们继续上课。", "หยุด", "yut", "停止"],
+  ["yut", "หยุด", "yut", "停；停止；休假", "动词", "生活搭配", "รถหยุดที่ป้ายหน้าโรงพยาบาล", "rot yut thii bpaai naa roong-pha-yaa-baan", "车在医院前的站牌停下。", "ต่อ", "dtaaw", "继续"],
+  ["bplian", "เปลี่ยน", "bpliian", "换；改变", "动词", "生活搭配", "เสื้อตัวนี้เล็กไป ฉันอยากเปลี่ยนไซซ์", "seua dtua nii lek bpai chan yaak bpliian sai", "这件衣服太小，我想换尺码。", "เหมือนเดิม", "muean doem", "和原来一样"],
+  ["triam", "เตรียม", "dtriiam", "准备", "动词", "生活搭配", "แม่เตรียมอาหารเช้าให้ทุกคน", "maae dtriiam aa-haan chaao hai thuk khon", "妈妈给大家准备早餐。", "ลืม", "leum", "忘记"],
+  ["dtruat", "ตรวจ", "dtruat", "检查", "动词", "生活搭配", "ก่อนออกจากบ้าน พ่อตรวจประตูอีกครั้ง", "gaawn aawk jaak baan phaaw dtruat bpra-dtuu iik khrang", "出门前，爸爸又检查了一次门。", "มองผ่าน", "maawng phaan", "略过"],
+  ["khoei", "เคย", "khoei", "曾经；有过经验", "副词", "时间", "ฉันเคยไปเชียงใหม่กับครอบครัว", "chan khoei bpai chiiang-mai gap khraawp-khrua", "我曾经和家人去过清迈。", "ไม่เคย", "mai khoei", "从未"],
+  ["mai-khoei", "ไม่เคย", "mai khoei", "从未；没有过", "副词", "时间", "เขาไม่เคยขึ้นรถไฟใต้ดินมาก่อน", "khao mai khoei kheun rot-fai-dtai-din maa gaawn", "他以前从没坐过地铁。", "เคย", "khoei", "曾经"],
+  ["yang", "ยัง", "yang", "还；仍然", "副词", "时间", "ฉันยังรอคำตอบจากเพื่อนอยู่", "chan yang raaw kham-dtaawp jaak phuean yuu", "我还在等朋友的回答。", "แล้ว", "laaeo", "已经"],
+  ["laaeo", "แล้ว", "laaeo", "已经；了", "副词", "时间", "ฉันส่งการบ้านให้ครูแล้ว", "chan song gaan-baan hai khruu laaeo", "我已经把作业交给老师了。", "ยัง", "yang", "还"],
+];
+
+const buildCandidate = (row: Row, index: number): VocabularyExpansionCandidate => {
+  const related: VocabularyExpansionRelated = { thai: row[9], roman: row[10], chinese: row[11] };
+  const comparison: VocabularyExpansionComparison = { kind: "usage", target: related, distinctionZh: `${row[1]} 是 A1 高频核心表达；和 ${related.thai} 对照记，可以分清人物、物品、地点、时间和基础动作的搭配。` };
+  const example = { thai: row[6], roman: row[7], chinese: row[8] };
+  const collocations = [{ thai: row[1], roman: row[2], chinese: row[3] }, related];
+  return {
+    id: row[0],
+    thai: row[1],
+    roman: row[2],
+    chinese: row[3],
+    partOfSpeech: row[4],
+    theme: row[5],
+    level: "a1",
+    priority: index + 1,
+    senses: [{ id: `${row[0]}-main`, chinese: row[3], examples: [example], synonyms: [], antonyms: [], comparisons: [comparison], collocations, tags: [row[5]] }],
+    synonyms: [],
+    antonyms: [],
+    comparisons: [comparison],
+    collocations,
+    tags: [row[5], "A1基础", "核心补漏"],
+    sourceRefs: CORE_REFS,
+    reviewStatus: "candidate-draft",
+  };
+};
+
+export const VOCABULARY_EXPANSION_A1_CORE_NOUNS_VERBS_02: VocabularyExpansionCandidate[] = rows.map(buildCandidate);

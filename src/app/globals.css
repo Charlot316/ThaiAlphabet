@@ -13,36 +13,98 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
-  --duo-green: #28d7f4;
-  --duo-green-d: #97f2ff;
-  --duo-green-shadow: rgba(40, 215, 244, 0.18);
-  --duo-blue: #80b8ff;
-  --duo-blue-d: #bddbff;
-  --duo-purple: #aa9cff;
-  --duo-purple-d: #d4ccff;
-  --duo-orange: #f5ad4e;
-  --duo-orange-d: #ffd08a;
-  --duo-yellow: #f4cf5b;
-  --duo-red: #ff6578;
-  --duo-red-d: #ffa0ad;
-  --duo-bg: #020a0f;
-  --duo-card: #06141c;
-  --duo-line: rgba(130, 220, 245, 0.14);
-  --duo-line-d: rgba(130, 220, 245, 0.28);
-  --duo-text: #f3fbff;
-  --duo-muted: #8ea7b5;
-  --surface-solid: #081720;
-  --surface-subtle: #0b1d27;
-  --surface-pressed: rgba(40, 215, 244, 0.12);
+  color-scheme: light;
+  --duo-green: #58cc02;
+  --duo-green-d: #2f8700;
+  --duo-green-shadow: rgba(88, 204, 2, 0.2);
+  --duo-blue: #1cb0f6;
+  --duo-blue-d: #09699e;
+  --duo-purple: #ce82ff;
+  --duo-purple-d: #7a36b1;
+  --duo-orange: #ff9600;
+  --duo-orange-d: #a85300;
+  --duo-yellow: #ffc800;
+  --duo-red: #ff4b4b;
+  --duo-red-d: #bd2424;
+  --duo-bg: #f7fbf2;
+  --duo-card: #ffffff;
+  --duo-line: #dde8d2;
+  --duo-line-d: #bfd5aa;
+  --duo-text: #24301f;
+  --duo-muted: #6f7f68;
+  --surface-solid: #ffffff;
+  --surface-subtle: #eef7e8;
+  --surface-pressed: #e5f5db;
+  --surface-raised-edge: #cfdcc3;
   --shadow-soft:
-    0 1px 0 rgba(255, 255, 255, 0.055) inset,
-    0 22px 50px rgba(0, 9, 16, 0.32),
-    0 0 42px rgba(23, 182, 216, 0.045);
-  --shadow-small:
-    0 1px 0 rgba(255, 255, 255, 0.045) inset,
-    0 12px 28px rgba(0, 9, 16, 0.24);
-  --shadow-cyan: 0 0 0 1px rgba(40, 215, 244, 0.28), 0 0 28px rgba(40, 215, 244, 0.14);
+    0 2px 0 var(--surface-raised-edge),
+    0 12px 24px rgba(71, 94, 55, 0.08);
+  --shadow-small: 0 2px 0 var(--surface-raised-edge);
+  --shadow-cyan: 0 3px 0 #46a302, 0 10px 18px rgba(88, 204, 2, 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --duo-green: #58cc02;
+    --duo-green-d: #9be24b;
+    --duo-green-shadow: rgba(88, 204, 2, 0.24);
+    --duo-blue: #1cb0f6;
+    --duo-blue-d: #73d3ff;
+    --duo-purple: #ce82ff;
+    --duo-purple-d: #e0b5ff;
+    --duo-orange: #ff9600;
+    --duo-orange-d: #ffc16a;
+    --duo-yellow: #ffd84d;
+    --duo-red: #ff5a5f;
+    --duo-red-d: #ff9b9f;
+    --duo-bg: #10170e;
+    --duo-card: #172215;
+    --duo-line: #2d3d27;
+    --duo-line-d: #466038;
+    --duo-text: #f4faef;
+    --duo-muted: #a9b9a0;
+    --surface-solid: #1b2917;
+    --surface-subtle: #22331c;
+    --surface-pressed: #29401f;
+    --surface-raised-edge: #0a1208;
+    --shadow-soft:
+      0 2px 0 var(--surface-raised-edge),
+      0 16px 32px rgba(0, 0, 0, 0.22);
+    --shadow-small: 0 2px 0 var(--surface-raised-edge);
+    --shadow-cyan: 0 3px 0 #347d00, 0 12px 22px rgba(88, 204, 2, 0.16);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --duo-green: #58cc02;
+  --duo-green-d: #9be24b;
+  --duo-green-shadow: rgba(88, 204, 2, 0.24);
+  --duo-blue: #1cb0f6;
+  --duo-blue-d: #73d3ff;
+  --duo-purple: #ce82ff;
+  --duo-purple-d: #e0b5ff;
+  --duo-orange: #ff9600;
+  --duo-orange-d: #ffc16a;
+  --duo-yellow: #ffd84d;
+  --duo-red: #ff5a5f;
+  --duo-red-d: #ff9b9f;
+  --duo-bg: #10170e;
+  --duo-card: #172215;
+  --duo-line: #2d3d27;
+  --duo-line-d: #466038;
+  --duo-text: #f4faef;
+  --duo-muted: #a9b9a0;
+  --surface-solid: #1b2917;
+  --surface-subtle: #22331c;
+  --surface-pressed: #29401f;
+  --surface-raised-edge: #0a1208;
+  --shadow-soft:
+    0 2px 0 var(--surface-raised-edge),
+    0 16px 32px rgba(0, 0, 0, 0.22);
+  --shadow-small: 0 2px 0 var(--surface-raised-edge);
+  --shadow-cyan: 0 3px 0 #347d00, 0 12px 22px rgba(88, 204, 2, 0.16);
 }
 
 html, body {
@@ -56,10 +118,6 @@ html, body {
 
 body {
   background-color: var(--duo-bg);
-  background-image:
-    radial-gradient(circle at 18% -8%, rgba(40, 215, 244, 0.16), transparent 34rem),
-    radial-gradient(circle at 78% 8%, rgba(59, 130, 246, 0.1), transparent 30rem),
-    linear-gradient(180deg, #04121a 0%, #020a0f 42%, #01070b 100%);
   color: var(--duo-text);
   font-family: "Noto Sans SC", "Inter", "Droid Sans Thai", "Noto Sans Thai Looped", "Noto Sans Thai",
     ui-sans-serif, system-ui, -apple-system, "Segoe UI",
@@ -68,17 +126,9 @@ body {
   letter-spacing: 0;
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(130, 220, 245, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(130, 220, 245, 0.03) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.5), transparent 72%);
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--duo-green) 52%, transparent);
+  outline-offset: 2px;
 }
 
 .thai-big {
@@ -101,7 +151,7 @@ body::before {
     min-width: 0;
     max-width: 100%;
     border: 1px solid transparent;
-    box-shadow: none;
+    box-shadow: 0 2px 0 transparent;
     letter-spacing: 0;
   }
   .btn:hover:not(:disabled) {
@@ -113,9 +163,9 @@ body::before {
 
   .btn-primary {
     @apply btn;
-    background: linear-gradient(180deg, #49e3fa 0%, var(--duo-green) 100%);
-    color: #021016;
-    border-color: rgba(151, 242, 255, 0.42);
+    background: var(--duo-green);
+    color: #143000;
+    border-color: #58cc02;
     box-shadow: var(--shadow-cyan);
   }
 
@@ -149,10 +199,10 @@ body::before {
 
   .btn-ghost {
     @apply btn;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)), var(--surface-subtle);
+    background: var(--surface-subtle);
     color: var(--duo-text);
     border-color: var(--duo-line);
-    box-shadow: none;
+    box-shadow: var(--shadow-small);
   }
   .btn-ghost:hover:not(:disabled) {
     background: var(--surface-pressed);
@@ -166,9 +216,7 @@ body::before {
     min-width: 0;
     max-width: 100%;
     overflow-wrap: anywhere;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.006)),
-      var(--duo-card);
+    background: var(--duo-card);
     color: var(--duo-text);
     border: 1px solid var(--duo-line);
     box-shadow: var(--shadow-small);
@@ -182,13 +230,13 @@ body::before {
     border-color: var(--duo-green) !important;
     background: color-mix(in srgb, var(--duo-green) 13%, var(--duo-card));
     color: var(--duo-green-d);
-    box-shadow: var(--shadow-cyan);
+    box-shadow: var(--shadow-small);
   }
   .opt-correct {
     border-color: var(--duo-green) !important;
     background: color-mix(in srgb, var(--duo-green) 12%, var(--duo-card));
     color: var(--duo-green-d);
-    box-shadow: var(--shadow-cyan);
+    box-shadow: var(--shadow-small);
   }
   .opt-wrong {
     border-color: var(--duo-red) !important;
@@ -200,17 +248,13 @@ body::before {
   /* 卡片 */
   .card {
     @apply rounded-lg p-4;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008)),
-      var(--duo-card);
+    background: var(--duo-card);
     border: 1px solid var(--duo-line);
-    box-shadow: none;
+    box-shadow: var(--shadow-small);
   }
   .card-soft {
     @apply rounded-lg p-4;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.01)),
-      color-mix(in srgb, var(--duo-card) 92%, #0b2734);
+    background: var(--duo-card);
     border: 1px solid var(--duo-line);
     box-shadow: var(--shadow-soft);
     backdrop-filter: none;
@@ -235,12 +279,12 @@ body::before {
   /* 进度条 */
   .progress-track {
     @apply relative h-2 w-full overflow-hidden rounded-full;
-    background: rgba(130, 220, 245, 0.12);
+    background: color-mix(in srgb, var(--duo-line) 68%, var(--duo-card));
   }
   .progress-fill {
     @apply h-full rounded-full transition-[width] duration-500;
-    background: linear-gradient(90deg, var(--duo-green), #61f4ff);
-    box-shadow: 0 0 18px rgba(40, 215, 244, 0.28);
+    background: var(--duo-green);
+    box-shadow: none;
   }
 
   /* 顶部状态条徽章 */

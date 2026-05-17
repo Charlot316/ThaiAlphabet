@@ -308,7 +308,7 @@ export default function TraceSvg({
     <div className="space-y-2">
       <div
         className="card-soft mx-auto max-w-[20rem] overflow-hidden p-2 sm:max-w-[24rem]"
-        style={{ borderColor: "rgba(130, 220, 245, 0.22)" }}
+        style={{ borderColor: "var(--duo-line-d)" }}
       >
         <svg
           ref={svgRef}
@@ -316,7 +316,7 @@ export default function TraceSvg({
           className="block w-full select-none touch-none"
           style={{
             aspectRatio: `${vb.w} / ${vb.h}`,
-            background: "linear-gradient(180deg, #ffffff 0%, #f8fbfc 100%)",
+            background: "#ffffff",
             borderRadius: "0.375rem",
             touchAction: "none",
             overscrollBehavior: "contain",

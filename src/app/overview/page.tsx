@@ -33,10 +33,10 @@ export default function OverviewPage() {
             style={
               tab === t
                 ? {
-                    background: "rgba(40, 215, 244, 0.1)",
-                    borderColor: "rgba(40, 215, 244, 0.26)",
+                    background: "var(--duo-card)",
+                    borderColor: "var(--duo-line-d)",
                     color: "var(--duo-green-d)",
-                    boxShadow: "inset 0 -1px 0 var(--duo-green)",
+                    boxShadow: "0 2px 0 var(--surface-raised-edge)",
                   }
                 : { background: "transparent", borderColor: "transparent" }
             }
@@ -62,6 +62,15 @@ function vowelLengthTag(length: Vowel["length"]) {
   return length === "long"
     ? <span className="chip chip-raised chip-blue h-7 min-w-7 justify-center px-2">长</span>
     : <span className="chip chip-raised chip-yellow h-7 min-w-7 justify-center px-2">短</span>;
+}
+
+function overviewGlyphSize(text: string, base: "consonant" | "vowel") {
+  if (base === "consonant") return "text-4xl";
+  const length = Array.from(text.replace(/\u25cc/g, "")).length;
+  if (length >= 5) return "text-[1.65rem]";
+  if (length >= 4) return "text-[1.85rem]";
+  if (length >= 3) return "text-[2.05rem]";
+  return "text-3xl";
 }
 
 function Consonants() {
@@ -227,9 +236,9 @@ function ConsonantCard({
   const pct = Math.round((value / MASTERY_TARGET) * 100);
   return (
     <li
-      className="card group relative flex min-h-[138px] cursor-pointer flex-col p-3 transition hover:-translate-y-0.5"
+      className="card group relative flex min-h-[148px] cursor-pointer flex-col p-3 transition hover:-translate-y-0.5"
       onClick={() => onSelect(c)}
-      style={{ boxShadow: value > 0 ? "0 0 22px rgba(40, 215, 244, 0.045)" : undefined }}
+      style={{ boxShadow: value > 0 ? "var(--shadow-small)" : undefined }}
     >
       <div className="mb-3">
         <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
@@ -255,8 +264,10 @@ function ConsonantCard({
           <div className="progress-fill" style={{ width: `${pct}%` }} />
         </div>
       </div>
-      <div className="grid grid-cols-[1fr_auto] items-start gap-2">
-        <div className="thai-big min-w-0 text-4xl leading-none">{c.letter}</div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+        <div className={`thai-big flex min-h-14 min-w-0 items-center overflow-visible whitespace-nowrap leading-[1.35] ${overviewGlyphSize(c.letter, "consonant")}`}>
+          {c.letter}
+        </div>
         <div className="flex shrink-0 items-start gap-1">
           {classTag(c.class)}
         </div>
@@ -433,7 +444,7 @@ function VowelCard({
 }) {
   const pct = Math.round((value / MASTERY_TARGET) * 100);
   return (
-    <li className="card group relative flex min-h-[138px] cursor-pointer flex-col p-3 transition hover:-translate-y-0.5" onClick={() => onSelect(v)}>
+    <li className="card group relative flex min-h-[158px] cursor-pointer flex-col p-3 transition hover:-translate-y-0.5" onClick={() => onSelect(v)}>
       <div className="mb-3">
         <div className="mb-1 flex items-center justify-between text-[11px] opacity-60">
           <span>熟练度</span>
@@ -458,8 +469,10 @@ function VowelCard({
           <div className="progress-fill" style={{ width: `${pct}%` }} />
         </div>
       </div>
-      <div className="grid grid-cols-[1fr_auto] items-start gap-2">
-        <div className="thai-big min-w-0 truncate text-3xl leading-none">{v.display}</div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+        <div className={`thai-big flex min-h-16 min-w-0 items-center overflow-visible whitespace-nowrap leading-[1.45] ${overviewGlyphSize(v.display, "vowel")}`}>
+          {v.display}
+        </div>
         <div className="flex shrink-0 items-start gap-1">
           {vowelLengthTag(v.length)}
         </div>

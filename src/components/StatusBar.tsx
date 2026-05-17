@@ -11,7 +11,7 @@ export default function StatusBar() {
           size={16}
           strokeWidth={2.3}
           aria-hidden
-          style={{ color: s.streak > 0 ? "var(--duo-green-d)" : "var(--duo-muted)" }}
+          style={{ color: s.streak > 0 ? "var(--duo-orange)" : "var(--duo-muted)" }}
         />
         <span style={{ color: s.streak > 0 ? "var(--duo-text)" : "var(--duo-muted)" }}>
           {s.streak}
@@ -29,9 +29,10 @@ export function HeroStatusBar() {
         <div
           className="flex h-10 w-10 items-center justify-center rounded-lg border"
           style={{
-            background: "rgba(40, 215, 244, 0.09)",
-            color: s.streak > 0 ? "var(--duo-green-d)" : "var(--duo-muted)",
-            borderColor: "rgba(40, 215, 244, 0.2)",
+            background: "color-mix(in srgb, var(--duo-orange) 12%, var(--duo-card))",
+            color: s.streak > 0 ? "var(--duo-orange)" : "var(--duo-muted)",
+            borderColor: "color-mix(in srgb, var(--duo-orange) 28%, var(--duo-line))",
+            boxShadow: "0 2px 0 var(--surface-raised-edge)",
           }}
         >
           <Flame size={19} strokeWidth={2.3} />

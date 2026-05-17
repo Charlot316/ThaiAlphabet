@@ -7,6 +7,7 @@
     "build": "next build",
     "lexicon:build": "node scripts/build-thai-lexicon.mjs",
     "vocab:enrich:batch": "node scripts/build-vocabulary-enrichment.mjs",
+    "vocab:catalog": "node scripts/build-vocabulary-catalog.mjs",
     "start": "next start",
     "lint": "next lint"
   },
