@@ -94,6 +94,10 @@ export default function VocabularyPage() {
     speak(entry.thai, { rate: 0.86 });
   }
 
+  function playExample(thai: string) {
+    speak(thai, { rate: 0.86 });
+  }
+
   return (
     <div className="space-y-5">
       <section className="card-soft p-5 sm:p-6">
@@ -253,6 +257,7 @@ export default function VocabularyPage() {
       <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {pageItems.map((entry) => {
           const selected = selectedEntryKey === entryKey(entry);
+          const example = entry.example;
           return (
             <article
               key={entryKey(entry)}
@@ -303,11 +308,29 @@ export default function VocabularyPage() {
               )}
             </div>
 
-            {entry.example && (
+            {example && (
               <div className="mt-3 rounded-lg border p-3 text-sm leading-6" style={{ borderColor: "var(--duo-line)", background: "var(--surface-subtle)" }}>
-                <div className="thai-big text-lg">{entry.example.thai}</div>
-                <div className="font-mono text-xs" style={{ color: "var(--duo-muted)" }}>{entry.example.roman}</div>
-                <div className="mt-1">{entry.example.chinese}</div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="thai-big text-lg">{example.thai}</div>
+                    <div className="font-mono text-xs" style={{ color: "var(--duo-muted)" }}>{example.roman}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      playExample(example.thai);
+                    }}
+                    className="btn-blue h-9 shrink-0 px-3 py-0 text-xs"
+                    aria-label={`播放例句 ${example.thai}`}
+                    title="播放例句"
+                  >
+                    <Volume2 size={15} strokeWidth={2.2} />
+                    例句
+                  </button>
+                </div>
+                <div className="mt-1">{example.chinese}</div>
               </div>
             )}
 
