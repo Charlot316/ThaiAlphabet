@@ -23,6 +23,7 @@ import {
   type CourseRoadmapLesson,
   lessonStatus,
   loadCourseProgress,
+  unitStatus,
 } from "@/lib/curriculum";
 import { GRAMMAR_LESSON_PLANS } from "@/lib/grammarCourse";
 import { ALPHABET_FINAL_EXAM_POLICY, useAlphabetFinalExamResult } from "@/lib/moduleProgress";
@@ -35,9 +36,10 @@ const PHASE_ICONS = {
 };
 
 function lessonHref(lesson: CourseRoadmapLesson) {
-  if (lesson.kind === "phonics-path") return lesson.sourceCourseLessonId
-    ? `/course?lesson=${lesson.sourceCourseLessonId}`
-    : "/course";
+  if (lesson.kind === "phonics-path") {
+    if (lesson.sourceCourseUnit) return `/course?unit=${encodeURIComponent(lesson.sourceCourseUnit)}`;
+    return lesson.sourceCourseLessonId ? `/course?lesson=${lesson.sourceCourseLessonId}` : "/course";
+  }
   const focusPointId = lesson.grammarPointIds?.length === 1 ? lesson.grammarPointIds[0] : undefined;
   const focusLesson = focusPointId
     ? GRAMMAR_LESSON_PLANS.find((item) => item.focusPointId === focusPointId)
@@ -54,7 +56,7 @@ function lessonHref(lesson: CourseRoadmapLesson) {
 }
 
 function lessonActionLabel(lesson: CourseRoadmapLesson) {
-  if (lesson.kind === "phonics-path") return "去字母课";
+  if (lesson.kind === "phonics-path") return "进入阶段";
   if (lesson.kind === "vocabulary-band" || lesson.kind === "domain-vocabulary") return "看词汇";
   return "预览语法课";
 }
@@ -299,9 +301,9 @@ export default function CoursesPage() {
         {COURSE_ROADMAP_PHASES.map((phase) => {
           const Icon = PHASE_ICONS[phase.id];
           const locked = phase.id !== "phonics" && !grammarUnlocked;
-          const phonicsDoneCount = MAIN_COURSE.filter((lesson) =>
-            courseProgress.completedLessonIds.includes(lesson.id) ||
-            courseProgress.skippedUnits.includes(lesson.unit)
+          const phonicsUnits = phase.id === "phonics" ? phase.units.flatMap((unit) => unit.lessons) : [];
+          const phonicsDoneCount = phonicsUnits.filter((lesson) =>
+            lesson.sourceCourseUnit && ["done", "skipped"].includes(unitStatus(lesson.sourceCourseUnit, courseProgress))
           ).length;
           return (
             <article key={phase.id} className="card-soft overflow-hidden">
@@ -330,7 +332,7 @@ export default function CoursesPage() {
                   </div>
                   <span className={locked ? "chip chip-low" : "chip chip-high"}>
                     {phase.id === "phonics"
-                      ? `${phonicsDoneCount}/${MAIN_COURSE.length} 已完成`
+                      ? `${phonicsDoneCount}/${phonicsUnits.length} 阶段已完成`
                       : locked
                         ? phase.unlockRuleZh
                         : "已解锁"}
@@ -376,7 +378,7 @@ export default function CoursesPage() {
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <div className="text-xs font-semibold" style={{ color: "var(--duo-green-d)" }}>
-                          {unit.level.toUpperCase()} · {unit.lessons.length} 节
+                          {unit.level.toUpperCase()} · {unit.lessons.length} {unit.phaseId === "phonics" ? "阶段" : "节"}
                         </div>
                         <h3 className="mt-1 font-semibold">{unit.title}</h3>
                         <p className="mt-1 text-sm leading-6" style={{ color: "var(--duo-muted)" }}>
@@ -395,7 +397,9 @@ export default function CoursesPage() {
                           ? MAIN_COURSE.find((item) => item.id === lesson.sourceCourseLessonId)
                           : undefined;
                         const phonicsStatus = sourceLesson
-                          ? lessonStatus(sourceLesson, courseProgress)
+                          ? lesson.sourceCourseUnit
+                            ? unitStatus(lesson.sourceCourseUnit, courseProgress)
+                            : lessonStatus(sourceLesson, courseProgress)
                           : "available";
                         const disabled = locked && lesson.kind !== "phonics-path";
                         return {

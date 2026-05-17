@@ -949,6 +949,11 @@ export default function CoursePage() {
   const [correctCount, setCorrectCount] = useState(0);
   const [mistakeCount, setMistakeCount] = useState(0);
   const [pendingMemoryCorrect, setPendingMemoryCorrect] = useState(false);
+  const [focusedUnit, setFocusedUnit] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const unit = new URLSearchParams(window.location.search).get("unit");
+    return unit && MAIN_COURSE.some((lesson) => lesson.unit === unit) ? unit : null;
+  });
   const completedRecordedRef = useRef<string | null>(null);
   const skippedRecordedRef = useRef<string | null>(null);
   const routeLessonStartedRef = useRef<string | null>(null);
@@ -1130,7 +1135,12 @@ export default function CoursePage() {
 
   useEffect(() => {
     if (typeof window === "undefined" || session) return;
-    const lessonId = new URLSearchParams(window.location.search).get("lesson");
+    const params = new URLSearchParams(window.location.search);
+    const unit = params.get("unit");
+    if (unit && MAIN_COURSE.some((lesson) => lesson.unit === unit)) {
+      setFocusedUnit(unit);
+    }
+    const lessonId = params.get("lesson");
     if (!lessonId || routeLessonStartedRef.current === lessonId) return;
     const lesson = MAIN_COURSE.find((item) => item.id === lessonId);
     if (!lesson) return;
@@ -1140,6 +1150,13 @@ export default function CoursePage() {
     // URL 参数只用于首次落到指定小课；课程内部状态仍由本页控制。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseProgress, session]);
+
+  function clearFocusedUnit() {
+    setFocusedUnit(null);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }
 
   function gainMastery(itemId: string, amount: number) {
     setProgress(recordMastery(itemId, amount));
@@ -1511,10 +1528,12 @@ export default function CoursePage() {
         mastery={progress}
         unlockedCount={unlockedCount}
         upcomingLesson={upcomingLesson}
+        focusedUnit={focusedUnit}
         allItems={allItems}
         onStartLesson={startCourseLesson}
         onStartPractice={startPractice}
         onStartChallenge={startUnitChallenge}
+        onClearFocusedUnit={clearFocusedUnit}
         onReset={resetProgress}
       />
     );
@@ -1701,20 +1720,24 @@ function CourseHome({
   mastery,
   unlockedCount,
   upcomingLesson,
+  focusedUnit,
   allItems,
   onStartLesson,
   onStartPractice,
   onStartChallenge,
+  onClearFocusedUnit,
   onReset,
 }: {
   progress: CourseProgress;
   mastery: MasteryProgress;
   unlockedCount: number;
   upcomingLesson: CourseLesson | null;
+  focusedUnit: string | null;
   allItems: StudyItem[];
   onStartLesson: (lesson: CourseLesson) => void;
   onStartPractice: (mode: PracticeMode["id"]) => void;
   onStartChallenge: (unit: string) => void;
+  onClearFocusedUnit: () => void;
   onReset: () => void;
 }) {
   const unlocked = filterUnlockedItems(allItems, progress);
@@ -1747,6 +1770,7 @@ function CourseHome({
     acc[lesson.unit] = [...(acc[lesson.unit] ?? []), lesson];
     return acc;
   }, {});
+  const visibleUnits = focusedUnit && units[focusedUnit] ? { [focusedUnit]: units[focusedUnit] } : units;
 
   return (
     <div className="space-y-5">
@@ -1764,7 +1788,7 @@ function CourseHome({
               第 {currentLessonNumber} / {MAIN_COURSE.length} 节
             </div>
             <h1 className="mt-0.5 truncate text-xl font-semibold sm:text-2xl">
-              {currentUnit ?? "课程路径"}
+              {focusedUnit ? focusedUnit.replace(/^第.+?·\s*/, "") : currentUnit ?? "课程路径"}
             </h1>
             {upcomingLesson && (
               <div className="mt-0.5 truncate text-sm font-semibold" style={{ color: "var(--duo-blue-d)" }}>
@@ -1798,16 +1822,21 @@ function CourseHome({
           </div>
         </div>
 
-        {upcomingLesson && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Link href="/courses" className="btn-ghost px-4 py-2 text-xs">
-              返回总课程
-            </Link>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link href="/courses" className="btn-ghost px-4 py-2 text-xs">
+            返回总课程
+          </Link>
+          {focusedUnit && (
+            <button type="button" onClick={onClearFocusedUnit} className="btn-ghost px-4 py-2 text-xs">
+              全部阶段
+            </button>
+          )}
+          {upcomingLesson && (
             <button onClick={() => onStartLesson(upcomingLesson)} className="btn-primary px-4 py-2 text-xs">
               继续学习
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </section>
 
       <section
@@ -1825,7 +1854,7 @@ function CourseHome({
           aria-hidden
         />
         <div className="relative mx-auto max-w-2xl">
-          {Object.entries(units).map(([unit, lessons], unitIndex) => (
+          {Object.entries(visibleUnits).map(([unit, lessons], unitIndex) => (
             <CoursePathUnit
               key={unit}
               unit={unit}

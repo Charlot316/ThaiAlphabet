@@ -534,6 +534,7 @@ export interface CourseRoadmapLesson {
   kind: CourseRoadmapLessonKind;
   level: ContentLevel;
   sourceCourseLessonId?: string;
+  sourceCourseUnit?: string;
   studyItemIds?: string[];
   newGrammarCoverageIds?: string[];
   reviewGrammarCoverageIds?: string[];
@@ -634,15 +635,21 @@ const PHONICS_ROADMAP_UNIT: CourseRoadmapUnit = {
   title: "语音单元 · 字母、元音和拼读",
   subtitle: "沿用现在的字母表课程，先把文字和基础发音跑通。",
   level: "pre-a1",
-  completionGateZh: "完成全部字母/元音/拼读小课，解锁语法主线。",
-  lessons: MAIN_COURSE.map((lesson) => ({
-    id: `roadmap-${lesson.id}`,
-    title: lesson.title,
-    subtitle: lesson.subtitle,
+  completionGateZh: "完成 14 个语音阶段，解锁语法主线。",
+  lessons: Object.entries(
+    MAIN_COURSE.reduce<Record<string, CourseLesson[]>>((acc, lesson) => {
+      acc[lesson.unit] = [...(acc[lesson.unit] ?? []), lesson];
+      return acc;
+    }, {})
+  ).map(([unit, lessons], index) => ({
+    id: `roadmap-phonics-unit-${String(index + 1).padStart(2, "0")}`,
+    title: unit,
+    subtitle: `${lessons.length} 节小课 · ${lessons.map((lesson) => lesson.title).join(" / ")}`,
     kind: "phonics-path",
     level: "pre-a1",
-    sourceCourseLessonId: lesson.id,
-    studyItemIds: lesson.itemIds,
+    sourceCourseUnit: unit,
+    sourceCourseLessonId: lessons[0]?.id,
+    studyItemIds: uniq(lessons.flatMap((lesson) => lesson.itemIds)),
     newGrammarCoverageIds: ["coverage-01-phonology-writing"],
   })),
 };
