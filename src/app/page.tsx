@@ -129,7 +129,6 @@ export default function Home() {
             background: "var(--surface-subtle)",
             border: "1px solid var(--duo-line)",
             borderRadius: "999px 999px 0 0",
-            boxShadow: "inset 0 0 0 10px color-mix(in srgb, var(--duo-green) 10%, transparent)",
           }}
         />
         <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
@@ -157,7 +156,6 @@ export default function Home() {
                 style={{
                   borderColor: "var(--duo-line)",
                   background: "var(--surface-subtle)",
-                  boxShadow: "0 2px 0 var(--surface-raised-edge)",
                 }}
               >
                 <div className="text-xl font-semibold">{value}</div>

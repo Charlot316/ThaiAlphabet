@@ -91,7 +91,6 @@ export default function SettingsPage() {
                     ? {
                         background: "var(--duo-card)",
                         color: "var(--duo-green-d)",
-                        boxShadow: "0 2px 0 var(--surface-raised-edge)",
                       }
                     : { color: "var(--duo-muted)" }
                 }

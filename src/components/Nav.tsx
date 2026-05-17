@@ -31,7 +31,6 @@ export default function Nav() {
         style={{
           background: "color-mix(in srgb, var(--duo-card) 94%, transparent)",
           borderBottom: "1px solid var(--duo-line)",
-          boxShadow: "0 2px 0 color-mix(in srgb, var(--duo-line) 70%, transparent)",
           backdropFilter: "blur(14px)",
         }}
       >
@@ -43,7 +42,6 @@ export default function Nav() {
                 background: "var(--surface-subtle)",
                 border: "1px solid var(--duo-line)",
                 color: "var(--duo-green-d)",
-                boxShadow: "0 2px 0 var(--surface-raised-edge)",
               }}
             >
               ก
@@ -74,7 +72,6 @@ export default function Nav() {
         style={{
           background: "color-mix(in srgb, var(--duo-card) 94%, transparent)",
           borderTop: "1px solid var(--duo-line)",
-          boxShadow: "0 -2px 0 color-mix(in srgb, var(--duo-line) 70%, transparent)",
           backdropFilter: "blur(14px)",
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
@@ -95,7 +92,6 @@ export default function Nav() {
                     color: active ? "var(--duo-green-d)" : "var(--duo-muted)",
                     background: active ? "var(--surface-subtle)" : "transparent",
                     border: active ? "1px solid var(--duo-line-d)" : "1px solid transparent",
-                    boxShadow: active ? "0 2px 0 var(--surface-raised-edge)" : "none",
                   }}
                 >
                   <Icon size={18} strokeWidth={active ? 2.5 : 2} aria-hidden />
@@ -112,7 +108,6 @@ export default function Nav() {
                 color: pathname === "/settings" ? "var(--duo-green-d)" : "var(--duo-muted)",
                 background: pathname === "/settings" ? "var(--surface-subtle)" : "transparent",
                 border: pathname === "/settings" ? "1px solid var(--duo-line-d)" : "1px solid transparent",
-                boxShadow: pathname === "/settings" ? "0 2px 0 var(--surface-raised-edge)" : "none",
               }}
             >
               <Settings size={18} strokeWidth={pathname === "/settings" ? 2.5 : 2} aria-hidden />

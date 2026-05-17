@@ -36,7 +36,6 @@ export default function OverviewPage() {
                     background: "var(--duo-card)",
                     borderColor: "var(--duo-line-d)",
                     color: "var(--duo-green-d)",
-                    boxShadow: "0 2px 0 var(--surface-raised-edge)",
                   }
                 : { background: "transparent", borderColor: "transparent" }
             }
