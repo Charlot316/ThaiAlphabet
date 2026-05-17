@@ -951,7 +951,10 @@ export default function CoursePage() {
   const [progress, setProgress] = useState<MasteryProgress>(() => loadMastery());
   const [courseProgress, setCourseProgress] = useState<CourseProgress>(() => loadCourseProgress());
   const [localProgressReady, setLocalProgressReady] = useState(false);
-  const [route, setRoute] = useState(readCourseRoute);
+  const [route, setRoute] = useState<{ unit: string | null; lessonId: string | null }>({
+    unit: null,
+    lessonId: null,
+  });
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [index, setIndex] = useState(0);
@@ -962,11 +965,7 @@ export default function CoursePage() {
   const [correctCount, setCorrectCount] = useState(0);
   const [mistakeCount, setMistakeCount] = useState(0);
   const [pendingMemoryCorrect, setPendingMemoryCorrect] = useState(false);
-  const [focusedUnit, setFocusedUnit] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    const unit = new URLSearchParams(window.location.search).get("unit");
-    return unit && MAIN_COURSE.some((lesson) => lesson.unit === unit) ? unit : null;
-  });
+  const [focusedUnit, setFocusedUnit] = useState<string | null>(null);
   const completedRecordedRef = useRef<string | null>(null);
   const skippedRecordedRef = useRef<string | null>(null);
   const routeLessonStartedRef = useRef<string | null>(null);

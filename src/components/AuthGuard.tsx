@@ -11,6 +11,7 @@ import {
   subscribeAuth,
   validateSession,
 } from "@/lib/sync";
+import { installLocationChangeEvents } from "@/lib/routeEvents";
 
 function shouldBypassAuthLocally() {
   if (process.env.NODE_ENV === "development") return true;
@@ -19,37 +20,57 @@ function shouldBypassAuthLocally() {
 }
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(() => shouldBypassAuthLocally() || isLoggedIn());
+  const [ready, setReady] = useState(() => shouldBypassAuthLocally());
   const [logged, setLogged] = useState(() => shouldBypassAuthLocally() || isLoggedIn());
 
   useEffect(() => {
     if (shouldBypassAuthLocally()) {
+      installLocationChangeEvents();
       setLogged(true);
       setReady(true);
       return;
     }
 
     installSyncHook();
-    startAutoPull();
+    installLocationChangeEvents();
+    let alive = true;
     const sync = async () => {
       const v = isLoggedIn();
-      setLogged(v);
-      setReady(true);
-      if (v) {
-        const valid = await validateSession();
-        if (!valid) {
-          setLogged(false);
-          return;
-        }
-        cleanupLegacyKeys().catch(() => {});
-        pull();
-        pullStrokes();
+      if (!v) {
+        if (!alive) return;
+        setLogged(false);
+        setReady(true);
+        return;
       }
+
+      if (alive) {
+        setLogged(true);
+        setReady(false);
+      }
+
+      const valid = await validateSession();
+      if (!alive) return;
+      if (!valid) {
+        setLogged(false);
+        setReady(true);
+        return;
+      }
+
+      cleanupLegacyKeys().catch(() => {});
+      await pull();
+      if (!alive) return;
+      pullStrokes();
+      setLogged(isLoggedIn());
+      setReady(true);
     };
-    sync();
-    return subscribeAuth(() => {
+    sync().finally(() => startAutoPull());
+    const unsubscribe = subscribeAuth(() => {
       void sync();
     });
+    return () => {
+      alive = false;
+      unsubscribe();
+    };
   }, []);
 
   if (!ready) {
@@ -83,10 +104,7 @@ function LoginScreen() {
       setBusy(false);
       return;
     }
-    // 登录成功后，AuthGuard 会通过 subscribeAuth 收到事件并切换 UI；这里再触发一次清理 + pull
-    await cleanupLegacyKeys();
-    await pull();
-    pullStrokes();
+    // 登录成功后 AuthGuard 会先拉取云端进度，再放出应用页面。
     setBusy(false);
   }
 
