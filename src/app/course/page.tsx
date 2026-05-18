@@ -757,9 +757,10 @@ function buildQuestions(session: ActiveSession): Question[] {
     : [];
 
   const wantsTonePractice = session.kind === "tone-rule" || isToneRuleLesson(session);
+  const wantsLiveDeadPractice = session.kind === "live-dead" || session.kind === "tone-rule" || isLiveDeadLesson(session);
   const guidedTonePractice = !isChallenge;
   const toneGuideRound =
-    wantsTonePractice && guidedTonePractice && focusItems[0]
+    (wantsTonePractice || wantsLiveDeadPractice) && guidedTonePractice && focusItems[0]
       ? [makeToneGuideQuestion(session, focusItems[0])]
       : [];
 
@@ -775,9 +776,7 @@ function buildQuestions(session: ActiveSession): Question[] {
     }
   }
 
-  const wantsLiveDeadPractice = session.kind === "tone-rule" || isLiveDeadLesson(session);
-
-  const liveDeadTarget = session.kind === "tone-rule" ? 4 : 3;
+  const liveDeadTarget = session.kind === "live-dead" ? 10 : session.kind === "tone-rule" ? 4 : 3;
   const liveDeadRound: Question[] = [];
   if (wantsLiveDeadPractice) {
     for (let i = 0; i < liveDeadTarget * 3 && liveDeadRound.length < liveDeadTarget; i++) {
@@ -799,6 +798,11 @@ function buildQuestions(session: ActiveSession): Question[] {
           choices: focusItems,
         }]
       : [];
+
+  if (session.kind === "live-dead") {
+    if (liveDeadRound.length === 0) return [];
+    return toneGuideRound.concat(shuffleStrong(liveDeadRound));
+  }
 
   // 声调规则专项练习：题目里只有 tone-derive / live-dead，不要其他题型
   if (session.kind === "tone-rule") {
@@ -1800,6 +1804,7 @@ function lessonKindMeta(kind: CourseLesson["kind"]): {
   if (kind === "consonant") return { label: "辅音", Icon: Star, chip: "chip-high" };
   if (kind === "vowel") return { label: "元音", Icon: BookOpen, chip: "chip-yellow" };
   if (kind === "blend") return { label: "拼读", Icon: Sparkles, chip: "chip-blue" };
+  if (kind === "live-dead") return { label: "活死音节", Icon: Dumbbell, chip: "chip-blue" };
   if (kind === "tone-rule") return { label: "声调推导", Icon: Sparkles, chip: "chip-high" };
   return { label: "复习", Icon: Dumbbell, chip: "chip-low" };
 }

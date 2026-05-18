@@ -12,7 +12,7 @@ import { CONSONANTS } from "@/data/consonants";
 import { VOWELS } from "@/data/vowels";
 import type { StudyItem } from "@/lib/study";
 
-export type LessonKind = "consonant" | "vowel" | "blend" | "review" | "tone-rule";
+export type LessonKind = "consonant" | "vowel" | "blend" | "review" | "live-dead" | "tone-rule";
 
 export interface CourseLesson {
   id: string;
@@ -243,7 +243,7 @@ function makeMainCourse(): CourseLesson[] {
     unit: string,
     title: string,
     subtitle: string,
-    kind: "blend" | "review" | "tone-rule",
+    kind: "blend" | "review" | "live-dead" | "tone-rule",
     ids: string[]
   ) => {
     add(unit, {
@@ -282,6 +282,7 @@ function makeMainCourse(): CourseLesson[] {
   addPractice("第 3 课 · 中辅音声调", "声调符号认识", "先记 -่ -้ -๊ -๋ 四个声调符号和它们出现的位置。", "review", chapter1Core);
   addPractice("第 3 课 · 中辅音声调", "中辅音 + 短元音", "用中辅音和短元音做声调规则预备。", "blend", [...c(MID_CONSONANTS), ...v(["a-short", "i-short", "ue-short", "u-short"])]);
   addPractice("第 3 课 · 中辅音声调", "中辅音 + 长元音", "用中辅音和长元音做声调规则预备。", "blend", [...c(MID_CONSONANTS), ...v(["a-long", "i-long", "ue-long", "u-long"])]);
+  addPractice("第 3 课 · 中辅音声调", "活音节 / 死音节入门", "先单独判断活音节和死音节：短元音裸音节是死，长元音裸音节是活。", "live-dead", [...c(MID_CONSONANTS), ...v(BASIC_VOWELS_1)]);
   addPractice("第 3 课 · 中辅音声调", "中辅音声调推导", "先看规则讲解，再带提示做声调推导：中辅音 + 元音长短 + 声调符号。", "tone-rule", [...c(MID_CONSONANTS), ...v(BASIC_VOWELS_1)]);
   addPractice("第 3 课 · 中辅音声调", "中辅音声调复习", "把中辅音、短长元音、声调标记之间的关系再洗一遍；仍保留规则提示。", "review", chapter1Core);
 
@@ -315,7 +316,7 @@ function makeMainCourse(): CourseLesson[] {
 
   addPractice("第 10 课 · 浊尾辅音", "塞音尾规则", "集中练 แม่กก แม่กด แม่กบ，读音只保留 k / t / p。", "review", consonantsByFinalSound(["k", "t", "p"]));
   addPractice("第 10 课 · 浊尾辅音", "塞音尾 + 短元音", "塞音尾和短元音组合，准备活音/死音判断。", "blend", uniq([...consonantsByFinalSound(["k", "t", "p"]), ...v(["a-short", "i-short", "u-short", "e-short", "o-short"])]));
-  addPractice("第 10 课 · 浊尾辅音", "活音节 / 死音节判断", "先讲活音节/死音节定义，再带提示判断元音长短和尾辅音类型。", "tone-rule", uniq([...c(MID_CONSONANTS), ...chapter4Core, ...chapter5Core, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2.slice(0, 4))]));
+  addPractice("第 10 课 · 浊尾辅音", "活音节 / 死音节判断", "先讲活音节/死音节定义，再带提示判断元音长短和尾辅音类型。", "live-dead", uniq([...c(MID_CONSONANTS), ...chapter4Core, ...chapter5Core, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2.slice(0, 4))]));
   addPractice("第 10 课 · 浊尾辅音", "尾辅音对照", "把响音尾和塞音尾混在一起，练最终读音而不是字母形状。", "blend", uniq([...allConsonants, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2)]));
   addPractice("第 10 课 · 浊尾辅音", "尾辅音 + 声调综合", "全单元综合推导：辅音类别 + 元音长短 + 尾辅音类型 + 声调符号 → 真实声调。", "tone-rule", uniq([...allConsonants, ...v(BASIC_VOWELS_1), ...v(BASIC_VOWELS_2)]));
 
