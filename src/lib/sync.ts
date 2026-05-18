@@ -15,6 +15,7 @@ const COURSE_PROGRESS_SYNC_KEY = "thai-alphabet:course-progress:v2";
 // 这些 key 才参与同步
 const SYNC_KEYS = new Set<string>([
   "thai-alphabet:mastery:v2",                // 多维熟练度（含 SRS 字段）
+  "thai-alphabet:vocabulary-progress:v1",    // 词汇熟练度 + 正式闪卡游标（只记录见过的词）
   "thai-alphabet:stats:v1",                  // streak / active days
   COURSE_PROGRESS_SYNC_KEY,                  // 课程列表完成进度
   "thai:module:alphabet-final:v1",           // 字母期末通过状态
@@ -223,6 +224,7 @@ function isSyncableKey(key: string): boolean {
 
 function dispatchDataEvents() {
   window.dispatchEvent(new Event("thai-alphabet:mastery"));
+  window.dispatchEvent(new Event("thai-alphabet:vocabulary-progress"));
   window.dispatchEvent(new Event("thai-alphabet:stats"));
   window.dispatchEvent(new Event("thai-alphabet:course-progress"));
   window.dispatchEvent(new Event("thai:module:alphabet-final"));

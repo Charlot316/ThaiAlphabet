@@ -3368,6 +3368,72 @@ function toneMarkLabel(mark: ToneMark): string {
   return TONE_MARKS.find((m) => m.id === mark)?.symbol ?? "";
 }
 
+const TONE_RULE_COLUMNS: Array<{ mark: ToneMark; label: string }> = [
+  { mark: "none", label: "无符号" },
+  { mark: "ek", label: "่" },
+  { mark: "tho", label: "้" },
+  { mark: "tri", label: "๊" },
+  { mark: "chattawa", label: "๋" },
+];
+
+const TONE_RULE_ROWS: Array<{
+  id: ReturnType<typeof toneRuleBucket>;
+  label: string;
+  hint: string;
+  color: string;
+  tones: Partial<Record<ToneMark, ToneName>>;
+}> = [
+  {
+    id: "mid-live",
+    label: "中辅音 + 活",
+    hint: "长元音无尾 / 响音尾",
+    color: "var(--duo-blue-d)",
+    tones: { none: "mid", ek: "low", tho: "falling", tri: "high", chattawa: "rising" },
+  },
+  {
+    id: "mid-dead",
+    label: "中辅音 + 死",
+    hint: "短元音裸 / k t p 尾",
+    color: "var(--duo-blue-d)",
+    tones: { none: "low", ek: "low", tho: "falling", tri: "high", chattawa: "rising" },
+  },
+  {
+    id: "high-live",
+    label: "高辅音 + 活",
+    hint: "长元音无尾 / 响音尾",
+    color: "var(--duo-green-d)",
+    tones: { none: "rising", ek: "low", tho: "falling" },
+  },
+  {
+    id: "high-dead",
+    label: "高辅音 + 死",
+    hint: "短元音裸 / k t p 尾",
+    color: "var(--duo-green-d)",
+    tones: { none: "low", ek: "low", tho: "falling" },
+  },
+  {
+    id: "low-live",
+    label: "低辅音 + 活",
+    hint: "长元音无尾 / 响音尾",
+    color: "var(--duo-orange-d)",
+    tones: { none: "mid", ek: "falling", tho: "high" },
+  },
+  {
+    id: "low-dead-short",
+    label: "低辅音 + 死短",
+    hint: "短元音 + 死音节",
+    color: "var(--duo-orange-d)",
+    tones: { none: "high", ek: "falling", tho: "high" },
+  },
+  {
+    id: "low-dead-long",
+    label: "低辅音 + 死长",
+    hint: "长元音 + k t p 尾",
+    color: "var(--duo-orange-d)",
+    tones: { none: "falling", ek: "falling", tho: "high" },
+  },
+];
+
 function describeFinalForRule(finalConsonant: Consonant | null): string {
   if (!finalConsonant) return "无尾音";
   const sound = finalConsonant.finalSound;
@@ -3449,39 +3515,51 @@ function ToneRuleCheatsheet({ defaultOpen = false }: { defaultOpen?: boolean }) 
         <span className="opacity-70">{open ? "收起 ▲" : "展开 ▼"}</span>
       </button>
       {open && (
-        <div className="border-t px-3 py-2" style={{ borderColor: "var(--duo-line)" }}>
-          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 leading-5">
-            <span className="font-semibold" style={{ color: "var(--duo-blue-d)" }}>中辅音 活</span>
-            <span>
-              无符号 → <b>{TONE_SYMBOL.mid}</b> ｜ ่ → <b>{TONE_SYMBOL.low}</b> ｜ ้ → <b>{TONE_SYMBOL.falling}</b> ｜ ๊ → <b>{TONE_SYMBOL.high}</b> ｜ ๋ → <b>{TONE_SYMBOL.rising}</b>
-            </span>
-            <span className="font-semibold" style={{ color: "var(--duo-blue-d)" }}>中辅音 死</span>
-            <span>
-              无符号 → <b>{TONE_SYMBOL.low}</b> ｜ ่ → <b>{TONE_SYMBOL.low}</b> ｜ ้ → <b>{TONE_SYMBOL.falling}</b>
-            </span>
-            <span className="font-semibold" style={{ color: "var(--duo-green-d)" }}>高辅音 活</span>
-            <span>
-              无符号 → <b>{TONE_SYMBOL.rising}</b> ｜ ่ → <b>{TONE_SYMBOL.low}</b> ｜ ้ → <b>{TONE_SYMBOL.falling}</b>
-            </span>
-            <span className="font-semibold" style={{ color: "var(--duo-green-d)" }}>高辅音 死</span>
-            <span>
-              无符号 → <b>{TONE_SYMBOL.low}</b> ｜ ่ → <b>{TONE_SYMBOL.low}</b> ｜ ้ → <b>{TONE_SYMBOL.falling}</b>
-            </span>
-            <span className="font-semibold" style={{ color: "var(--duo-orange-d)" }}>低辅音 活</span>
-            <span>
-              无符号 → <b>{TONE_SYMBOL.mid}</b> ｜ ่ → <b>{TONE_SYMBOL.falling}</b> ｜ ้ → <b>{TONE_SYMBOL.high}</b>
-            </span>
-            <span className="font-semibold" style={{ color: "var(--duo-orange-d)" }}>低辅音 死短</span>
-            <span>
-              无符号 → <b>{TONE_SYMBOL.high}</b> ｜ ่ → <b>{TONE_SYMBOL.falling}</b> ｜ ้ → <b>{TONE_SYMBOL.high}</b>
-            </span>
-            <span className="font-semibold" style={{ color: "var(--duo-orange-d)" }}>低辅音 死长</span>
-            <span>
-              无符号 → <b>{TONE_SYMBOL.falling}</b> ｜ ่ → <b>{TONE_SYMBOL.falling}</b> ｜ ้ → <b>{TONE_SYMBOL.high}</b>
-            </span>
+        <div className="border-t px-3 py-3" style={{ borderColor: "var(--duo-line)" }}>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[620px] border-separate border-spacing-0 text-center text-[11px] leading-4">
+              <thead>
+                <tr>
+                  <th className="sticky left-0 z-10 rounded-tl-lg border px-2 py-2 text-left" style={{ background: "var(--duo-card)", borderColor: "var(--duo-line)" }}>
+                    条件
+                  </th>
+                  {TONE_RULE_COLUMNS.map((column) => (
+                    <th key={column.mark} className="border-y border-r px-2 py-2" style={{ background: "var(--duo-card)", borderColor: "var(--duo-line)" }}>
+                      <div className="font-extrabold">{column.label}</div>
+                      <div className="mt-0.5 opacity-60">{column.mark === "none" ? "0 标记" : TONE_MARKS.find((m) => m.id === column.mark)?.nameRoman}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {TONE_RULE_ROWS.map((row) => (
+                  <tr key={row.id}>
+                    <th className="sticky left-0 z-10 border-x border-b px-2 py-2 text-left align-middle" style={{ background: "var(--duo-card)", borderColor: "var(--duo-line)" }}>
+                      <div className="font-extrabold" style={{ color: row.color }}>{row.label}</div>
+                      <div className="mt-0.5 font-normal opacity-60">{row.hint}</div>
+                    </th>
+                    {TONE_RULE_COLUMNS.map((column) => {
+                      const tone = row.tones[column.mark];
+                      return (
+                        <td key={`${row.id}:${column.mark}`} className="border-b border-r px-2 py-2 align-middle" style={{ borderColor: "var(--duo-line)" }}>
+                          {tone ? (
+                            <div className="inline-flex min-w-12 flex-col items-center rounded-md px-2 py-1" style={{ background: "color-mix(in srgb, var(--duo-blue) 10%, transparent)" }}>
+                              <b className="text-sm">{TONE_SYMBOL[tone]}</b>
+                              <span className="mt-0.5 opacity-70">{TONE_NAMES[tone].cn}</span>
+                            </div>
+                          ) : (
+                            <span className="text-base font-extrabold opacity-35">×</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
           <div className="mt-2 text-[11px] opacity-75">
-            声调编号：<b>0</b> สามัญ 平 ｜ <b>1</b> เอก 低 ｜ <b>2</b> โท 降 ｜ <b>3</b> ตรี 高 ｜ <b>4</b> จัตวา 升。活音节 = 长元音 或 响音/滑音尾 (n/m/ng/y/w)；死音节 = 短元音裸 或 塞音尾 (k/t/p)。
+            声调编号：<b>0</b> สามัญ 平 ｜ <b>1</b> เอก 低 ｜ <b>2</b> โท 降 ｜ <b>3</b> ตรี 高 ｜ <b>4</b> จัตวา 升。× 表示常规拼读里不使用这个组合。活音节 = 长元音 或 响音/滑音尾 (n/m/ng/y/w)；死音节 = 短元音裸 或 塞音尾 (k/t/p)。
           </div>
         </div>
       )}
